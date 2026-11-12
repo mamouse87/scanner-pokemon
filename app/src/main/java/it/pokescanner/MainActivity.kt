@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
     private var lang = "it"
     private var fanMode = false
     private var nameCheck = true
-    private var detectRev = true
+    private var reverseMode = false
     private val prefs by lazy { getSharedPreferences("app", MODE_PRIVATE) }
 
     @Volatile private var paused = false   // durante lo scatto del ventaglio / i dialoghi
@@ -139,7 +139,7 @@ class MainActivity : AppCompatActivity() {
         lang = prefs.getString("lang", "it") ?: "it"
         fanMode = prefs.getBoolean("fan", false)
         nameCheck = prefs.getBoolean("nameCheck", true)
-        detectRev = prefs.getBoolean("detectRev", true)
+        reverseMode = prefs.getBoolean("reverseMode", false)
 
         // lingua
         spLang.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
@@ -163,8 +163,14 @@ class MainActivity : AppCompatActivity() {
         }
         cbName.isChecked = nameCheck
         cbName.setOnCheckedChangeListener { _, c -> nameCheck = c; prefs.edit().putBoolean("nameCheck", c).apply() }
-        cbRev.isChecked = detectRev
-        cbRev.setOnCheckedChangeListener { _, c -> detectRev = c; prefs.edit().putBoolean("detectRev", c).apply() }
+        cbRev.isChecked = reverseMode
+        overlay.reverseMode = reverseMode
+        cbRev.setOnCheckedChangeListener { _, c ->
+            reverseMode = c; overlay.reverseMode = c
+            prefs.edit().putBoolean("reverseMode", c).apply()
+            resetCand(); locked = null
+            status(if (c) "Modalità REVERSE: tutte le carte che scansioni ora sono Reverse Holo." else "Modalità normale.")
+        }
         findViewById<Button>(R.id.btnSwap).setOnClickListener {
             val r = Inventory.toggleLastVariant(this)
             if (r == null) { tvLast.text = "Nessuna carta da cambiare"; return@setOnClickListener }
@@ -363,9 +369,6 @@ class MainActivity : AppCompatActivity() {
         val sd = set ?: return
         val lines = Recognizer.lines(text)
         val scan = Recognizer.scanLines(lines, sd)
-        if (detectRev) scan.good.forEach { hit ->
-            hit.codeBox?.let { hit.reverse = Recognizer.isLightBadge(it, yp::lum, w, h) }
-        }
         lastScan = scan
         overlay.show(scan, w, h)
 
@@ -423,12 +426,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Variante decisa a maggioranza sui fotogrammi letti. Restituisce ("" o "R", deciso con certezza?) */
-    private fun decideVariant(): Pair<String, Boolean> {
-        if (!detectRev || candRev.isEmpty()) return "" to !detectRev
-        val rev = candRev.count { it }
-        val norm = candRev.size - rev
-        return (if (rev > norm) "R" else "") to (rev != norm)
-    }
+    private fun decideVariant(): Pair<String, Boolean> = (if (reverseMode) "R" else "") to true
 
     private fun askDuplicate(n: String, variant: String, sure: Boolean) {
         val sd = set ?: return
@@ -478,9 +476,6 @@ class MainActivity : AppCompatActivity() {
                     .addOnSuccessListener { t ->
                         fanDone()
                         val sc = Recognizer.scan(t, sd)
-                        if (detectRev) sc.good.forEach { hit ->
-                            hit.codeBox?.let { hit.reverse = Recognizer.isLightBadge(it, { x, y -> bmpLum(bmp, x, y) }, bmp.width, bmp.height) }
-                        }
                         showFanResult(bmp, sc, sd)
                     }
                     .addOnFailureListener { fanDone(); status("Errore di lettura, riprova.", true) }
@@ -508,10 +503,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun showFanResult(bmp: Bitmap?, scan: Recognizer.Scan, sd: SetData) {
         paused = true
+        scan.good.forEach { it.reverse = reverseMode }
         val counts = scan.good.groupingBy { CardRepo.norm(it.num) to (if (it.reverse == true) "R" else "") }.eachCount()
             .toSortedMap(compareBy<Pair<String, String>>({ it.first.toIntOrNull() ?: Int.MAX_VALUE }, { it.first }, { it.second }))
         val revN = scan.good.count { it.reverse == true }
-        val unknownN = if (detectRev) scan.good.count { it.reverse == null } else 0
+        val unknownN = 0
         val total = scan.good.size
 
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 16, 40, 0) }
@@ -537,7 +533,7 @@ class MainActivity : AppCompatActivity() {
             val name = sd.cards[nv.first]?.name ?: ""
             sb.append("${CardRepo.pad(nv.first)} $name${if (nv.second == "R") "  ✦Reverse" else ""}${if (c > 1) "  ×$c" else ""}\n")
         }
-        if (revN > 0) sb.append("\nDi cui $revN Reverse Holo (sigla in viola).\n")
+        if (revN > 0) sb.append("\nTutte Reverse Holo (modalità Reverse attiva).\n")
         if (unknownN > 0) sb.append("⚠ Per $unknownN carte non sono riuscito a capire se sono Reverse (sigla grigia): contate come normali.\n")
         if (scan.bad.isNotEmpty())
             sb.append("\n⚠ ${scan.bad.size} righe con totale diverso da /${sd.total} (in rosso, ignorate).\n")

@@ -36,8 +36,18 @@ class OverlayView(ctx: Context, attrs: AttributeSet?) : View(ctx, attrs) {
 
     fun clear() { scan = null; invalidate() }
 
+    /** Cornice viola sull'anteprima quando la modalità Reverse è attiva, per non dimenticarla accesa. */
+    var reverseMode = false
+        set(v) { field = v; invalidate() }
+    private val pFrame = Paint().apply { color = REVERSE; style = Paint.Style.STROKE; strokeWidth = 18f }
+    private val pLabel = Paint().apply { color = REVERSE; textSize = 48f; isFakeBoldText = true; isAntiAlias = true }
+
     override fun onDraw(c: Canvas) {
         super.onDraw(c)
+        if (reverseMode) {
+            c.drawRect(9f, 9f, width - 9f, height - 9f, pFrame)
+            c.drawText("REVERSE", 36f, 76f, pLabel)
+        }
         val s0 = scan ?: return
         // stessa regola di PreviewView (FILL_CENTER): scala per riempire e centra
         val s = max(width.toFloat() / iw, height.toFloat() / ih)
@@ -48,7 +58,7 @@ class OverlayView(ctx: Context, attrs: AttributeSet?) : View(ctx, attrs) {
         s0.bad.forEach { h -> h.box?.let { rect(it, pBad) } }
         s0.good.forEach { h ->
             h.box?.let { rect(it, pGood, 6f) }
-            h.codeBox?.let { pCode.color = codeColor(h.reverse); rect(it, pCode) }
+            if (h.reverse != null) h.codeBox?.let { pCode.color = codeColor(h.reverse); rect(it, pCode) }
         }
     }
 }

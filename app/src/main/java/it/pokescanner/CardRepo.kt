@@ -10,8 +10,8 @@ import java.net.URL
 import java.net.URLEncoder
 
 data class SetInfo(val id: String, val name: String, val official: Int)
-data class CardInfo(val id: String, val localId: String, val name: String)
-class SetData(val id: String, val name: String, val total: Int, val cards: Map<String, CardInfo>)
+data class CardInfo(val id: String, val localId: String, val name: String, val image: String = "")
+class SetData(val id: String, val name: String, val total: Int, val cards: Map<String, CardInfo>, val logo: String = "", val symbol: String = "")
 
 /** Dati carte da TCGdex (gratuito, anche in italiano). Ogni risposta viene salvata: offline usa la copia. */
 object CardRepo {
@@ -62,10 +62,10 @@ object CardRepo {
             val c = arr.getJSONObject(i)
             val local = c.optString("localId", "")
             if (local.isEmpty()) continue
-            cards[norm(local)] = CardInfo(c.optString("id", ""), local, c.optString("name", ""))
+            cards[norm(local)] = CardInfo(c.optString("id", ""), local, c.optString("name", ""), c.optString("image", ""))
         }
         val total = o.optJSONObject("cardCount")?.optInt("official", 0) ?: 0
-        return SetData(o.getString("id"), o.optString("name", id), total, cards)
+        return SetData(o.getString("id"), o.optString("name", id), total, cards, o.optString("logo", ""), o.optString("symbol", ""))
     }
 
     fun rarity(ctx: Context, lang: String, cardId: String): String? = try {

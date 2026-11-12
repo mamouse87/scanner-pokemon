@@ -17,6 +17,10 @@ import androidx.core.content.FileProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import java.io.File
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ListActivity : AppCompatActivity() {
 
@@ -50,12 +54,53 @@ class ListActivity : AppCompatActivity() {
             Toast.makeText(this, "Testo copiato", Toast.LENGTH_SHORT).show()
         }
         findViewById<Button>(R.id.btnCsv).setOnClickListener { shareCsv() }
+        findViewById<Button>(R.id.btnCatalog).setOnClickListener { makeCatalog(it as Button) }
         findViewById<Button>(R.id.btnClear).setOnClickListener {
             AlertDialog.Builder(this).setMessage("Svuotare tutta la lista?")
                 .setPositiveButton("Svuota") { _, _ -> Inventory.clear(this); refresh() }
                 .setNegativeButton("Annulla", null).show()
         }
         refresh()
+    }
+
+    private fun makeCatalog(btn: Button) {
+        if (Inventory.items.isEmpty()) { Toast.makeText(this, "Lista vuota", Toast.LENGTH_SHORT).show(); return }
+        btn.isEnabled = false
+        btn.text = "Creo il catalogo…"
+        lifecycleScope.launch {
+            val f = withContext(Dispatchers.IO) {
+                runCatching {
+                    val dir = File(cacheDir, "export").apply { mkdirs() }
+                    File(dir, "catalogo-carte.html").apply { writeText(Catalog.build(this@ListActivity), Charsets.UTF_8) }
+                }.getOrNull()
+            }
+            btn.isEnabled = true
+            btn.text = "🖼 Catalogo"
+            if (f == null) { Toast.makeText(this@ListActivity, "Errore nella creazione del catalogo", Toast.LENGTH_LONG).show(); return@launch }
+            val uri = FileProvider.getUriForFile(this@ListActivity, "$packageName.files", f)
+            AlertDialog.Builder(this@ListActivity)
+                .setTitle("Catalogo pronto")
+                .setMessage("Pagina con tutte le carte divise per set, con loghi e immagini. Serve internet per vedere le immagini.")
+                .setPositiveButton("Apri") { _, _ ->
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "text/html")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        })
+                    } catch (e: Exception) {
+                        Toast.makeText(this@ListActivity, "Nessun browser per aprirlo: usa Condividi", Toast.LENGTH_LONG).show()
+                    }
+                }
+                .setNeutralButton("Condividi") { _, _ ->
+                    startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                        type = "text/html"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }, "Invia il catalogo"))
+                }
+                .setNegativeButton("Chiudi", null)
+                .show()
+        }
     }
 
     private fun shareCsv() {

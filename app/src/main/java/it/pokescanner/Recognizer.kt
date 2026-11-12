@@ -59,36 +59,44 @@ object Recognizer {
     // ---- Reverse Holo: colore dello stemma della sigla ----
 
     /**
-     * Guarda i pixel del riquadro della sigla: se prevalgono i pixel scuri lo stemma è nero con scritta bianca
-     * (carta normale), se prevalgono i chiari è bianco con scritta nera (Reverse Holo).
-     * Funziona con qualsiasi luce perché confronta i pixel tra loro, non con una soglia fissa.
+     * Confronta le lettere della sigla con lo sfondo dello stemma subito sopra e sotto il testo.
+     * Lettere più chiare dello sfondo = stemma nero, scritta bianca (normale).
+     * Lettere più scure dello sfondo = stemma bianco, scritta nera (Reverse Holo).
+     * Non dipende dallo spessore delle lettere né dalla luce.
      */
-    fun isLightBadge(r0: Rect, lum: (Int, Int) -> Int, w: Int, h: Int): Boolean? {
-        val padY = r0.height() / 8
-        val l = r0.left.coerceIn(0, w - 1)
-        val rr = r0.right.coerceIn(0, w)
-        val t = (r0.top - padY).coerceIn(0, h - 1)
-        val b = (r0.bottom + padY).coerceIn(0, h)
-        if (rr - l < 4 || b - t < 4) return null
-        val sx = max(1, (rr - l) / 60)
-        val sy = max(1, (b - t) / 30)
-        val vals = ArrayList<Int>()
-        var y = t
-        while (y < b) {
-            var x = l
-            while (x < rr) { vals.add(lum(x, y)); x += sx }
-            y += sy
+    fun isLightBadge(r: Rect, lum: (Int, Int) -> Int, w: Int, h: Int): Boolean? {
+        val bh = r.height()
+        val bw = r.width()
+        if (bh < 6 || bw < 6) return null
+        fun mean(x0: Int, y0: Int, x1: Int, y1: Int): Double? {
+            val l = x0.coerceIn(0, w); val rr = x1.coerceIn(0, w)
+            val t = y0.coerceIn(0, h); val b = y1.coerceIn(0, h)
+            if (rr - l < 2 || b - t < 1) return null
+            val sx = max(1, (rr - l) / 40)
+            val sy = max(1, (b - t) / 20)
+            var sum = 0L; var n = 0
+            var y = t
+            while (y < b) { var x = l; while (x < rr) { sum += lum(x, y); n++; x += sx }; y += sy }
+            return if (n == 0) null else sum.toDouble() / n
         }
-        if (vals.size < 20) return null
-        vals.sort()
-        val p5 = vals[vals.size * 5 / 100]
-        val p95 = vals[vals.size * 95 / 100]
-        if (p95 - p5 < 40) return null // niente contrasto: non si capisce
-        val mid = (p5 + p95) / 2
-        val darkFrac = vals.count { it < mid }.toDouble() / vals.size
+        val inner = mean(r.left, r.top, r.right, r.bottom) ?: return null
+        val x0 = r.left + bw * 15 / 100
+        val x1 = r.right - bw * 15 / 100
+        val d0 = max(1, bh * 4 / 100)
+        val d1 = max(d0 + 2, bh * 14 / 100)
+        val above = mean(x0, r.top - d1, x1, r.top - d0)
+        val below = mean(x0, r.bottom + d0, x1, r.bottom + d1)
+        val band = when {
+            above != null && below != null -> {
+                if (kotlin.math.abs(above - below) > 90) return null // sopra e sotto in disaccordo: riquadro impreciso
+                (above + below) / 2
+            }
+            else -> above ?: below ?: return null
+        }
+        val diff = inner - band
         return when {
-            darkFrac > 0.56 -> false
-            darkFrac < 0.44 -> true
+            diff < -25 -> true
+            diff > 25 -> false
             else -> null
         }
     }

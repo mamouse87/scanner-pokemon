@@ -6,24 +6,33 @@
 <title>Scanner carte Pokémon</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
-:root{--bg:#111418;--card:#1c2128;--fg:#e8eaed;--mut:#9aa3ad;--acc:#ffcb05;--ok:#3ecf6e;--bad:#ff6b6b}
+:root{--bg:#111418;--card:#1c2128;--fg:#e8eaed;--mut:#9aa3ad;--acc:#ffcb05;--ok:#3ecf6e;--bad:#ff6b6b;--mid:#ff9f43;--name:#4dabf7}
 *{box-sizing:border-box}
 body{margin:0;font:15px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
 .wrap{padding:12px;display:grid;gap:12px;max-width:900px;margin:auto}
 .panel{background:var(--card);border-radius:12px;padding:12px;display:grid;gap:8px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 select,input,button,textarea{font:inherit;border-radius:8px;border:1px solid #333a44;background:#0d1014;color:var(--fg);padding:8px}
+input[type=checkbox]{width:20px;height:20px;vertical-align:middle}
 button{background:#2a313b;cursor:pointer}
 button.pri{background:var(--acc);color:#111;border:0;font-weight:600}
 button.big{padding:12px 18px;font-size:16px}
 #setSel{flex:1;min-width:180px}
 label{font-size:13px;color:var(--mut)}
-#cam{position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:4/3;display:none}
+label.chk{font-size:14px;color:var(--fg);display:flex;gap:6px;align-items:center}
+#cam{position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:4/3;display:none;touch-action:none;user-select:none}
 video{width:100%;height:100%;object-fit:cover;display:block}
-#box{position:absolute;left:6%;right:6%;top:42%;height:16%;border:3px solid var(--acc);border-radius:6px;box-shadow:0 0 0 999px rgba(0,0,0,.4)}
-#box.ok{border-color:var(--ok)}#box.bad{border-color:var(--bad)}
+.box{position:absolute;border:3px solid var(--acc);border-radius:6px;background:rgba(255,255,255,.03);touch-action:none}
+.box .tag{position:absolute;top:-22px;left:-3px;font-size:12px;background:var(--acc);color:#111;padding:1px 6px;border-radius:4px;white-space:nowrap}
+.box .rs{position:absolute;right:-12px;bottom:-12px;width:26px;height:26px;border-radius:50%;background:var(--acc);border:2px solid #111}
+.box.ok{border-color:var(--ok)}.box.bad{border-color:var(--bad)}.box.mid{border-color:var(--mid)}
+#nameBox{border-color:var(--name)}#nameBox .tag,#nameBox .rs{background:var(--name)}
+#nameBox.ok{border-color:var(--ok)}#nameBox.bad{border-color:var(--bad)}
+#prev{display:none;gap:8px;align-items:center;flex-wrap:wrap}
+#prev canvas{height:44px;max-width:100%;background:#fff;border-radius:4px}
 #last{font-size:18px;font-weight:600;min-height:1.4em}
 #status{font-size:14px;color:var(--mut);min-height:1.4em}
+#status.warn{color:var(--bad)}#status.mid{color:var(--mid)}
 #ocr{font-family:monospace;font-size:12px;color:var(--mut);min-height:1.2em}
 table{width:100%;border-collapse:collapse}
 td,th{padding:6px 4px;border-bottom:1px solid #2a313b;text-align:left;vertical-align:middle}
@@ -32,7 +41,6 @@ td.q button{padding:2px 10px}
 h3{margin:12px 0 4px;font-size:15px;color:var(--acc)}
 textarea{width:100%;min-height:180px;font:13px/1.35 monospace}
 .mut{color:var(--mut);font-size:13px}
-.warn{color:var(--bad)}
 </style>
 </head>
 <body>
@@ -54,21 +62,34 @@ textarea{width:100%;min-height:180px;font:13px/1.35 monospace}
       <label>Totale carte <input id="total" size="5" inputmode="numeric" placeholder="es. 198"></label>
       <span id="setInfo" class="mut"></span>
     </div>
+    <div class="row">
+      <label class="chk"><input type="checkbox" id="reqCode" checked> Sigla obbligatoria</label>
+      <label class="chk"><input type="checkbox" id="chkName"> Verifica nome carta</label>
+      <label class="chk"><input type="checkbox" id="showPrev" checked> Anteprima lettura</label>
+    </div>
+    <div id="codeNote" class="mut"></div>
   </div>
 
   <div class="row">
     <button id="startBtn" class="pri big">▶ Avvia scansione</button>
     <button id="torchBtn" style="display:none">🔦 Luce</button>
     <label id="zoomWrap" style="display:none">Zoom <input id="zoom" type="range"></label>
+    <button id="resetBoxes" style="display:none">↺ Riquadri</button>
   </div>
 
-  <div id="cam"><video id="video" playsinline muted></video><div id="box"></div></div>
+  <div id="cam">
+    <video id="video" playsinline muted></video>
+    <div id="nameBox" class="box" style="display:none"><span class="tag">nome</span><span class="rs"></span></div>
+    <div id="box" class="box"><span class="tag">numero / sigla</span><span class="rs"></span></div>
+  </div>
+  <div id="prev"><span class="mut">Il lettore vede:</span><canvas id="prevNum"></canvas><canvas id="prevName" style="display:none"></canvas></div>
   <div id="last"></div>
-  <div id="status">Scegli lingua e set, poi avvia. Inquadra la riga del numero (es. 123/198) dentro il riquadro.</div>
+  <div id="status">Scegli lingua e set, poi avvia. Trascina i riquadri sulla riga del numero; il pallino in basso a destra li ridimensiona.</div>
   <div id="ocr"></div>
+  <div class="row"><button id="forceBtn" class="pri" style="display:none"></button></div>
 
   <div class="row">
-    <input id="manualNum" placeholder="Numero a mano (es. 45)" inputmode="text" style="flex:1;min-width:140px">
+    <input id="manualNum" placeholder="Numero a mano (es. 45)" style="flex:1;min-width:140px">
     <button id="manualAdd">+ Aggiungi</button>
     <button id="undoBtn">↶ Annulla ultima</button>
   </div>
@@ -95,22 +116,39 @@ textarea{width:100%;min-height:180px;font:13px/1.35 monospace}
 const $ = id => document.getElementById(id);
 const API = 'https://api.tcgdex.net/v2';
 const LS = 'pkscan_v1';
+const DEF_BOXES = { num:{l:6,t:44,w:88,h:14}, name:{l:6,t:18,w:70,h:12} };
 
 let sets = [];
 let setData = null;   // {id,name,code,total,cards:Map(norm -> {id,name,localId})}
-let inv = {};         // key -> item
+let inv = {};
 let history = [];
-let worker = null, stream = null, track = null, running = false, audioCtx = null;
-let torchOn = false;
+let boxes = JSON.parse(JSON.stringify(DEF_BOXES));
+let opts = {reqCode:true, chkName:false, showPrev:true};
+let wNum = null, wName = null, stream = null, track = null, running = false, audioCtx = null, torchOn = false;
 
 /* ---------- storage ---------- */
-function save(){ try{ localStorage.setItem(LS, JSON.stringify({inv, lang:$('lang').value, set:setData&&setData.id})); }catch(e){} }
+function save(){ try{ localStorage.setItem(LS, JSON.stringify({inv, lang:$('lang').value, set:setData&&setData.id, boxes, opts})); }catch(e){} }
 function loadState(){ try{ return JSON.parse(localStorage.getItem(LS))||{}; }catch(e){ return {}; } }
 
 /* ---------- helpers ---------- */
 const norm = n => /^\d+$/.test(n) ? String(parseInt(n,10)) : n.toUpperCase();
 const pad = n => /^\d+$/.test(n) ? n.padStart(3,'0') : n;
 function status(t, cls){ $('status').textContent = t; $('status').className = cls||''; }
+function esc(s){ return String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const codeActive = () => opts.reqCode && setData && !!setData.code;
+
+/* ---------- options ---------- */
+function applyOpts(){
+  $('reqCode').checked = opts.reqCode; $('chkName').checked = opts.chkName; $('showPrev').checked = opts.showPrev;
+  $('nameBox').style.display = opts.chkName ? '' : 'none';
+  $('prevName').style.display = opts.chkName ? '' : 'none';
+  $('prev').style.display = (opts.showPrev && running) ? 'flex' : 'none';
+  $('codeNote').textContent = (opts.reqCode && setData && !setData.code)
+    ? 'Questo set non ha una sigla nel database: la sigla non viene controllata (scrivila sopra se è stampata sulle carte).' : '';
+}
+$('reqCode').onchange = e => { opts.reqCode = e.target.checked; applyOpts(); save(); };
+$('chkName').onchange = e => { opts.chkName = e.target.checked; applyOpts(); save(); if(running && opts.chkName) ensureNameWorker(); };
+$('showPrev').onchange = e => { opts.showPrev = e.target.checked; applyOpts(); save(); };
 
 /* ---------- sets ---------- */
 async function loadSets(){
@@ -122,7 +160,7 @@ async function loadSets(){
     sets = (await r.json()).reverse();
     fillSetSelect();
     const st = loadState();
-    if(st.set && sets.some(s=>s.id===st.set)){ $('setSel').value = st.set; }
+    if(st.set && sets.some(s=>s.id===st.set)) $('setSel').value = st.set;
     await selectSet($('setSel').value);
   }catch(e){
     sets = [];
@@ -134,11 +172,11 @@ async function loadSets(){
 function fillSetSelect(){
   const f = $('setFilter').value.trim().toLowerCase();
   const list = sets.filter(s => !f || s.name.toLowerCase().includes(f) || s.id.toLowerCase().includes(f));
-  $('setSel').innerHTML = list.map(s=>`<option value="${s.id}">${s.name} (${s.cardCount?.official ?? '?'})</option>`).join('')
+  $('setSel').innerHTML = list.map(s=>`<option value="${esc(s.id)}">${esc(s.name)} (${s.cardCount?.official ?? '?'})</option>`).join('')
     + '<option value="__manual">— Set manuale —</option>';
 }
 async function selectSet(id){
-  if(!id || id==='__manual'){ manualSet(); return; }
+  if(!id || id==='__manual'){ manualSet(); applyOpts(); return; }
   const lang = $('lang').value;
   $('setInfo').textContent = 'carico…';
   try{
@@ -148,14 +186,15 @@ async function selectSet(id){
     const cards = new Map();
     (d.cards||[]).forEach(c => cards.set(norm(c.localId), {id:c.id, name:c.name, localId:c.localId}));
     const code = (d.abbreviation && (d.abbreviation.official || d.abbreviation.normal)) || '';
-    setData = {id:d.id, name:d.name, code, total:d.cardCount?.official||0, cards};
-    $('code').value = code; $('total').value = setData.total || '';
+    setData = {id:d.id, name:d.name, code:code.toUpperCase(), total:d.cardCount?.official||0, cards};
+    $('code').value = setData.code; $('total').value = setData.total || '';
     $('setInfo').textContent = `${cards.size} carte nel database`;
     save();
   }catch(e){
     manualSet();
     $('setInfo').textContent = 'set non caricato, modalità manuale';
   }
+  applyOpts();
 }
 function manualSet(){
   const code = $('code').value.trim().toUpperCase();
@@ -164,11 +203,11 @@ function manualSet(){
 $('lang').onchange = loadSets;
 $('setFilter').oninput = () => { fillSetSelect(); selectSet($('setSel').value); };
 $('setSel').onchange = e => selectSet(e.target.value);
-$('code').oninput = () => { if(setData){ setData.code = $('code').value.trim().toUpperCase(); if(setData.id.startsWith('manual')) manualSet(); } };
+$('code').oninput = () => { if(setData){ setData.code = $('code').value.trim().toUpperCase(); if(setData.id.startsWith('manual')) manualSet(); applyOpts(); } };
 $('total').oninput = () => { if(setData){ setData.total = parseInt($('total').value)||0; if(setData.id.startsWith('manual')) manualSet(); } };
 
 /* ---------- inventory ---------- */
-function addCard(num, codeOk){
+function addCard(num, note){
   if(!setData){ status('Scegli prima un set.', 'warn'); return; }
   const lang = $('lang').value;
   const n = norm(num);
@@ -183,7 +222,7 @@ function addCard(num, codeOk){
   history.push(key);
   save(); render();
   const it = inv[key];
-  $('last').textContent = `✓ ${pad(n)}/${setData.total||'?'} ${it.name||''}  ×${it.qty}` + (codeOk===false && setData.code ? '  (sigla non letta)' : '');
+  $('last').textContent = `✓ ${pad(n)}/${setData.total||'?'} ${it.name||''}  ×${it.qty}${note?'  ('+note+')':''}`;
   feedback();
 }
 async function fetchRarity(key){
@@ -208,7 +247,7 @@ $('undoBtn').onclick = () => {
 $('manualAdd').onclick = () => {
   const v = $('manualNum').value.trim();
   if(!v) return;
-  addCard(v.split('/')[0].trim(), null);
+  addCard(v.split('/')[0].trim(), 'a mano');
   $('manualNum').value=''; $('manualNum').focus();
 };
 $('manualNum').onkeydown = e => { if(e.key==='Enter') $('manualAdd').onclick(); };
@@ -228,8 +267,7 @@ function groups(){
 function render(){
   const g = groups();
   const tot = Object.values(inv).reduce((s,i)=>s+i.qty,0);
-  const diff = Object.keys(inv).length;
-  $('summary').textContent = tot ? `${tot} carte (${diff} diverse)` : 'Lista vuota';
+  $('summary').textContent = tot ? `${tot} carte (${Object.keys(inv).length} diverse)` : 'Lista vuota';
   let h = '';
   Object.values(g).forEach(x => {
     const n = x.items.reduce((s,[,i])=>s+i.qty,0);
@@ -244,7 +282,6 @@ function render(){
   if($('txtWrap').style.display!=='none') $('txt').value = buildText();
 }
 $('list').onclick = e => { const b=e.target.closest('button[data-k]'); if(b) changeQty(b.dataset.k, parseInt(b.dataset.d)); };
-function esc(s){ return String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 /* ---------- export ---------- */
 const LANGN = {it:'Italiano',en:'Inglese',fr:'Francese',de:'Tedesco',es:'Spagnolo',pt:'Portoghese',ja:'Giapponese'};
@@ -297,7 +334,41 @@ function feedback(){
   }catch(e){}
 }
 
-/* ---------- camera + OCR ---------- */
+/* ---------- movable / resizable boxes ---------- */
+function placeBoxes(){
+  [['box','num'],['nameBox','name']].forEach(([id,k]) => {
+    const b = boxes[k], el = $(id);
+    el.style.left=b.l+'%'; el.style.top=b.t+'%'; el.style.width=b.w+'%'; el.style.height=b.h+'%';
+  });
+}
+function makeDraggable(id, k){
+  const el = $(id);
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    const cam = $('cam').getBoundingClientRect();
+    const resize = e.target.classList.contains('rs');
+    const start = {x:e.clientX, y:e.clientY, ...boxes[k]};
+    el.setPointerCapture(e.pointerId);
+    const move = ev => {
+      const dx = (ev.clientX-start.x)/cam.width*100, dy = (ev.clientY-start.y)/cam.height*100;
+      const b = boxes[k];
+      if(resize){
+        b.w = Math.min(100-b.l, Math.max(15, start.w+dx));
+        b.h = Math.min(100-b.t, Math.max(5, start.h+dy));
+      } else {
+        b.l = Math.min(100-b.w, Math.max(0, start.l+dx));
+        b.t = Math.min(100-b.h, Math.max(0, start.t+dy));
+      }
+      placeBoxes();
+    };
+    const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); save(); };
+    el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  });
+}
+makeDraggable('box','num'); makeDraggable('nameBox','name');
+$('resetBoxes').onclick = () => { boxes = JSON.parse(JSON.stringify(DEF_BOXES)); placeBoxes(); save(); };
+
+/* ---------- camera ---------- */
 $('startBtn').onclick = async () => {
   if(running){ stop(); return; }
   try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); audioCtx.resume(); }catch(e){}
@@ -308,105 +379,249 @@ $('startBtn').onclick = async () => {
     status('Fotocamera non disponibile. La pagina deve essere aperta da un indirizzo https e serve il permesso.', 'warn'); return;
   }
   const v = $('video'); v.srcObject = stream; await v.play();
-  $('cam').style.display = 'block';
+  $('cam').style.display = 'block'; $('resetBoxes').style.display = '';
+  placeBoxes();
   track = stream.getVideoTracks()[0];
   const caps = track.getCapabilities ? track.getCapabilities() : {};
+  try{ if(caps.focusMode && caps.focusMode.includes('continuous')) await track.applyConstraints({advanced:[{focusMode:'continuous'}]}); }catch(e){}
   if(caps.torch) $('torchBtn').style.display = '';
   if(caps.zoom){
     const z = $('zoom'); z.min = caps.zoom.min; z.max = caps.zoom.max; z.step = caps.zoom.step||0.1;
     z.value = track.getSettings().zoom || caps.zoom.min; $('zoomWrap').style.display = '';
   }
-  if(!worker){
+  if(!wNum){
     status('Carico il lettore di testo (solo la prima volta)…');
-    worker = await Tesseract.createWorker('eng');
-    await worker.setParameters({tessedit_char_whitelist:'0123456789/ABCDEFGHIJKLMNOPQRSTUVWXYZ', tessedit_pageseg_mode:'7'});
+    wNum = await Tesseract.createWorker('eng');
+    await wNum.setParameters({tessedit_char_whitelist:'0123456789/ABCDEFGHIJKLMNOPQRSTUVWXYZ', tessedit_pageseg_mode:'7'});
   }
+  if(opts.chkName) await ensureNameWorker();
   running = true; $('startBtn').textContent = '⏸ Pausa';
-  status('In ascolto: metti la riga del numero nel riquadro.');
+  applyOpts();
+  status('In ascolto: metti la riga del numero nel riquadro giallo.');
   loop();
 };
+async function ensureNameWorker(){
+  if(wName) return;
+  status('Carico il lettore per i nomi…');
+  wName = await Tesseract.createWorker('eng');
+  await wName.setParameters({tessedit_pageseg_mode:'7'});
+}
 $('torchBtn').onclick = async () => { try{ torchOn=!torchOn; await track.applyConstraints({advanced:[{torch:torchOn}]}); }catch(e){} };
 $('zoom').oninput = async e => { try{ await track.applyConstraints({advanced:[{zoom:parseFloat(e.target.value)}]}); }catch(err){} };
 function stop(){
   running = false; $('startBtn').textContent = '▶ Riprendi scansione';
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
-  $('cam').style.display = 'none'; $('torchBtn').style.display='none'; $('zoomWrap').style.display='none';
+  ['cam','torchBtn','zoomWrap','resetBoxes','forceBtn'].forEach(id => $(id).style.display='none');
+  applyOpts();
   status('In pausa.');
 }
 
-const cv = document.createElement('canvas');
-const cx = cv.getContext('2d', {willReadFrequently:true});
-function grab(){
-  const v = $('video'), cam = $('cam').getBoundingClientRect(), b = $('box').getBoundingClientRect();
+/* ---------- image processing ---------- */
+// cattura il riquadro in scala di grigi, contrasto massimo
+function grab(el){
+  const v = $('video'), cam = $('cam').getBoundingClientRect(), b = el.getBoundingClientRect();
   const vw = v.videoWidth, vh = v.videoHeight; if(!vw) return null;
   const s = Math.max(cam.width/vw, cam.height/vh);
   const ox = (cam.width - vw*s)/2, oy = (cam.height - vh*s)/2;
   const sx = (b.left-cam.left-ox)/s, sy = (b.top-cam.top-oy)/s, sw = b.width/s, sh = b.height/s;
-  const k = Math.max(1, 110/sh);
-  cv.width = Math.round(sw*k); cv.height = Math.round(sh*k);
-  cx.drawImage(v, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
-  const img = cx.getImageData(0,0,cv.width,cv.height), d = img.data;
-  let sum=0, mn=255, mx=0;
-  for(let i=0;i<d.length;i+=4){ const y=(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114)|0; d[i]=y; sum+=y; if(y<mn)mn=y; if(y>mx)mx=y; }
-  const inv_ = sum/(d.length/4) < 110, rng = Math.max(1, mx-mn);
-  for(let i=0;i<d.length;i+=4){ let y=(d[i]-mn)*255/rng; if(inv_) y=255-y; d[i]=d[i+1]=d[i+2]=y; }
-  cx.putImageData(img,0,0);
-  return cv;
+  const k = Math.min(4, Math.max(1, 140/sh));
+  const w = Math.max(1, Math.round(sw*k)), h = Math.max(1, Math.round(sh*k));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', {willReadFrequently:true});
+  x.imageSmoothingQuality = 'high';
+  x.drawImage(v, sx, sy, sw, sh, 0, 0, w, h);
+  const d = x.getImageData(0,0,w,h).data;
+  const g = new Uint8ClampedArray(w*h);
+  const hist = new Array(256).fill(0);
+  let sum = 0;
+  for(let i=0,j=0;i<d.length;i+=4,j++){ const y=(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114)|0; g[j]=y; hist[y]++; sum+=y; }
+  // contrasto robusto: ignora l'1% più scuro e più chiaro (riflessi)
+  const n = w*h; let acc=0, lo=0, hi=255;
+  for(let i=0;i<256;i++){ acc+=hist[i]; if(acc>n*0.01){ lo=i; break; } }
+  acc=0; for(let i=255;i>=0;i--){ acc+=hist[i]; if(acc>n*0.01){ hi=i; break; } }
+  const rng = Math.max(1, hi-lo);
+  for(let j=0;j<n;j++) g[j] = (g[j]-lo)*255/rng;
+  return {g, w, h, mean: sum/n, range: hi-lo};
+}
+function otsu(g){
+  const hist = new Array(256).fill(0); g.forEach(v=>hist[v]++);
+  const n = g.length; let sum=0; for(let i=0;i<256;i++) sum+=i*hist[i];
+  let sB=0, wB=0, best=0, th=128;
+  for(let t=0;t<256;t++){
+    wB+=hist[t]; if(!wB) continue; const wF=n-wB; if(!wF) break;
+    sB+=t*hist[t]; const mB=sB/wB, mF=(sum-sB)/wF, v=wB*wF*(mB-mF)*(mB-mF);
+    if(v>best){ best=v; th=t; }
+  }
+  return th;
+}
+// varianti: 'auto' (testo scuro su chiaro), 'flip' (inversa), 'bin' (bianco/nero netto)
+function variant(G, mode){
+  const c = document.createElement('canvas'); c.width = G.w; c.height = G.h;
+  const x = c.getContext('2d'); const img = x.createImageData(G.w, G.h), d = img.data;
+  let invert = G.mean < 110; if(mode==='flip') invert = !invert;
+  const th = mode==='bin' ? otsu(G.g) : 0;
+  let dark = 0;
+  if(mode==='bin'){ for(let j=0;j<G.g.length;j++) if(G.g[j]<th) dark++; }
+  const binInv = dark > G.g.length/2; // il testo deve essere la parte minore
+  for(let j=0,i=0;j<G.g.length;j++,i+=4){
+    let y = G.g[j];
+    if(mode==='bin'){ y = y<th ? 0 : 255; if(binInv) y = 255-y; }
+    else if(invert) y = 255-y;
+    d[i]=d[i+1]=d[i+2]=y; d[i+3]=255;
+  }
+  x.putImageData(img,0,0);
+  return c;
+}
+function showPrev(id, c){
+  if(!opts.showPrev || !c) return;
+  const p = $(id); p.width = c.width; p.height = c.height; p.getContext('2d').drawImage(c,0,0);
 }
 
+/* ---------- parsing ---------- */
 function parse(raw){
-  let t = raw.toUpperCase().replace(/(\d)\s*[|\\I]\s*(\d)/g, '$1/$2');
+  const t = raw.toUpperCase().replace(/(\d)\s*[|\\I]\s*(\d)/g, '$1/$2');
   const flat = t.replace(/\s+/g,'');
-  const codeOk = setData && setData.code ? flat.includes(setData.code.toUpperCase()) : null;
-  // sottoserie tipo TG05/TG30, GG12/GG70
-  let m = flat.match(/([A-Z]{2})(\d{2,3})\/\1(\d{2,3})/);
+  const codeOk = setData && setData.code ? flat.includes(setData.code) : null;
+  let m = flat.match(/([A-Z]{2})(\d{2,3})\/\1(\d{2,3})/);   // sottoserie TG05/TG30, GG12/GG70
   if(m){
     const num = m[1]+m[2];
-    const ok = !setData.cards.size || setData.cards.has(norm(num));
-    return {num, total:m[1]+m[3], ok, codeOk};
+    const numOk = !setData.cards.size || setData.cards.has(norm(num));
+    return {num, total:m[1]+m[3], numOk, codeOk};
   }
   m = t.match(/(\d{1,3})\s*\/\s*(\d{2,3})/);
   if(!m) return null;
   const total = parseInt(m[2],10);
-  const ok = !setData || !setData.total || total === setData.total;
-  return {num:m[1], total, ok, codeOk};
+  const numOk = !setData || !setData.total || total === setData.total;
+  return {num:m[1], total, numOk, codeOk};
+}
+const simp = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+function lev(a,b){
+  const m=a.length, n=b.length; if(!m) return n; if(!n) return m;
+  let prev = Array.from({length:n+1},(_,j)=>j);
+  for(let i=1;i<=m;i++){
+    const cur=[i];
+    for(let j=1;j<=n;j++) cur[j]=Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+(a[i-1]===b[j-1]?0:1));
+    prev=cur;
+  }
+  return prev[n];
+}
+// confronta il nome letto con quello atteso usando la parola più lunga del nome (es. "Charizard" in "Charizard ex")
+function nameMatch(read, expected){
+  const words = String(expected).split(/[\s\-]+/).map(simp).filter(w=>w.length>=3);
+  const key = words.sort((a,b)=>b.length-a.length)[0] || simp(expected);
+  const r = simp(read);
+  if(!key) return true;
+  if(r.includes(key)) return true;
+  let best = 0;
+  for(let i=0;i<=Math.max(0, r.length-key.length);i++){
+    for(const L of [key.length-1, key.length, key.length+1]){
+      if(L<1) continue;
+      const sub = r.substr(i, L);
+      best = Math.max(best, 1 - lev(sub, key)/Math.max(sub.length, key.length));
+    }
+  }
+  return best >= 0.7;
 }
 
-let cand=null, candN=0, locked=null, emptyN=0, badN=0;
-function onRead(r){
-  const box = $('box');
-  if(!r || !r.ok){
+/* ---------- main loop ---------- */
+let cand=null, candN=0, locked=null, emptyN=0, badN=0, pending=null;
+
+async function readNumber(){
+  const G = grab($('box'));
+  if(!G) return {r:null, txt:''};
+  if(G.range < 35){ showPrev('prevNum', variant(G,'auto')); return {r:null, txt:'', empty:true}; }
+  let best = null, bestTxt = '', bestC = null;
+  for(const mode of ['auto','flip','bin']){
+    const c = variant(G, mode);
+    const {data} = await wNum.recognize(c);
+    const txt = (data.text||'').trim();
+    const r = parse(txt);
+    if(!bestC) { bestC = c; bestTxt = txt; }
+    if(r && r.numOk){
+      if(!best || (!best.codeOk && r.codeOk && norm(r.num)===norm(best.num))){ best = r; bestTxt = txt; bestC = c; }
+      if(!codeActive() || best.codeOk) break;
+    } else if(r && !best && !bestC.__r){ bestC = c; bestTxt = txt; bestC.__r = r; }
+  }
+  showPrev('prevNum', bestC);
+  return {r: best || (bestC && bestC.__r) || null, txt: bestTxt};
+}
+async function readName(){
+  const G = grab($('nameBox'));
+  if(!G || G.range < 35) return '';
+  let out = '';
+  for(const mode of ['auto','flip']){
+    const c = variant(G, mode);
+    const {data} = await wName.recognize(c);
+    const txt = (data.text||'').trim();
+    if(mode==='auto') showPrev('prevName', c);
+    out += ' ' + txt;
+    if(simp(txt).length >= 3) { showPrev('prevName', c); break; }
+  }
+  return out.trim();
+}
+function setBox(cls){ $('box').className = 'box' + (cls?' '+cls:''); }
+function block(r, msg){
+  pending = r;
+  setBox('mid');
+  status(msg, 'mid');
+  $('forceBtn').textContent = `Aggiungi comunque ${pad(norm(r.num))}`;
+  $('forceBtn').style.display = '';
+}
+$('forceBtn').onclick = () => {
+  if(!pending) return;
+  addCard(pending.num, 'forzata');
+  locked = norm(pending.num); cand=null; candN=0; pending=null;
+  $('forceBtn').style.display='none';
+};
+
+async function step(){
+  const {r, txt} = await readNumber();
+  $('ocr').textContent = txt ? 'letto: '+txt : '';
+  if(!running) return;
+
+  if(!r || !r.numOk){
     emptyN++; cand=null; candN=0;
-    if(emptyN>=2) locked=null;
-    if(r && !r.ok){
-      badN++; box.className='bad';
+    if(emptyN>=2){ locked=null; if(pending){ pending=null; $('forceBtn').style.display='none'; } }
+    if(r && !r.numOk){
+      badN++; setBox('bad');
       if(badN>=3) status(`Letto ${r.num}/${r.total} ma il set scelto ha ${setData.total} carte: set o lingua giusti?`, 'warn');
-    } else { badN=0; box.className=''; }
+    } else { badN=0; setBox(''); }
     return;
   }
   emptyN=0; badN=0;
   const n = norm(r.num);
-  if(n===locked){ box.className='ok'; return; }
-  if(cand===n) candN++; else { cand=n; candN=1; }
-  if(candN>=2){
-    addCard(r.num, r.codeOk);
-    locked=n; cand=null; candN=0; box.className='ok';
-    status('Ok, prossima carta.');
+  if(n===locked){ setBox('ok'); return; }
+  if(cand===n) candN++; else { cand=n; candN=1; if(pending && norm(pending.num)!==n){ pending=null; $('forceBtn').style.display='none'; } }
+  if(candN<2) return;
+
+  // verifiche aggiuntive
+  if(codeActive() && !r.codeOk){
+    block(r, `Numero ${pad(n)} letto, ma la sigla ${setData.code} non si legge. Sistema il riquadro o la luce.`);
+    return;
   }
+  const card = setData.cards.get(n);
+  if(opts.chkName && wName && card){
+    const nm = await readName();
+    if(!running) return;
+    if(!nameMatch(nm, card.name)){
+      $('nameBox').className = 'box bad';
+      block(r, `Numero ${pad(n)} = ${card.name}, ma il nome letto è "${nm||'—'}". Numero letto male o riquadro nome fuori posto?`);
+      return;
+    }
+    $('nameBox').className = 'box ok';
+  }
+
+  addCard(r.num, '');
+  locked=n; cand=null; candN=0; pending=null;
+  $('forceBtn').style.display='none';
+  setBox('ok');
+  status('Ok, prossima carta.');
 }
 
 async function loop(){
   while(running){
-    const c = grab();
-    if(c){
-      try{
-        const {data} = await worker.recognize(c);
-        const txt = (data.text||'').trim();
-        $('ocr').textContent = txt ? 'letto: '+txt : '';
-        if(running) onRead(parse(txt));
-      }catch(e){}
-    }
-    await new Promise(r=>setTimeout(r,30));
+    try{ await step(); }catch(e){ console.error(e); }
+    await new Promise(r=>setTimeout(r,20));
   }
 }
 
@@ -414,8 +629,10 @@ async function loop(){
 (function init(){
   const st = loadState();
   inv = st.inv || {};
+  if(st.boxes && st.boxes.num && st.boxes.name) boxes = st.boxes;
+  if(st.opts) opts = Object.assign(opts, st.opts);
   if(st.lang) $('lang').value = st.lang;
-  render();
+  placeBoxes(); applyOpts(); render();
   loadSets();
 })();
 </script>

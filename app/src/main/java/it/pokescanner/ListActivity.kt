@@ -21,7 +21,7 @@ import java.io.File
 class ListActivity : AppCompatActivity() {
 
     private sealed class Row {
-        data class Header(val title: String) : Row()
+        data class Header(val title: String, val group: Group) : Row()
         data class Card(val key: String, val item: Item) : Row()
     }
 
@@ -70,11 +70,29 @@ class ListActivity : AppCompatActivity() {
         }, "Esporta CSV"))
     }
 
+    private fun cardmarketDialog(g: Group) {
+        val text = Inventory.cardmarketText(g)
+        AlertDialog.Builder(this)
+            .setTitle("${g.setName} → Cardmarket")
+            .setMessage("Copia la lista di questo set e incollala sul PC nel pulsante \"Card Scanner → CM\" sulla pagina Inserisci carte bulk.\n\n" + text)
+            .setPositiveButton("Copia") { _, _ ->
+                getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Cardmarket", text))
+                Toast.makeText(this, "Lista copiata", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Condividi") { _, _ ->
+                startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"; putExtra(Intent.EXTRA_TEXT, text)
+                }, "Invia la lista al PC"))
+            }
+            .setNegativeButton("Chiudi", null)
+            .show()
+    }
+
     private fun refresh() {
         rows.clear()
         for (g in Inventory.groups()) {
             val n = g.items.sumOf { it.second.qty }
-            rows.add(Row.Header("${g.setName} · ${g.lang.uppercase()} · $n carte"))
+            rows.add(Row.Header("${g.setName} · ${g.lang.uppercase()} · $n carte  ›", g))
             g.items.forEach { (k, i) -> rows.add(Row.Card(k, i)) }
         }
         val tot = Inventory.count()
@@ -103,7 +121,10 @@ class ListActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
             when (val r = rows[position]) {
-                is Row.Header -> (holder.itemView as TextView).text = r.title
+                is Row.Header -> {
+                    (holder.itemView as TextView).text = r.title
+                    holder.itemView.setOnClickListener { cardmarketDialog(r.group) }
+                }
                 is Row.Card -> {
                     val v = holder.itemView
                     v.findViewById<TextView>(R.id.tvNum).text = CardRepo.pad(r.item.num)

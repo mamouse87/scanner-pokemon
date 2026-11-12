@@ -159,6 +159,13 @@ object Inventory {
         return sb.toString()
     }
 
+    /** Testo da incollare nello script per la pagina "Inserisci carte bulk" di Cardmarket. */
+    fun cardmarketText(g: Group): String {
+        val sb = StringBuilder("CARDSCANNER 1\nSET ${g.setName} | ${g.lang}\n")
+        for ((_, i) in g.items) sb.append("${CardRepo.pad(i.num)}${if (i.variant == "R") "R" else ""} x${i.qty}\n")
+        return sb.toString()
+    }
+
     fun csv(): String {
         fun q(v: Any?) = "\"" + (v?.toString() ?: "").replace("\"", "\"\"") + "\""
         val sb = StringBuilder("﻿")

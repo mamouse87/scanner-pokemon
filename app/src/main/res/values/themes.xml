@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_bg">#1C2128</color>
+    <color name="accent">#FFCB05</color>
+    <style name="Theme.PokeScanner" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#FFCB05</item>
+        <item name="colorOnPrimary">#111111</item>
+    </style>
+</resources>

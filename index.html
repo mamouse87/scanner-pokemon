@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scanner carte Pokémon</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+:root{--bg:#111418;--card:#1c2128;--fg:#e8eaed;--mut:#9aa3ad;--acc:#ffcb05;--ok:#3ecf6e;--bad:#ff6b6b}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+.wrap{padding:12px;display:grid;gap:12px;max-width:900px;margin:auto}
+.panel{background:var(--card);border-radius:12px;padding:12px;display:grid;gap:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+select,input,button,textarea{font:inherit;border-radius:8px;border:1px solid #333a44;background:#0d1014;color:var(--fg);padding:8px}
+button{background:#2a313b;cursor:pointer}
+button.pri{background:var(--acc);color:#111;border:0;font-weight:600}
+button.big{padding:12px 18px;font-size:16px}
+#setSel{flex:1;min-width:180px}
+label{font-size:13px;color:var(--mut)}
+#cam{position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:4/3;display:none}
+video{width:100%;height:100%;object-fit:cover;display:block}
+#box{position:absolute;left:6%;right:6%;top:42%;height:16%;border:3px solid var(--acc);border-radius:6px;box-shadow:0 0 0 999px rgba(0,0,0,.4)}
+#box.ok{border-color:var(--ok)}#box.bad{border-color:var(--bad)}
+#last{font-size:18px;font-weight:600;min-height:1.4em}
+#status{font-size:14px;color:var(--mut);min-height:1.4em}
+#ocr{font-family:monospace;font-size:12px;color:var(--mut);min-height:1.2em}
+table{width:100%;border-collapse:collapse}
+td,th{padding:6px 4px;border-bottom:1px solid #2a313b;text-align:left;vertical-align:middle}
+td.q{white-space:nowrap;text-align:right}
+td.q button{padding:2px 10px}
+h3{margin:12px 0 4px;font-size:15px;color:var(--acc)}
+textarea{width:100%;min-height:180px;font:13px/1.35 monospace}
+.mut{color:var(--mut);font-size:13px}
+.warn{color:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="panel">
+    <div class="row">
+      <select id="lang">
+        <option value="it">Italiano</option><option value="en">Inglese</option>
+        <option value="fr">Francese</option><option value="de">Tedesco</option>
+        <option value="es">Spagnolo</option><option value="pt">Portoghese</option>
+        <option value="ja">Giapponese</option>
+      </select>
+      <input id="setFilter" placeholder="Cerca set…" style="flex:1;min-width:120px">
+    </div>
+    <select id="setSel"><option>Caricamento set…</option></select>
+    <div class="row">
+      <label>Sigla <input id="code" size="6" placeholder="es. SVI"></label>
+      <label>Totale carte <input id="total" size="5" inputmode="numeric" placeholder="es. 198"></label>
+      <span id="setInfo" class="mut"></span>
+    </div>
+  </div>
+
+  <div class="row">
+    <button id="startBtn" class="pri big">▶ Avvia scansione</button>
+    <button id="torchBtn" style="display:none">🔦 Luce</button>
+    <label id="zoomWrap" style="display:none">Zoom <input id="zoom" type="range"></label>
+  </div>
+
+  <div id="cam"><video id="video" playsinline muted></video><div id="box"></div></div>
+  <div id="last"></div>
+  <div id="status">Scegli lingua e set, poi avvia. Inquadra la riga del numero (es. 123/198) dentro il riquadro.</div>
+  <div id="ocr"></div>
+
+  <div class="row">
+    <input id="manualNum" placeholder="Numero a mano (es. 45)" inputmode="text" style="flex:1;min-width:140px">
+    <button id="manualAdd">+ Aggiungi</button>
+    <button id="undoBtn">↶ Annulla ultima</button>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content:space-between">
+      <strong id="summary">Lista vuota</strong>
+      <div class="row">
+        <button id="csvBtn">⬇ CSV</button>
+        <button id="txtBtn">📝 Testo annuncio</button>
+        <button id="clearBtn">🗑 Svuota</button>
+      </div>
+    </div>
+    <div id="list"></div>
+    <div id="txtWrap" style="display:none">
+      <textarea id="txt" readonly></textarea>
+      <div class="row"><button id="copyBtn" class="pri">Copia testo</button><span id="copyMsg" class="mut"></span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const API = 'https://api.tcgdex.net/v2';
+const LS = 'pkscan_v1';
+
+let sets = [];
+let setData = null;   // {id,name,code,total,cards:Map(norm -> {id,name,localId})}
+let inv = {};         // key -> item
+let history = [];
+let worker = null, stream = null, track = null, running = false, audioCtx = null;
+let torchOn = false;
+
+/* ---------- storage ---------- */
+function save(){ try{ localStorage.setItem(LS, JSON.stringify({inv, lang:$('lang').value, set:setData&&setData.id})); }catch(e){} }
+function loadState(){ try{ return JSON.parse(localStorage.getItem(LS))||{}; }catch(e){ return {}; } }
+
+/* ---------- helpers ---------- */
+const norm = n => /^\d+$/.test(n) ? String(parseInt(n,10)) : n.toUpperCase();
+const pad = n => /^\d+$/.test(n) ? n.padStart(3,'0') : n;
+function status(t, cls){ $('status').textContent = t; $('status').className = cls||''; }
+
+/* ---------- sets ---------- */
+async function loadSets(){
+  const lang = $('lang').value;
+  $('setSel').innerHTML = '<option>Caricamento set…</option>';
+  try{
+    const r = await fetch(`${API}/${lang}/sets`);
+    if(!r.ok) throw 0;
+    sets = (await r.json()).reverse();
+    fillSetSelect();
+    const st = loadState();
+    if(st.set && sets.some(s=>s.id===st.set)){ $('setSel').value = st.set; }
+    await selectSet($('setSel').value);
+  }catch(e){
+    sets = [];
+    $('setSel').innerHTML = '<option value="__manual">Set manuale (database non raggiungibile)</option>';
+    manualSet();
+    status('Database carte non raggiungibile: inserisci sigla e totale a mano (niente nomi).', 'warn');
+  }
+}
+function fillSetSelect(){
+  const f = $('setFilter').value.trim().toLowerCase();
+  const list = sets.filter(s => !f || s.name.toLowerCase().includes(f) || s.id.toLowerCase().includes(f));
+  $('setSel').innerHTML = list.map(s=>`<option value="${s.id}">${s.name} (${s.cardCount?.official ?? '?'})</option>`).join('')
+    + '<option value="__manual">— Set manuale —</option>';
+}
+async function selectSet(id){
+  if(!id || id==='__manual'){ manualSet(); return; }
+  const lang = $('lang').value;
+  $('setInfo').textContent = 'carico…';
+  try{
+    const r = await fetch(`${API}/${lang}/sets/${encodeURIComponent(id)}`);
+    if(!r.ok) throw 0;
+    const d = await r.json();
+    const cards = new Map();
+    (d.cards||[]).forEach(c => cards.set(norm(c.localId), {id:c.id, name:c.name, localId:c.localId}));
+    const code = (d.abbreviation && (d.abbreviation.official || d.abbreviation.normal)) || '';
+    setData = {id:d.id, name:d.name, code, total:d.cardCount?.official||0, cards};
+    $('code').value = code; $('total').value = setData.total || '';
+    $('setInfo').textContent = `${cards.size} carte nel database`;
+    save();
+  }catch(e){
+    manualSet();
+    $('setInfo').textContent = 'set non caricato, modalità manuale';
+  }
+}
+function manualSet(){
+  const code = $('code').value.trim().toUpperCase();
+  setData = {id:'manual-'+(code||'X'), name: code || 'Set manuale', code, total: parseInt($('total').value)||0, cards:new Map()};
+}
+$('lang').onchange = loadSets;
+$('setFilter').oninput = () => { fillSetSelect(); selectSet($('setSel').value); };
+$('setSel').onchange = e => selectSet(e.target.value);
+$('code').oninput = () => { if(setData){ setData.code = $('code').value.trim().toUpperCase(); if(setData.id.startsWith('manual')) manualSet(); } };
+$('total').oninput = () => { if(setData){ setData.total = parseInt($('total').value)||0; if(setData.id.startsWith('manual')) manualSet(); } };
+
+/* ---------- inventory ---------- */
+function addCard(num, codeOk){
+  if(!setData){ status('Scegli prima un set.', 'warn'); return; }
+  const lang = $('lang').value;
+  const n = norm(num);
+  const key = `${lang}|${setData.id}|${n}`;
+  const c = setData.cards.get(n);
+  if(!inv[key]){
+    inv[key] = {lang, setId:setData.id, setName:setData.name, code:setData.code, total:setData.total,
+                num:n, name:c?c.name:'', cardId:c?c.id:'', rarity:'', qty:0};
+    if(c) fetchRarity(key);
+  }
+  inv[key].qty++;
+  history.push(key);
+  save(); render();
+  const it = inv[key];
+  $('last').textContent = `✓ ${pad(n)}/${setData.total||'?'} ${it.name||''}  ×${it.qty}` + (codeOk===false && setData.code ? '  (sigla non letta)' : '');
+  feedback();
+}
+async function fetchRarity(key){
+  const it = inv[key];
+  try{
+    const r = await fetch(`${API}/${it.lang}/cards/${encodeURIComponent(it.cardId)}`);
+    if(!r.ok) return;
+    const d = await r.json();
+    if(inv[key]){ inv[key].rarity = d.rarity||''; save(); render(); }
+  }catch(e){}
+}
+function changeQty(key, d){
+  if(!inv[key]) return;
+  inv[key].qty += d;
+  if(inv[key].qty<=0) delete inv[key];
+  save(); render();
+}
+$('undoBtn').onclick = () => {
+  const k = history.pop();
+  if(k && inv[k]){ changeQty(k,-1); $('last').textContent = '↶ annullata'; }
+};
+$('manualAdd').onclick = () => {
+  const v = $('manualNum').value.trim();
+  if(!v) return;
+  addCard(v.split('/')[0].trim(), null);
+  $('manualNum').value=''; $('manualNum').focus();
+};
+$('manualNum').onkeydown = e => { if(e.key==='Enter') $('manualAdd').onclick(); };
+
+function groups(){
+  const g = {};
+  Object.entries(inv).forEach(([k,it]) => {
+    const gk = `${it.lang}|${it.setId}`;
+    (g[gk] = g[gk] || {lang:it.lang, setName:it.setName, code:it.code, total:it.total, items:[]}).items.push([k,it]);
+  });
+  Object.values(g).forEach(x => x.items.sort((a,b)=>{
+    const na=parseInt(a[1].num), nb=parseInt(b[1].num);
+    return (isNaN(na)||isNaN(nb)) ? a[1].num.localeCompare(b[1].num) : na-nb;
+  }));
+  return g;
+}
+function render(){
+  const g = groups();
+  const tot = Object.values(inv).reduce((s,i)=>s+i.qty,0);
+  const diff = Object.keys(inv).length;
+  $('summary').textContent = tot ? `${tot} carte (${diff} diverse)` : 'Lista vuota';
+  let h = '';
+  Object.values(g).forEach(x => {
+    const n = x.items.reduce((s,[,i])=>s+i.qty,0);
+    h += `<h3>${esc(x.setName)}${x.code?' ('+esc(x.code)+')':''} · ${x.lang.toUpperCase()} · ${n} carte</h3><table>`;
+    x.items.forEach(([k,i]) => {
+      h += `<tr><td>${pad(i.num)}</td><td>${esc(i.name)}</td><td class="mut">${esc(i.rarity)}</td>
+        <td class="q"><button data-k="${esc(k)}" data-d="-1">−</button> <b>${i.qty}</b> <button data-k="${esc(k)}" data-d="1">+</button></td></tr>`;
+    });
+    h += '</table>';
+  });
+  $('list').innerHTML = h;
+  if($('txtWrap').style.display!=='none') $('txt').value = buildText();
+}
+$('list').onclick = e => { const b=e.target.closest('button[data-k]'); if(b) changeQty(b.dataset.k, parseInt(b.dataset.d)); };
+function esc(s){ return String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ---------- export ---------- */
+const LANGN = {it:'Italiano',en:'Inglese',fr:'Francese',de:'Tedesco',es:'Spagnolo',pt:'Portoghese',ja:'Giapponese'};
+function buildText(){
+  const g = groups();
+  const tot = Object.values(inv).reduce((s,i)=>s+i.qty,0);
+  let t = `Lotto di ${tot} carte Pokémon (${Object.keys(inv).length} diverse)\n`;
+  Object.values(g).forEach(x => {
+    const n = x.items.reduce((s,[,i])=>s+i.qty,0);
+    t += `\n${x.setName}${x.code?' ('+x.code+')':''} – ${LANGN[x.lang]||x.lang} – ${n} carte\n`;
+    x.items.forEach(([,i]) => {
+      t += `• ${pad(i.num)}/${i.total||'?'} ${i.name}${i.rarity?' – '+i.rarity:''}${i.qty>1?' ×'+i.qty:''}\n`;
+    });
+  });
+  return t;
+}
+$('txtBtn').onclick = () => {
+  const w = $('txtWrap'); const show = w.style.display==='none';
+  w.style.display = show ? 'block' : 'none';
+  if(show) $('txt').value = buildText();
+};
+$('copyBtn').onclick = async () => {
+  try{ await navigator.clipboard.writeText($('txt').value); $('copyMsg').textContent='Copiato ✓'; }
+  catch(e){ $('txt').select(); $('copyMsg').textContent='Seleziona e copia a mano'; }
+};
+$('csvBtn').onclick = () => {
+  const q = v => `"${String(v??'').replace(/"/g,'""')}"`;
+  let csv = ['Lingua','Set','Sigla','Numero','Totale set','Nome','Rarità','Quantità'].map(q).join(';')+'\n';
+  Object.values(groups()).forEach(x => x.items.forEach(([,i]) => {
+    csv += [i.lang.toUpperCase(), i.setName, i.code, pad(i.num), i.total||'', i.name, i.rarity, i.qty].map(q).join(';')+'\n';
+  }));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'}));
+  a.download = `carte-pokemon-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+};
+$('clearBtn').onclick = () => {
+  if(confirm('Svuotare tutta la lista?')){ inv = {}; history = []; save(); render(); $('last').textContent=''; }
+};
+
+/* ---------- feedback ---------- */
+function feedback(){
+  try{ navigator.vibrate && navigator.vibrate(60); }catch(e){}
+  try{
+    if(!audioCtx) return;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = 1200; g.gain.value = 0.15;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.08);
+  }catch(e){}
+}
+
+/* ---------- camera + OCR ---------- */
+$('startBtn').onclick = async () => {
+  if(running){ stop(); return; }
+  try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); audioCtx.resume(); }catch(e){}
+  try{
+    status('Avvio fotocamera…');
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}}, audio:false});
+  }catch(e){
+    status('Fotocamera non disponibile. La pagina deve essere aperta da un indirizzo https e serve il permesso.', 'warn'); return;
+  }
+  const v = $('video'); v.srcObject = stream; await v.play();
+  $('cam').style.display = 'block';
+  track = stream.getVideoTracks()[0];
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+  if(caps.torch) $('torchBtn').style.display = '';
+  if(caps.zoom){
+    const z = $('zoom'); z.min = caps.zoom.min; z.max = caps.zoom.max; z.step = caps.zoom.step||0.1;
+    z.value = track.getSettings().zoom || caps.zoom.min; $('zoomWrap').style.display = '';
+  }
+  if(!worker){
+    status('Carico il lettore di testo (solo la prima volta)…');
+    worker = await Tesseract.createWorker('eng');
+    await worker.setParameters({tessedit_char_whitelist:'0123456789/ABCDEFGHIJKLMNOPQRSTUVWXYZ', tessedit_pageseg_mode:'7'});
+  }
+  running = true; $('startBtn').textContent = '⏸ Pausa';
+  status('In ascolto: metti la riga del numero nel riquadro.');
+  loop();
+};
+$('torchBtn').onclick = async () => { try{ torchOn=!torchOn; await track.applyConstraints({advanced:[{torch:torchOn}]}); }catch(e){} };
+$('zoom').oninput = async e => { try{ await track.applyConstraints({advanced:[{zoom:parseFloat(e.target.value)}]}); }catch(err){} };
+function stop(){
+  running = false; $('startBtn').textContent = '▶ Riprendi scansione';
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  $('cam').style.display = 'none'; $('torchBtn').style.display='none'; $('zoomWrap').style.display='none';
+  status('In pausa.');
+}
+
+const cv = document.createElement('canvas');
+const cx = cv.getContext('2d', {willReadFrequently:true});
+function grab(){
+  const v = $('video'), cam = $('cam').getBoundingClientRect(), b = $('box').getBoundingClientRect();
+  const vw = v.videoWidth, vh = v.videoHeight; if(!vw) return null;
+  const s = Math.max(cam.width/vw, cam.height/vh);
+  const ox = (cam.width - vw*s)/2, oy = (cam.height - vh*s)/2;
+  const sx = (b.left-cam.left-ox)/s, sy = (b.top-cam.top-oy)/s, sw = b.width/s, sh = b.height/s;
+  const k = Math.max(1, 110/sh);
+  cv.width = Math.round(sw*k); cv.height = Math.round(sh*k);
+  cx.drawImage(v, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+  const img = cx.getImageData(0,0,cv.width,cv.height), d = img.data;
+  let sum=0, mn=255, mx=0;
+  for(let i=0;i<d.length;i+=4){ const y=(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114)|0; d[i]=y; sum+=y; if(y<mn)mn=y; if(y>mx)mx=y; }
+  const inv_ = sum/(d.length/4) < 110, rng = Math.max(1, mx-mn);
+  for(let i=0;i<d.length;i+=4){ let y=(d[i]-mn)*255/rng; if(inv_) y=255-y; d[i]=d[i+1]=d[i+2]=y; }
+  cx.putImageData(img,0,0);
+  return cv;
+}
+
+function parse(raw){
+  let t = raw.toUpperCase().replace(/(\d)\s*[|\\I]\s*(\d)/g, '$1/$2');
+  const flat = t.replace(/\s+/g,'');
+  const codeOk = setData && setData.code ? flat.includes(setData.code.toUpperCase()) : null;
+  // sottoserie tipo TG05/TG30, GG12/GG70
+  let m = flat.match(/([A-Z]{2})(\d{2,3})\/\1(\d{2,3})/);
+  if(m){
+    const num = m[1]+m[2];
+    const ok = !setData.cards.size || setData.cards.has(norm(num));
+    return {num, total:m[1]+m[3], ok, codeOk};
+  }
+  m = t.match(/(\d{1,3})\s*\/\s*(\d{2,3})/);
+  if(!m) return null;
+  const total = parseInt(m[2],10);
+  const ok = !setData || !setData.total || total === setData.total;
+  return {num:m[1], total, ok, codeOk};
+}
+
+let cand=null, candN=0, locked=null, emptyN=0, badN=0;
+function onRead(r){
+  const box = $('box');
+  if(!r || !r.ok){
+    emptyN++; cand=null; candN=0;
+    if(emptyN>=2) locked=null;
+    if(r && !r.ok){
+      badN++; box.className='bad';
+      if(badN>=3) status(`Letto ${r.num}/${r.total} ma il set scelto ha ${setData.total} carte: set o lingua giusti?`, 'warn');
+    } else { badN=0; box.className=''; }
+    return;
+  }
+  emptyN=0; badN=0;
+  const n = norm(r.num);
+  if(n===locked){ box.className='ok'; return; }
+  if(cand===n) candN++; else { cand=n; candN=1; }
+  if(candN>=2){
+    addCard(r.num, r.codeOk);
+    locked=n; cand=null; candN=0; box.className='ok';
+    status('Ok, prossima carta.');
+  }
+}
+
+async function loop(){
+  while(running){
+    const c = grab();
+    if(c){
+      try{
+        const {data} = await worker.recognize(c);
+        const txt = (data.text||'').trim();
+        $('ocr').textContent = txt ? 'letto: '+txt : '';
+        if(running) onRead(parse(txt));
+      }catch(e){}
+    }
+    await new Promise(r=>setTimeout(r,30));
+  }
+}
+
+/* ---------- init ---------- */
+(function init(){
+  const st = loadState();
+  inv = st.inv || {};
+  if(st.lang) $('lang').value = st.lang;
+  render();
+  loadSets();
+})();
+</script>
+</body>
+</html>

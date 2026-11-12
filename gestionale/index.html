@@ -20,17 +20,20 @@ button{cursor:pointer}
 button.pri{background:var(--acc);color:#111;border:0;font-weight:700}
 button.sm{padding:2px 8px;font-size:12px}
 .wrap{flex:1;display:flex;min-height:0}
-aside{width:300px;flex-shrink:0;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+aside{width:310px;flex-shrink:0;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
 aside .head{padding:10px;border-bottom:1px solid var(--line)}
 aside input[type=search]{width:100%}
 #sets{overflow:auto;flex:1}
 #sets .grp{padding:8px 12px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
-#sets a{display:flex;justify-content:space-between;gap:8px;padding:6px 12px;color:var(--fg);text-decoration:none;border-left:3px solid transparent}
+#sets a{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 12px;color:var(--fg);text-decoration:none;border-left:3px solid transparent}
 #sets a:hover{background:var(--bg)}
 #sets a.sel{background:var(--bg);border-left-color:var(--acc);font-weight:600}
+#sets a img{width:22px;height:22px;object-fit:contain;flex-shrink:0}
+#sets a .nm{flex:1}
 #sets a .n{background:var(--ok);color:#fff;border-radius:99px;padding:0 8px;font-size:12px;font-weight:700;height:20px;line-height:20px}
 main{flex:1;overflow:auto;padding:16px 22px 60px}
-.sethead{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.sethead{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.sethead .logo{height:54px;max-width:180px;object-fit:contain}
 .sethead h2{margin:0;font-size:22px}
 .sub{color:var(--mut);font-size:13px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
@@ -43,6 +46,7 @@ main{flex:1;overflow:auto;padding:16px 22px 60px}
 .card.yes.r{outline-color:var(--rev)}
 .info{font-size:12.5px;margin-top:5px}
 .info small{display:block;color:var(--mut)}
+.fs{display:inline-block;font-size:10px;font-weight:700;color:#111;background:var(--acc);border-radius:4px;padding:0 4px;margin-left:4px}
 .badges{position:absolute;top:11px;right:11px;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
 .badges span{font-weight:700;font-size:12px;border-radius:99px;padding:2px 8px;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .bn{background:var(--ok)}.br{background:var(--rev)}
@@ -57,7 +61,7 @@ dialog td,dialog th{padding:6px;border-bottom:1px solid var(--line);text-align:l
 td.line{font-size:12px;color:var(--mut);max-width:360px}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ok);color:#fff;padding:10px 18px;border-radius:10px;z-index:40;font-weight:600}
 .small{font-size:12px;color:var(--mut)}
-.big img{max-width:100%;max-height:60vh;border-radius:10px;display:block;margin:0 auto 10px}
+.big{position:relative;min-height:80px}.big img{max-width:100%;max-height:58vh;border-radius:10px;display:block;margin:0 auto 10px}
 </style>
 </head>
 <body>
@@ -77,7 +81,7 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
       <input type="search" id="qSet" placeholder="Cerca set…">
       <label class="small" style="display:block;margin-top:6px"><input type="checkbox" id="onlyMine"> solo set con carte in vendita</label>
     </div>
-    <div id="sets"></div>
+    <div id="sets"><p class="small" style="padding:12px">Carico l'elenco dei set…</p></div>
   </aside>
   <main id="main"></main>
 </div>
@@ -88,9 +92,19 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
 
 <script>
 'use strict';
-const KEY = 'gestionaleCarte_v2';
-const CM = 'https://www.cardmarket.com/it/Pokemon/Stock/ListingMethods/BulkListing?sortBy=number&idExpansion=';
+const KEY = 'gestionaleCarte_v3';
+const API = 'https://api.tcgdex.net/v2/it';
+const CMBULK = 'https://www.cardmarket.com/it/Pokemon/Stock/ListingMethods/BulkListing?sortBy=number&idExpansion=';
 const LANGN = { it: 'Italiano', en: 'Inglese', fr: 'Francese', de: 'Tedesco', es: 'Spagnolo', pt: 'Portoghese' };
+// rarità in italiano (se TCGdex o Cardmarket le danno in inglese)
+const RAR_IT = {
+  'common': 'Comune', 'uncommon': 'Non comune', 'rare': 'Rara', 'holo rare': 'Rara holo', 'rare holo': 'Rara holo',
+  'double rare': 'Doppia rara', 'ultra rare': 'Ultra rara', 'illustration rare': 'Rara illustrazione',
+  'special illustration rare': 'Rara illustrazione speciale', 'hyper rare': 'Iper rara', 'secret rare': 'Rara segreta',
+  'ace spec rare': 'Rara ASSO TATTICO', 'shiny rare': 'Rara cromatica', 'shiny ultra rare': 'Ultra rara cromatica',
+  'mega hyper rare': 'Mega iper rara', 'black white rare': 'Rara bianco nero', 'promo': 'Promo', 'none': ''
+};
+const rarIt = r => RAR_IT[String(r || '').trim().toLowerCase()] ?? (r || '');
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const norm = n => /^\d+$/.test(n) ? String(parseInt(n, 10)) : String(n || '').toUpperCase();
@@ -100,20 +114,23 @@ const today = () => new Date().toISOString();
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // ---------- dati (salvati in questo browser) ----------
-// exps[id] = {id, name, cards:{pid:{p,n,c,u,r,i,h}}}   elenco carte del set, preso dalla pagina di Cardmarket
-// expList = [[id, name], ...]                          tutti i set di Cardmarket
-// listings[pid|N/R|lang] = {p, exp, rev, lang, q, price, date, com}
-// sold = [{date, p, exp, name, num, rev, lang, q, price, source, file}]
+// cm[idExp] = {id, name, cards:{pid:{p,n,c,u,r,i,h,m}}}   dati dalla pagina "Inserisci carte bulk" di Cardmarket
+// listings[pid|N/R|lang] = {p, exp, expName, u, rev, lang, q, price, date, com}
+// sold = [...]
 let state = load();
 function load() {
-  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.exps) return Object.assign({ expList: [], listings: {}, sold: [], legacy: [] }, s); } catch (e) {}
-  const s = { exps: {}, expList: [], listings: {}, sold: [], legacy: [] };
-  // dati della versione precedente: li tengo da parte e li abbino quando arriva l'elenco del loro set
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.listings) return Object.assign({ cm: {}, sold: [] }, s); } catch (e) {}
+  const s = { cm: {}, listings: {}, sold: [] };
+  // dalla versione precedente tengo gli elenchi Cardmarket, le carte in vendita e le vendite
   try {
-    const old = JSON.parse(localStorage.getItem('gestionaleCarte_v1'));
-    if (old && old.cards) for (const c of Object.values(old.cards)) {
-      if (c.qty > 0 && c.sites && c.sites.Cardmarket && c.sites.Cardmarket.on)
-        s.legacy.push({ setName: c.setName, num: c.num, rev: c.rev, lang: c.lang, q: c.qty, price: c.sites.Cardmarket.price ?? null, name: c.name });
+    const o = JSON.parse(localStorage.getItem('gestionaleCarte_v2'));
+    if (o) {
+      s.cm = o.exps || {};
+      for (const [k, l] of Object.entries(o.listings || {})) {
+        const c = s.cm[l.exp]?.cards?.[l.p] || {};
+        s.listings[k] = Object.assign({ expName: s.cm[l.exp]?.name || '', u: c.u || '' }, l);
+      }
+      s.sold = o.sold || [];
     }
   } catch (e) {}
   return s;
@@ -121,50 +138,71 @@ function load() {
 function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { alert('Il browser non riesce a salvare: fai un Backup da "Altro".'); } }
 const lkey = (p, rev, lang) => `${p}|${rev ? 'R' : 'N'}|${lang || 'it'}`;
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 4000); }
-function expName(id) { return state.exps[id]?.name || (state.expList.find(x => x[0] === id) || [])[1] || ('Set ' + id); }
-function cardOf(l) { return state.exps[l.exp]?.cards?.[l.p]; }
-// immagine: provo più fonti in fila (foto Cardmarket, foto Cardmarket ricostruita, foto inglese Limitless TCG)
-function imgSrcs(c) {
-  const u3 = /^\d+$/.test(c.u || '') ? String(parseInt(c.u, 10)).padStart(3, '0') : c.u;
-  return [...new Set([
-    c.i,
-    c.c && c.p ? `https://product-images.s3.cardmarket.com/51/${c.c}/${c.p}/${c.p}.jpg` : '',
-    c.c && u3 ? `https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpci/${c.c}/${c.c}_${u3}_R_EN_LG.png` : ''
-  ].filter(Boolean))];
+
+// ---------- TCGdex: set e carte in italiano (con cache nel browser) ----------
+const mem = {};
+async function tcg(path, maxAgeH) {
+  if (mem[path]) return mem[path];
+  const ck = 'tcg:' + path;
+  try {
+    const c = JSON.parse(localStorage.getItem(ck));
+    if (c && Date.now() - c.t < (maxAgeH || 24) * 3600e3) return (mem[path] = c.d);
+  } catch (e) {}
+  try {
+    const r = await fetch(API + path);
+    if (!r.ok) throw 0;
+    const d = await r.json();
+    mem[path] = d;
+    try { localStorage.setItem(ck, JSON.stringify({ t: Date.now(), d })); } catch (e) {}
+    return d;
+  } catch (e) {
+    try { const c = JSON.parse(localStorage.getItem(ck)); if (c) return (mem[path] = c.d); } catch (e2) {}
+    return null;
+  }
 }
-function imgTag(c, lazy) {
-  const s = imgSrcs(c);
-  if (!s.length) return '';
-  return `<img ${lazy ? 'loading="lazy"' : ''} referrerpolicy="no-referrer" src="${esc(s[0])}" data-srcs="${esc(s.slice(1).join('|'))}" alt="" onerror="nextImg(this)">`;
+let tcgSets = [];          // elenco set TCGdex, dal più recente
+async function loadSets() {
+  const list = await tcg('/sets', 12);
+  tcgSets = Array.isArray(list) ? list.slice().reverse() : [];
 }
-function nextImg(im) {
-  const rest = (im.dataset.srcs || '').split('|').filter(Boolean);
-  if (!rest.length) { im.remove(); return; }
-  im.dataset.srcs = rest.slice(1).join('|');
-  im.src = rest[0];
+/** set TCGdex corrispondente a un'espansione di Cardmarket (stesso nome italiano) */
+function tcgIdFor(expName) {
+  const n = simp(expName);
+  if (!n) return null;
+  const s = tcgSets.find(x => simp(x.name) === n) || tcgSets.find(x => simp(x.name).includes(n) || n.includes(simp(x.name)));
+  return s ? s.id : null;
 }
-// prezzo: quello inviato dallo script; se manca, il tuo prezzo attuale letto sulla pagina di Cardmarket
-const priceOf = l => l.price != null ? l.price : (cardOf(l)?.m ?? null);
+// rarità per carta (TCGdex le dà solo nel dettaglio della carta): le scarico in sottofondo e le tengo in cache
+const RKEY = id => 'tcgRar:' + id;
+function rarCache(setId) { try { return JSON.parse(localStorage.getItem(RKEY(setId))) || {}; } catch (e) { return {}; } }
+let rarJob = null;
+async function loadRarities(setId, cards) {
+  const cache = rarCache(setId);
+  const todo = cards.filter(c => !(norm(c.localId) in cache));
+  if (!todo.length) return;
+  const job = rarJob = {};
+  let i = 0;
+  const worker = async () => {
+    while (i < todo.length && rarJob === job) {
+      const c = todo[i++];
+      const d = await tcg('/cards/' + encodeURIComponent(c.id), 24 * 30);
+      cache[norm(c.localId)] = rarIt(d?.rarity || '');
+      const el = document.querySelector(`.card[data-n="${CSS.escape(norm(c.localId))}"] .rar`);
+      if (el) el.textContent = cache[norm(c.localId)];
+    }
+  };
+  await Promise.all([1, 2, 3, 4, 5, 6].map(worker));
+  try { localStorage.setItem(RKEY(setId), JSON.stringify(cache)); } catch (e) {}
+}
 
 // ---------- arrivo dati dallo script di Cardmarket ----------
 function mergeCatalog(exp) {
   if (!exp || !exp.id) return;
-  const E = state.exps[exp.id] || (state.exps[exp.id] = { id: exp.id, name: exp.name || '', cards: {} });
+  const E = state.cm[exp.id] || (state.cm[exp.id] = { id: exp.id, name: exp.name || '', cards: {} });
   if (exp.name) E.name = exp.name;
   (exp.cards || []).forEach(c => { E.cards[c.p] = Object.assign(E.cards[c.p] || {}, c); });
-  // abbino i dati della versione precedente (nome del set + numero)
-  if (state.legacy.length && E.name) {
-    const byNum = {};
-    Object.values(E.cards).forEach(c => { byNum[norm(c.u)] = c; });
-    state.legacy = state.legacy.filter(l => {
-      if (simp(l.setName) !== simp(E.name)) return true;
-      const c = byNum[norm(l.num)];
-      if (!c) return true;
-      const k = lkey(c.p, l.rev, l.lang);
-      if (!state.listings[k]) state.listings[k] = { p: c.p, exp: E.id, rev: l.rev, lang: l.lang, q: l.q, price: l.price, date: today(), com: '' };
-      return false;
-    });
-  }
+  // prezzo attuale su Cardmarket per le carte in vendita senza prezzo
+  Object.values(state.listings).forEach(l => { if (l.exp === exp.id && l.price == null && E.cards[l.p]?.m != null) l.price = E.cards[l.p].m; });
 }
 function importFromHash() {
   const m = location.hash.match(/^#cm2=(.+)$/);
@@ -172,45 +210,55 @@ function importFromHash() {
   history.replaceState(null, '', location.pathname);
   let d;
   try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Dati da Cardmarket non leggibili.'); return null; }
-  if (Array.isArray(d.exps) && d.exps.length) state.expList = d.exps;
   mergeCatalog(d.exp);
-  let n = 0;
+  let n = 0, last = d.exp;
   for (const sub of d.listed || []) {
     mergeCatalog({ id: sub.exp, name: sub.name, cards: sub.cards });
+    last = { id: sub.exp, name: sub.name };
     for (const r of sub.rows) {
       const k = lkey(r.p, r.rev, r.lang);
-      const L = state.listings[k] || (state.listings[k] = { p: r.p, exp: sub.exp, rev: r.rev, lang: r.lang, q: 0, price: null, date: sub.at, com: '' });
+      const c = state.cm[sub.exp]?.cards?.[r.p] || {};
+      const L = state.listings[k] || (state.listings[k] = { p: r.p, exp: sub.exp, expName: sub.name, u: r.u || c.u || '', rev: r.rev, lang: r.lang, q: 0, price: null, date: sub.at, com: '' });
       L.q += r.q;
       if (r.price != null) L.price = r.price;
-      L.date = sub.at; L.com = r.com || L.com;
+      L.date = sub.at; L.com = r.com || L.com; L.expName = sub.name || L.expName;
+      if (!L.u) L.u = r.u || c.u || '';
       n += r.q;
     }
   }
   save();
-  const id = (d.listed && d.listed.length ? d.listed[d.listed.length - 1].exp : null) || (d.exp && d.exp.id) || null;
-  setTimeout(() => toast(n ? `Aggiornato: ${n} carte messe in vendita su Cardmarket` : `Elenco del set "${expName(id)}" aggiornato`), 200);
-  return id;
+  setTimeout(() => toast(n ? `Aggiornato: ${n} carte in vendita su Cardmarket` : `Dati del set "${last?.name || ''}" aggiornati (immagini e prezzi attuali)`), 300);
+  return last ? last.name : null;
+}
+
+// ---------- abbinamento carte in vendita ↔ set TCGdex ----------
+function listingsBySet() {
+  const m = {};
+  for (const [k, l] of Object.entries(state.listings)) {
+    const sid = tcgIdFor(l.expName || state.cm[l.exp]?.name) || ('cm:' + l.exp);
+    (m[sid] = m[sid] || []).push([k, l]);
+  }
+  return m;
+}
+function cmCatalogFor(setName) {
+  return Object.values(state.cm).find(e => simp(e.name) === simp(setName));
 }
 
 // ---------- lista dei set a sinistra ----------
 let selected = null;
-function counts() {
-  const c = {};
-  for (const l of Object.values(state.listings)) c[l.exp] = (c[l.exp] || 0) + l.q;
-  return c;
-}
 function renderSets() {
-  const cnt = counts();
+  const bySet = listingsBySet();
+  const cnt = id => (bySet[id] || []).reduce((a, [, l]) => a + l.q, 0);
   const q = simp($('qSet').value), only = $('onlyMine').checked;
-  const all = new Map(state.expList.map(([id, name]) => [id, name]));
-  Object.values(state.exps).forEach(e => { if (!all.has(e.id)) all.set(e.id, e.name || ('Set ' + e.id)); });
-  const items = [...all.entries()].filter(([id, name]) => (!q || simp(name).includes(q)) && (!only || cnt[id]));
-  const mine = items.filter(([id]) => cnt[id]).sort((a, b) => a[1].localeCompare(b[1]));
-  const rest = items.filter(([id]) => !cnt[id]).sort((a, b) => a[1].localeCompare(b[1]));
-  const link = ([id, name]) => `<a href="#" data-id="${esc(id)}" class="${id === selected ? 'sel' : ''}"><span>${esc(name)}</span>${cnt[id] ? `<span class="n">${cnt[id]}</span>` : ''}</a>`;
+  const all = tcgSets.map(s => ({ id: s.id, name: s.name, symbol: s.symbol }));
+  // espansioni Cardmarket con carte in vendita ma senza corrispondenza in TCGdex
+  Object.keys(bySet).filter(id => id.startsWith('cm:')).forEach(id => all.push({ id, name: state.cm[id.slice(3)]?.name || bySet[id][0][1].expName || id }));
+  const items = all.filter(s => (!q || simp(s.name).includes(q)) && (!only || cnt(s.id)));
+  const mine = items.filter(s => cnt(s.id)), rest = items.filter(s => !cnt(s.id));
+  const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}">${s.symbol ? `<img src="${esc(s.symbol)}.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<span style="width:22px"></span>'}<span class="nm">${esc(s.name)}</span>${cnt(s.id) ? `<span class="n">${cnt(s.id)}</span>` : ''}</a>`;
   $('sets').innerHTML = ((mine.length ? `<div class="grp">Con carte in vendita</div>${mine.map(link).join('')}` : '') +
-    (rest.length ? `<div class="grp">${mine.length ? 'Tutti gli altri set' : 'Tutti i set'} (${rest.length})</div>${rest.map(link).join('')}` : '')) ||
-    '<p class="small" style="padding:12px">L\'elenco dei set arriva da Cardmarket la prima volta che usi il pulsante "Card Scanner → CM".</p>';
+    (rest.length ? `<div class="grp">${mine.length ? 'Tutti gli altri set' : 'Tutti i set'} · dal più recente (${rest.length})</div>${rest.map(link).join('')}` : '')) ||
+    '<p class="small" style="padding:12px">Nessun set trovato.</p>';
 }
 $('sets').addEventListener('click', e => {
   const a = e.target.closest('a[data-id]');
@@ -223,50 +271,94 @@ $('sets').addEventListener('click', e => {
 $('qSet').addEventListener('input', renderSets);
 $('onlyMine').addEventListener('change', renderSets);
 
-// ---------- set aperto: tutte le carte ----------
-let filter = 'all', filterText = '';
-function renderSet() {
+// ---------- immagini: TCGdex → TCGdex inglese → Cardmarket → Limitless TCG ----------
+function imgSrcs(tcgImage, cmCard, num) {
+  const u3 = /^\d+$/.test(num || '') ? String(parseInt(num, 10)).padStart(3, '0') : num;
+  return [...new Set([
+    tcgImage ? tcgImage + '/low.webp' : '',
+    tcgImage ? tcgImage.replace(/(assets\.tcgdex\.net\/)[a-z-]+\//, '$1en/') + '/low.webp' : '',
+    cmCard?.i || '',
+    cmCard?.c && u3 ? `https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpci/${cmCard.c}/${cmCard.c}_${u3}_R_EN_LG.png` : ''
+  ].filter(Boolean))];
+}
+function imgTag(srcs, lazy) {
+  if (!srcs.length) return '';
+  return `<img ${lazy ? 'loading="lazy"' : ''} referrerpolicy="no-referrer" src="${esc(srcs[0])}" data-srcs="${esc(srcs.slice(1).join('|'))}" alt="" onerror="nextImg(this)">`;
+}
+function nextImg(im) {
+  const rest = (im.dataset.srcs || '').split('|').filter(Boolean);
+  if (!rest.length) { im.remove(); return; }
+  im.dataset.srcs = rest.slice(1).join('|');
+  im.src = rest[0];
+}
+
+// ---------- set aperto: tutte le carte, fuoriserie comprese ----------
+let filter = 'all', filterText = '', current = null;
+async function renderSet() {
   const main = $('main');
+  current = null;
   if (!selected) {
     main.innerHTML = `<div class="empty">Scegli un set dalla lista a sinistra.<br>
-      Le carte e i prezzi arrivano in automatico da Cardmarket: compila la pagina "Inserisci carte bulk" con il pulsante <b>Card Scanner → CM</b>,
-      premi "Mettere in vendita le carte" e poi il pulsante verde dello script.</div>`;
+      Le carte in vendita arrivano da Cardmarket con il pulsante <b>Card Scanner → CM</b>: dopo "Mettere in vendita le carte" premi il pulsante verde dello script.</div>`;
     return;
   }
-  const E = state.exps[selected];
-  const mine = Object.entries(state.listings).filter(([, l]) => l.exp === selected);
-  if (!E || !Object.keys(E.cards).length) {
-    main.innerHTML = `<div class="empty"><h2>${esc(expName(selected))}</h2>Non ho ancora l'elenco delle carte di questo set.<br>
-      Apri <a href="${CM}${encodeURIComponent(selected)}" target="_blank">la pagina "Inserisci carte bulk" di questo set su Cardmarket</a>, premi <b>Card Scanner → CM</b>
-      e poi "Invia solo l'elenco di questo set al gestionale" (in fondo al pannello).<br>Se il set ha due pagine, fallo su entrambe.</div>`;
-    return;
+  const bySet = listingsBySet();
+  const mine = bySet[selected] || [];
+  let cards, setName, logo = '', official = 0, setId = null;
+  if (selected.startsWith('cm:')) {
+    // set non presente in TCGdex: uso l'elenco di Cardmarket
+    const E = state.cm[selected.slice(3)];
+    setName = E?.name || mine[0]?.[1].expName || '';
+    cards = Object.values(E?.cards || {}).map(c => ({ localId: c.u, name: c.n, image: '', rarity: rarIt(c.r) }));
+  } else {
+    main.innerHTML = '<p class="empty">Carico le carte del set…</p>';
+    const S = await tcg('/sets/' + encodeURIComponent(selected), 24);
+    if (!S) { main.innerHTML = '<p class="empty">Non riesco a caricare il set da TCGdex (serve internet).</p>'; return; }
+    setId = S.id; setName = S.name; logo = S.logo || ''; official = S.cardCount?.official || 0;
+    cards = (S.cards || []).map(c => ({ id: c.id, localId: c.localId, name: c.name, image: c.image || '' }));
   }
-  const byP = {};
-  mine.forEach(([k, l]) => (byP[l.p] = byP[l.p] || []).push([k, l]));
-  const cards = Object.values(E.cards).sort((a, b) => (parseInt(a.u) || 9999) - (parseInt(b.u) || 9999) || String(a.u).localeCompare(String(b.u)));
+  const cmCat = cmCatalogFor(setName);
+  const cmByNum = {};
+  Object.values(cmCat?.cards || {}).forEach(c => { cmByNum[norm(c.u)] = c; });
+  // carte in vendita che il set TCGdex non elenca: le aggiungo comunque
+  const byNum = {};
+  mine.forEach(([k, l]) => (byNum[norm(l.u)] = byNum[norm(l.u)] || []).push([k, l]));
+  const known = new Set(cards.map(c => norm(c.localId)));
+  Object.keys(byNum).forEach(n => { if (!known.has(n)) { const c = cmByNum[n]; cards.push({ localId: byNum[n][0][1].u, name: c?.n || '', image: '', rarity: rarIt(c?.r) }); } });
+  cards.sort((a, b) => (parseInt(a.localId) || 99999) - (parseInt(b.localId) || 99999) || String(a.localId).localeCompare(String(b.localId)));
+  const rc = setId ? rarCache(setId) : {};
+  current = { setName, cards, byNum, cmByNum };
+
   const copies = mine.reduce((a, [, l]) => a + l.q, 0);
-  const value = mine.reduce((a, [, l]) => a + (priceOf(l) || 0) * l.q, 0);
-  let h = `<div class="sethead"><div><h2>${esc(E.name)}</h2>
-    <div class="sub">${cards.length} carte nel set · in vendita ${Object.keys(byP).length} diverse, ${copies} copie · valore ${eur(value)}</div></div>
+  const value = mine.reduce((a, [, l]) => a + (l.price || 0) * l.q, 0);
+  const extra = official && cards.length > official ? cards.length - official : 0;
+  let h = `<div class="sethead"><div class="row" style="gap:14px">${logo ? `<img class="logo" src="${esc(logo)}.png" alt="" onerror="if(!this.dataset.e){this.dataset.e=1;this.src=this.src.replace(/(assets\\.tcgdex\\.net\\/)[a-z-]+\\//,'$1en/')}else this.remove()">` : ''}
+    <div><h2>${esc(setName)}</h2>
+    <div class="sub">${cards.length} carte${extra ? ` (${official} + ${extra} fuoriserie)` : ''} · in vendita ${Object.keys(byNum).length} diverse, ${copies} copie · valore ${eur(value)}</div></div></div>
     <div class="row"><input type="search" id="qCard" placeholder="Cerca carta…">
     <select id="fShow"><option value="all">Tutte le carte del set</option><option value="yes">Solo in vendita</option><option value="no">Solo non in vendita</option><option value="rev">Solo Reverse in vendita</option></select>
-    <a href="${CM}${encodeURIComponent(E.id)}" target="_blank"><button>Apri su Cardmarket ↗</button></a></div></div><div class="grid">`;
+    ${cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="_blank"><button>Apri su Cardmarket ↗</button></a>` : ''}</div></div><div class="grid">`;
   for (const c of cards) {
-    const ls = byP[c.p] || [];
+    const n0 = norm(c.localId);
+    const ls = byNum[n0] || [];
+    const cm = cmByNum[n0];
     const n = ls.filter(([, l]) => !l.rev).reduce((a, [, l]) => a + l.q, 0);
     const r = ls.filter(([, l]) => l.rev).reduce((a, [, l]) => a + l.q, 0);
-    const prices = [...new Set(ls.map(([, l]) => priceOf(l)).filter(v => v != null))].sort((a, b) => a - b);
-    const s = esc(`${c.n} ${c.u} ${norm(c.u)} ${c.r}`.toLowerCase());
-    h += `<div class="card ${ls.length ? 'yes' : 'no'}${r ? ' r' : ''}" data-p="${esc(c.p)}" data-s="${s}">
-      <div class="im"><span>${esc(c.u)}</span>${imgTag(c, true)}</div>
+    const prices = [...new Set(ls.map(([, l]) => l.price).filter(v => v != null))].sort((a, b) => a - b);
+    const rar = c.rarity ?? rc[n0] ?? rarIt(cm?.r) ?? '';
+    const isExtra = official && /^\d+$/.test(c.localId) && +c.localId > official;
+    h += `<div class="card ${ls.length ? 'yes' : 'no'}${r ? ' r' : ''}" data-n="${esc(n0)}" data-s="${esc(`${c.name} ${c.localId} ${n0} ${rar} ${cm?.n || ''}`.toLowerCase())}">
+      <div class="im"><span>${esc(c.localId)}</span>${imgTag(imgSrcs(c.image, cm, c.localId), true)}</div>
       ${ls.length ? `<div class="badges">${n ? `<span class="bn">×${n}</span>` : ''}${r ? `<span class="br">R ×${r}</span>` : ''}</div>` : ''}
-      <div class="info"><b>${esc(c.u)}</b> ${esc(c.n)}<small>${esc(c.r)}</small>${prices.length ? `<span class="price">${prices.map(eur).join(' / ')}</span>` : ''}</div></div>`;
+      <div class="info"><b>${esc(c.localId)}${official ? '/' + official : ''}</b> ${esc(c.name)}${isExtra ? '<span class="fs">FS</span>' : ''}
+      <small class="rar">${esc(rar)}</small>${prices.length ? `<span class="price">${prices.map(eur).join(' / ')}</span>` : ''}</div></div>`;
   }
   main.innerHTML = h + '</div>';
   $('qCard').value = filterText; $('fShow').value = filter;
   $('qCard').oninput = () => { filterText = $('qCard').value; applyCardFilter(); };
   $('fShow').onchange = () => { filter = $('fShow').value; applyCardFilter(); };
   applyCardFilter();
+  if (setId) loadRarities(setId, cards.filter(c => c.id));
 }
 function applyCardFilter() {
   const t = filterText.trim().toLowerCase();
@@ -278,22 +370,25 @@ function applyCardFilter() {
     el.classList.toggle('hide', !ok);
   });
 }
-// dettaglio carta: immagine grande, quantità e prezzi, vendita a mano
+// dettaglio carta
 $('main').addEventListener('click', e => {
   const el = e.target.closest('.card');
-  if (!el) return;
-  const E = state.exps[selected], c = E.cards[el.dataset.p];
-  const ls = Object.entries(state.listings).filter(([, l]) => l.p === c.p);
-  openDlg(`<div class="big">${imgTag(c, false)}</div>
-    <h3>${esc(c.u)} ${esc(c.n)} <span class="small">${esc(c.r)} · ${esc(E.name)}</span></h3>
+  if (!el || !current) return;
+  const n0 = el.dataset.n;
+  const c = current.cards.find(x => norm(x.localId) === n0);
+  const cm = current.cmByNum[n0];
+  const ls = current.byNum[n0] || [];
+  const srcs = imgSrcs(c.image, cm, c.localId);
+  openDlg(`<div class="big">${imgTag(srcs, false)}</div>
+    <h3>${esc(c.localId)} ${esc(c.name)} <span class="small">${esc(el.querySelector('.rar').textContent)} · ${esc(current.setName)}</span></h3>
     ${ls.length ? `<table><tr><th>Variante</th><th>Lingua</th><th>Quantità</th><th>Prezzo €</th><th></th></tr>${ls.map(([k, l]) => `<tr data-k="${esc(k)}">
       <td>${l.rev ? 'Reverse Holo' : 'Normale'}</td><td>${LANGN[l.lang] || l.lang}</td>
       <td><input type="number" min="0" value="${l.q}" data-f="q" style="width:70px"></td>
-      <td><input type="number" min="0" step="0.01" value="${priceOf(l) ?? ''}" data-f="price" style="width:90px">${l.price == null && priceOf(l) != null ? '<div class="small">da Cardmarket</div>' : ''}</td>
+      <td><input type="number" min="0" step="0.01" value="${l.price ?? ''}" data-f="price" style="width:90px"></td>
       <td><button class="sm" data-sell="1">venduta 1</button></td></tr>`).join('')}</table>
       <p class="small">In vendita dal ${new Date(ls[0][1].date).toLocaleDateString('it-IT')}${ls[0][1].com ? ` · commento: ${esc(ls[0][1].com)}` : ''}</p>`
     : '<p class="small">Non in vendita.</p>'}
-    <p class="small">${imgSrcs(c).map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noreferrer">immagine ${i + 1}</a>`).join(' · ') || 'nessun link immagine'}</p>
+    <p class="small">${srcs.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noreferrer">immagine ${i + 1}</a>`).join(' · ') || 'nessun link immagine'}</p>
     <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
     $('dClose').onclick = closeDlg;
     $('dlgBody').querySelectorAll('input[data-f]').forEach(inp => inp.onchange = () => {
@@ -334,20 +429,23 @@ function parseQty(line) {
 }
 function matchSales(text) {
   const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length > 2);
-  const inv = Object.entries(state.listings).map(([k, l]) => ({ k, l, c: cardOf(l) || {}, set: expName(l.exp) }));
+  const inv = Object.entries(state.listings).map(([k, l]) => {
+    const c = state.cm[l.exp]?.cards?.[l.p] || {};
+    return { k, l, name: c.n || '', code: c.c || '', set: l.expName || state.cm[l.exp]?.name || '' };
+  });
   const found = [];
   lines.forEach((line, i) => {
     const ctx = line + ' ' + (lines[i + 1] || '');
     const L = simp(line);
     const cands = [];
     for (const x of inv) {
-      const w = longestWord(x.c.n);
+      const w = longestWord(x.name);
       if (!w || !L.includes(w)) continue;
       let score = 1;
-      if (L.includes(simp(x.c.n))) score += 1;
-      if (x.c.c && x.c.u && simp(ctx).includes(simp(x.c.c + x.c.u))) score += 3;          // es. "DLR 001"
-      else if (/^\d+$/.test(x.c.u) && new RegExp('(^|[^0-9])0*' + parseInt(x.c.u, 10) + '([^0-9]|$)').test(ctx)) score += 1;
-      if (simp(ctx).includes(simp(x.set))) score += 1;
+      if (L.includes(simp(x.name))) score += 1;
+      if (x.code && x.l.u && simp(ctx).includes(simp(x.code + x.l.u))) score += 3;
+      else if (/^\d+$/.test(x.l.u) && new RegExp('(^|[^0-9])0*' + parseInt(x.l.u, 10) + '([^0-9]|$)').test(ctx)) score += 1;
+      if (x.set && simp(ctx).includes(simp(x.set))) score += 1;
       if (/reverse/i.test(ctx) === x.l.rev) score += 1;
       cands.push(Object.assign({ score }, x));
     }
@@ -373,7 +471,7 @@ async function importSales(files) {
     ${rows.map((r, i) => {
       const top = r.cands[0], sure = top.score >= 3 && (r.cands.length === 1 || r.cands[1].score < top.score);
       return `<tr><td><input type="checkbox" data-i="${i}" ${sure ? 'checked' : ''}></td><td class="line">${esc(r.line)}</td>
-        <td><select data-s="${i}">${r.cands.slice(0, 8).map((c, j) => `<option value="${j}">${esc(c.c.u)} ${esc(c.c.n)} · ${esc(c.set)}${c.l.rev ? ' · REVERSE' : ''} (${c.l.q} in vendita)</option>`).join('')}</select></td>
+        <td><select data-s="${i}">${r.cands.slice(0, 8).map((c, j) => `<option value="${j}">${esc(c.l.u)} ${esc(c.name)} · ${esc(c.set)}${c.l.rev ? ' · REVERSE' : ''} (${c.l.q} in vendita)</option>`).join('')}</select></td>
         <td><input type="number" min="1" value="${r.qty}" data-q="${i}" style="width:60px"></td></tr>`;
     }).join('')}</table></div>
     <p style="text-align:right"><button id="dClose">Annulla</button> <button class="pri" id="dApply">Togli le vendute</button></p>`, () => {
@@ -394,10 +492,10 @@ async function importSales(files) {
 function sell(k, q, source, file) {
   const L = state.listings[k];
   if (!L) return;
-  const c = cardOf(L) || {};
+  const c = state.cm[L.exp]?.cards?.[L.p] || {};
   const n = Math.min(q, L.q);
   L.q -= n;
-  state.sold.push({ date: today(), p: L.p, exp: L.exp, name: c.n || '', num: c.u || '', rev: L.rev, lang: L.lang, q: n, price: priceOf(L), source, file: file || '' });
+  state.sold.push({ date: today(), p: L.p, exp: L.exp, expName: L.expName, name: c.n || '', num: L.u || c.u || '', rev: L.rev, lang: L.lang, q: n, price: L.price, source, file: file || '' });
   if (L.q <= 0) delete state.listings[k];
 }
 function showSold() {
@@ -406,14 +504,14 @@ function showSold() {
   openDlg(`<h3>Carte vendute (${state.sold.reduce((a, s) => a + s.q, 0)} · ${eur(tot)} ai prezzi di listino)</h3>
     <div style="max-height:62vh;overflow:auto">${list.length ? `<table><tr><th>Data</th><th>Carta</th><th>Set</th><th>Q.tà</th><th>Prezzo</th><th>Dove</th><th></th></tr>
     ${list.map(([s, i]) => `<tr><td>${new Date(s.date).toLocaleDateString('it-IT')}</td><td>${esc(s.num)} ${esc(s.name)}${s.rev ? ' (Reverse)' : ''}</td>
-      <td>${esc(expName(s.exp))}</td><td>${s.q}</td><td>${eur(s.price)}</td><td>${esc(s.source)}<div class="small">${esc(s.file)}</div></td>
+      <td>${esc(s.expName || state.cm[s.exp]?.name || '')}</td><td>${s.q}</td><td>${eur(s.price)}</td><td>${esc(s.source)}<div class="small">${esc(s.file)}</div></td>
       <td><button class="sm" data-undo="${i}">annulla</button></td></tr>`).join('')}</table>` : '<p>Nessuna vendita.</p>'}</div>
     <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
     $('dClose').onclick = closeDlg;
     $('dlgBody').querySelectorAll('[data-undo]').forEach(b => b.onclick = () => {
       const s = state.sold[+b.dataset.undo];
       const k = lkey(s.p, s.rev, s.lang);
-      const L = state.listings[k] || (state.listings[k] = { p: s.p, exp: s.exp, rev: s.rev, lang: s.lang, q: 0, price: s.price, date: s.date, com: '' });
+      const L = state.listings[k] || (state.listings[k] = { p: s.p, exp: s.exp, expName: s.expName, u: s.num, rev: s.rev, lang: s.lang, q: 0, price: s.price, date: s.date, com: '' });
       L.q += s.q;
       state.sold.splice(+b.dataset.undo, 1);
       save(); refresh(); showSold();
@@ -427,47 +525,51 @@ function closeDlg() { $('dlg').close(); }
 function refresh() {
   const ls = Object.values(state.listings);
   const copies = ls.reduce((a, l) => a + l.q, 0);
-  const value = ls.reduce((a, l) => a + (priceOf(l) || 0) * l.q, 0);
-  const sets = new Set(ls.map(l => l.exp)).size;
-  $('stats').textContent = `In vendita su Cardmarket: ${copies} copie · ${ls.length} righe · ${sets} set · valore ${eur(value)} · vendute ${state.sold.reduce((a, s) => a + s.q, 0)}` +
-    (state.legacy.length ? ` · ${state.legacy.length} carte della versione precedente in attesa dell'elenco del loro set` : '');
+  const value = ls.reduce((a, l) => a + (l.price || 0) * l.q, 0);
+  const noPrice = ls.filter(l => l.price == null).length;
+  $('stats').textContent = `In vendita su Cardmarket: ${copies} copie · ${ls.length} righe · valore ${eur(value)}` +
+    (noPrice ? ` (${noPrice} righe senza prezzo)` : '') + ` · vendute ${state.sold.reduce((a, s) => a + s.q, 0)}`;
   renderSets(); renderSet();
 }
 $('btnSale').onclick = () => $('fSale').click();
 $('fSale').onchange = e => { importSales([...e.target.files]); e.target.value = ''; };
 $('btnSold').onclick = showSold;
-$('btnMore').onclick = () => openDlg(`<h3>Altro</h3>
+$('btnMore').onclick = () => {
+  const all = Object.values(state.cm).flatMap(e => Object.values(e.cards));
+  openDlg(`<h3>Altro</h3>
   <p class="row"><button id="bBackup">💾 Scarica backup</button><button id="bRestore">↩ Ripristina backup</button><button id="bWipe">🗑 Svuota carte in vendita</button></p>
-  <p class="small">${(() => { const all = Object.values(state.exps).flatMap(e => Object.values(e.cards)); const wi = all.filter(c => c.i).length, wm = all.filter(c => c.m != null).length;
-    return `Controllo: ${all.length} carte negli elenchi dei set · ${wi} con link immagine da Cardmarket · ${wm} con il tuo prezzo attuale da Cardmarket.`; })()}</p>
+  <p class="small">Controllo: ${tcgSets.length} set da TCGdex · ${all.length} carte dalle pagine Cardmarket · ${all.filter(c => c.i).length} con link immagine Cardmarket · ${all.filter(c => c.m != null).length} con il tuo prezzo attuale.</p>
   <p class="small">I dati sono salvati in questo browser. Fai un backup ogni tanto: se pulisci i dati di Chrome o cambi PC, lo ripristini da qui.</p>
   <p class="small">Pulsante per Cardmarket: <a href="../cardmarket/">pagina di installazione</a>.</p>
   <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
-  $('dClose').onclick = closeDlg;
-  $('bBackup').onclick = () => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(state)], { type: 'application/json' }));
-    a.download = `gestionale-carte-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-  };
-  $('bRestore').onclick = () => $('fRestore').click();
-  $('bWipe').onclick = () => { if (confirm('Cancellare tutte le carte in vendita e le vendite? Fai prima un backup.')) { state = { exps: state.exps, expList: state.expList, listings: {}, sold: [], legacy: [] }; save(); closeDlg(); refresh(); } };
-});
+    $('dClose').onclick = closeDlg;
+    $('bBackup').onclick = () => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(state)], { type: 'application/json' }));
+      a.download = `gestionale-carte-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+    };
+    $('bRestore').onclick = () => $('fRestore').click();
+    $('bWipe').onclick = () => { if (confirm('Cancellare tutte le carte in vendita e le vendite? Fai prima un backup.')) { state = { cm: state.cm, listings: {}, sold: [] }; save(); closeDlg(); refresh(); } };
+  });
+};
 $('fRestore').onchange = async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
-  try { const s = JSON.parse(await f.text()); if (!s.exps) throw 0; if (confirm('Sostituire i dati attuali con questo backup?')) { state = Object.assign({ expList: [], listings: {}, sold: [], legacy: [] }, s); save(); closeDlg(); refresh(); } }
+  try { const s = JSON.parse(await f.text()); if (!s.listings) throw 0; if (confirm('Sostituire i dati attuali con questo backup?')) { state = Object.assign({ cm: {}, sold: [] }, s); save(); closeDlg(); refresh(); } }
   catch (err) { alert('Backup non valido.'); }
 };
 document.addEventListener('dragover', e => e.preventDefault());
 document.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) importSales([...e.dataTransfer.files]); });
-// nuovi dati da Cardmarket mentre la pagina è già aperta (stessa scheda)
-window.addEventListener('hashchange', () => { const id = importFromHash(); if (id) selected = id; refresh(); });
+window.addEventListener('hashchange', () => { const name = importFromHash(); if (name) selected = tcgIdFor(name) || selected; refresh(); });
 
-const arrived = importFromHash();
-const cnt0 = counts();
-selected = arrived || Object.keys(cnt0).sort((a, b) => cnt0[b] - cnt0[a])[0] || null;
-refresh();
+(async () => {
+  const arrived = importFromHash();
+  await loadSets();
+  const bySet = listingsBySet();
+  selected = (arrived && tcgIdFor(arrived)) || Object.keys(bySet).sort((a, b) => bySet[b].length - bySet[a].length)[0] || (tcgSets[0] && tcgSets[0].id) || null;
+  refresh();
+})();
 </script>
 </body>
 </html>

@@ -52,6 +52,8 @@
       <span>Tuo utente</span><input id="csMe" style="${inp}" placeholder="per escludere le tue offerte">
     </div>
     <div id="csProg" style="margin:0 0 8px;padding:8px;border-radius:8px;background:#0d1014;font-size:12.5px;display:none"></div>
+    <button id="csDone" title="Le carte compilate in questa pagina sono già in vendita su Cardmarket: le registro nel gestionale senza inviarle di nuovo"
+      style="width:100%;margin-bottom:8px;padding:7px;border:1px solid #333a44;border-radius:8px;background:#0d1014;color:#e8eaed;cursor:pointer">📌 Già in vendita: registra senza inviare</button>
     <button id="csGo" style="width:100%;padding:10px;border:0;border-radius:8px;background:#ffcb05;color:#111;font-weight:700;cursor:pointer">Compila la pagina</button>
     <div id="csLog" style="margin-top:10px;font:12px/1.45 monospace;white-space:pre-wrap"></div>
     <button id="csGest" style="display:none;width:100%;margin-top:10px;padding:10px;border:0;border-radius:8px;background:#3ecf6e;color:#111;font-weight:700;cursor:pointer"></button>
@@ -300,6 +302,14 @@
     });
     return w;
   }
+  const curPage = () => parseInt(new URLSearchParams(location.search).get('site') || '1', 10) || 1;
+  function pageUrl(n) { const u = new URL(location.href); if (n > 1) u.searchParams.set('site', n); else u.searchParams.delete('site'); return u.href; }
+  function lastPage() {
+    // numero di pagine del set, dai link di paginazione della pagina
+    let max = curPage();
+    document.querySelectorAll('a[href*="site="]').forEach(a => { const m = a.getAttribute('href').match(/[?&]site=(\d+)/); if (m) max = Math.max(max, +m[1]); });
+    return max;
+  }
   function showProgress() {
     const w = wanted();
     const box = $('csProg');
@@ -316,7 +326,10 @@
     box.style.display = 'block';
     box.innerHTML = `<b style="color:${sent >= tot ? '#3ecf6e' : '#ffcb05'}">📦 Lista: ${sent}/${tot} copie già inviate a Cardmarket</b>` +
       (missHere.length ? `<div>Da caricare <b>in questa pagina</b> (${missHere.length}): ${missHere.join(', ')}</div>` : '') +
-      (missOther.length ? `<div style="color:#ff9f43">Da caricare <b>in altre pagine</b> o altri set (${missOther.length}): ${missOther.join(', ')}</div>` : '') +
+      (missOther.length ? `<div style="color:#ff9f43;margin-top:4px">Da caricare <b>in altre pagine</b> del set (${missOther.length}): ${missOther.join(', ')}<br>` +
+        `Sei a pagina ${curPage()} di ${lastPage()}: ` +
+        Array.from({ length: lastPage() }, (_, i) => i + 1).filter(n => n !== curPage()).map(n => `<a href="${pageUrl(n)}" style="color:#ffcb05;font-weight:700">vai a pagina ${n}</a>`).join(' · ') +
+        `<br><span style="color:#9aa3ad">Prima premi "Mettere in vendita le carte" qui: cambiando pagina Cardmarket perde quello che non hai inviato.</span></div>` : '') +
       (sent >= tot ? '<div style="color:#3ecf6e">Tutta la lista è stata caricata ✔</div>' : '') +
       `<div style="text-align:right"><a href="#" id="csReset" style="color:#9aa3ad;font-size:11px">azzera avanzamento</a></div>`;
     $('csReset').onclick = e => { e.preventDefault(); if (confirm('Azzerare l\'avanzamento di questa lista?')) { doneSet({}); showProgress(); } };
@@ -333,10 +346,15 @@
   }
   // quando premi "Mettere in vendita le carte" registro esattamente quello che invii (prezzi compresi)
   let lastSnap = 0;
-  function onSubmitted() {
-    if (Date.now() - lastSnap < 3000) return; // clic e invio dello stesso modulo: registro una volta sola
+  function onSubmitted(alreadyListed) {
+    if (!alreadyListed && Date.now() - lastSnap < 3000) return; // clic e invio dello stesso modulo: registro una volta sola
     lastSnap = Date.now();
     const rows = snapshot();
+    if (alreadyListed) rows.forEach(r => {
+      const tr = [...form.querySelectorAll('tbody tr')].find(t => (field(t, 'idProduct') || {}).value === r.p);
+      const my = parseFloat(((tr && tr.querySelector('input[name="myPrice"]')) || {}).value || '0');
+      if (my > 0) r.price = my;
+    });
     if (!rows.length) return;
     const pd = pending();
     const exp = expansion();
@@ -346,14 +364,22 @@
     rows.forEach(r => { const k = vkey(r.u, r.rev); if (w.has(k)) done[k] = (done[k] || 0) + r.q; });
     doneSet(done);
     showProgress();
+    const left = [...w.entries()].filter(([k, x]) => (done[k] || 0) < x.qty).length;
+    log(left ? `Mancano ancora ${left} carte della lista: guarda il riquadro 📦 qui sopra per sapere in che pagina sono.` : 'Tutta la lista è stata inviata ✔', left ? '#ff9f43' : '#3ecf6e');
     log(`Registrate ${rows.reduce((a, r) => a + r.q, 0)} carte inviate a Cardmarket. Ora premi il pulsante verde.`, '#3ecf6e');
     showGest();
   }
-  document.addEventListener('submit', e => { if (e.target === form) onSubmitted(); }, true);
+  document.addEventListener('submit', e => { if (e.target === form) onSubmitted(false); }, true);
+  $('csDone').onclick = () => {
+    const n = snapshot().reduce((a, r) => a + r.q, 0);
+    if (!n) { log('Nessuna carta compilata in questa pagina: premi prima "Compila la pagina".', '#ff6b6b'); return; }
+    if (!confirm(`Registrare ${n} carte come GIÀ in vendita su Cardmarket, senza inviarle? Usalo solo per carte che hai già messo in vendita.`)) return;
+    onSubmitted(true);
+  };
   // il pulsante di Cardmarket sta fuori dal modulo (attributo form=): lo ascolto anche direttamente
   document.addEventListener('click', e => {
     const b = e.target.closest && e.target.closest('[type="submit"]');
-    if (b && (b.getAttribute('form') === 'BulkListingForm' || b.form === form)) onSubmitted();
+    if (b && (b.getAttribute('form') === 'BulkListingForm' || b.form === form)) onSubmitted(false);
   }, true);
   function sendToGest(withListings) {
     const exp = expansion();

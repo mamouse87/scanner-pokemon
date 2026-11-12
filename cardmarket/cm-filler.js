@@ -51,6 +51,7 @@
       <span>Prezzo</span><span><input type="checkbox" id="csPrice" checked> offerta più bassa NM + <input id="csPlus" type="number" min="0" step="1" style="${inp};width:60px"> cent.</span>
       <span>Tuo utente</span><input id="csMe" style="${inp}" placeholder="per escludere le tue offerte">
     </div>
+    <div id="csProg" style="margin:0 0 8px;padding:8px;border-radius:8px;background:#0d1014;font-size:12.5px;display:none"></div>
     <button id="csGo" style="width:100%;padding:10px;border:0;border-radius:8px;background:#ffcb05;color:#111;font-weight:700;cursor:pointer">Compila la pagina</button>
     <div id="csLog" style="margin-top:10px;font:12px/1.45 monospace;white-space:pre-wrap"></div>
     <button id="csGest" style="display:none;width:100%;margin-top:10px;padding:10px;border:0;border-radius:8px;background:#3ecf6e;color:#111;font-weight:700;cursor:pointer"></button>
@@ -259,12 +260,14 @@
       const m = full.match(/^(.*?)\s*\(([A-Z0-9-]+)\s+([A-Z]*\d+[a-z]?)\)\s*$/i);
       const th = tr.querySelector('.thumbnail-icon');
       const tip = th ? (th.getAttribute('data-bs-title') || th.getAttribute('data-bs-original-title') || th.getAttribute('title') || '') : '';
-      const img = (tip.match(/src="([^"]+)"/) || [])[1] || '';
+      const img = (tip.match(/src="([^"]+)"/) || [])[1] ||
+        (tr.innerHTML.match(/https?:\/\/product-images[^"'\s&<>]+\.(?:jpe?g|png|webp)/i) || [])[0] || '';
       const rar = tr.querySelector('.rarity-symbol');
       const revEl = field(tr, 'isReverseHolo');
+      const myP = parseFloat((tr.querySelector('input[name="myPrice"]') || {}).value || '0');
       if (cards.some(c => c.p === pid.value)) return; // righe duplicate
       cards.push({ p: pid.value, n: m ? m[1].trim() : full, c: m ? m[2] : '', u: m ? m[3] : '', r: rar ? (rar.getAttribute('title') || rar.getAttribute('data-bs-original-title') || '') : '',
-        i: img, h: revEl && !revEl.disabled ? 1 : 0 });
+        i: img, h: revEl && !revEl.disabled ? 1 : 0, m: myP > 0 ? myP : null });
     });
     return cards;
   }
@@ -275,12 +278,52 @@
       const pid = field(tr, 'idProduct');
       if (!amt || !pid) return;
       const p = parseFloat(String((field(tr, 'price') || {}).value || '').replace(',', '.'));
-      rows.push({ p: pid.value, rev: !!(field(tr, 'isReverseHolo') || {}).checked, q: amt, price: isNaN(p) ? null : p,
+      const lab = ((tr.querySelector('.col-product a') || {}).textContent || '').trim().match(/\(([A-Z0-9-]+)\s+([A-Z]*\d+[a-z]?)\)\s*$/i);
+      rows.push({ p: pid.value, u: lab ? lab[2] : '', rev: !!(field(tr, 'isReverseHolo') || {}).checked, q: amt, price: isNaN(p) ? null : p,
         lang: LANG_CODE[(field(tr, 'idLanguage') || {}).value] || 'it', cond: +((field(tr, 'idCondition') || {}).value || 2),
         com: (field(tr, 'comments') || {}).value || '' });
     });
     return rows;
   }
+  // ---------- avanzamento della lista (anche tra pagine diverse del set) ----------
+  const hashStr = t => { let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return 'l' + (h >>> 0).toString(36); };
+  const listId = () => hashStr($('csInput').value.replace(/\s+/g, ' ').trim());
+  const vkey = (num, rev) => norm(num) + '|' + (rev ? 'R' : 'N');
+  const doneGet = () => { try { return JSON.parse(store.get('done_' + listId(), '{}')); } catch (e) { return {}; } };
+  const doneSet = o => store.set('done_' + listId(), JSON.stringify(o));
+  function wanted() {
+    const w = new Map();
+    parseInput($('csInput').value).items.forEach(it => {
+      const k = vkey(it.num, it.rev);
+      const x = w.get(k) || { num: it.num, rev: it.rev, qty: 0 };
+      x.qty += it.qty; w.set(k, x);
+    });
+    return w;
+  }
+  function showProgress() {
+    const w = wanted();
+    const box = $('csProg');
+    if (!w.size) { box.style.display = 'none'; return; }
+    const done = doneGet(), here = pageRows();
+    let tot = 0, sent = 0;
+    const missHere = [], missOther = [];
+    for (const [k, x] of w) {
+      const d = Math.min(done[k] || 0, x.qty);
+      tot += x.qty; sent += d;
+      const left = x.qty - d;
+      if (left > 0) (here.has(norm(x.num)) ? missHere : missOther).push(`${x.num}${x.rev ? 'R' : ''}${left > 1 ? '×' + left : ''}`);
+    }
+    box.style.display = 'block';
+    box.innerHTML = `<b style="color:${sent >= tot ? '#3ecf6e' : '#ffcb05'}">📦 Lista: ${sent}/${tot} copie già inviate a Cardmarket</b>` +
+      (missHere.length ? `<div>Da caricare <b>in questa pagina</b> (${missHere.length}): ${missHere.join(', ')}</div>` : '') +
+      (missOther.length ? `<div style="color:#ff9f43">Da caricare <b>in altre pagine</b> o altri set (${missOther.length}): ${missOther.join(', ')}</div>` : '') +
+      (sent >= tot ? '<div style="color:#3ecf6e">Tutta la lista è stata caricata ✔</div>' : '') +
+      `<div style="text-align:right"><a href="#" id="csReset" style="color:#9aa3ad;font-size:11px">azzera avanzamento</a></div>`;
+    $('csReset').onclick = e => { e.preventDefault(); if (confirm('Azzerare l\'avanzamento di questa lista?')) { doneSet({}); showProgress(); } };
+  }
+  $('csInput').addEventListener('input', showProgress);
+  $('csFile').addEventListener('change', () => setTimeout(showProgress, 300));
+
   const pending = () => { try { return JSON.parse(store.get('pending', '[]')); } catch (e) { return []; } };
   function showGest() {
     const pd = pending();
@@ -299,6 +342,10 @@
     const exp = expansion();
     pd.push({ exp: exp.id, name: exp.name, at: new Date().toISOString(), rows, cards: catalog() });
     store.set('pending', JSON.stringify(pd));
+    const w = wanted(), done = doneGet();
+    rows.forEach(r => { const k = vkey(r.u, r.rev); if (w.has(k)) done[k] = (done[k] || 0) + r.q; });
+    doneSet(done);
+    showProgress();
     log(`Registrate ${rows.reduce((a, r) => a + r.q, 0)} carte inviate a Cardmarket. Ora premi il pulsante verde.`, '#3ecf6e');
     showGest();
   }
@@ -324,6 +371,7 @@
   $('csGest').onclick = () => sendToGest(true);
   $('csCat').onclick = e => { e.preventDefault(); sendToGest(false); };
   showGest();
+  showProgress();
 
   $('csGo').onclick = async () => {
     $('csGo').disabled = true;
@@ -347,13 +395,23 @@
 
     const byNum = new Map();
     const missing = [];
-    for (const it of items) {
+    const done = Object.assign({}, doneGet());
+    let skipped = 0;
+    for (const it0 of items) {
+      // tolgo le copie già inviate a Cardmarket in precedenza (anche da un'altra pagina)
+      const k0 = vkey(it0.num, it0.rev);
+      const already = Math.min(done[k0] || 0, it0.qty);
+      done[k0] = (done[k0] || 0) - already;
+      skipped += already;
+      if (it0.qty - already <= 0) continue;
+      const it = Object.assign({}, it0, { qty: it0.qty - already });
       const k = norm(it.num);
       if (!rows.has(k)) { missing.push(it.num + (it.rev ? 'R' : '')); continue; }
       const g = byNum.get(k) || { row: rows.get(k), normal: 0, rev: 0, name: it.name, rarity: it.rarity };
       if (it.rev) g.rev += it.qty; else g.normal += it.qty;
       byNum.set(k, g);
     }
+    if (skipped) log(`${skipped} copie della lista erano già state inviate: non le compilo di nuovo.`, '#9aa3ad');
     if (missing.length) log('Non in questa pagina (altra pagina del set o set sbagliato): ' + missing.join(', '), '#ff9f43');
     if (byNum.size > 100) log('Attenzione: più di 100 carte diverse, Cardmarket potrebbe non inserirle tutte in un solo invio.', '#ff9f43');
 

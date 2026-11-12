@@ -123,6 +123,28 @@ const lkey = (p, rev, lang) => `${p}|${rev ? 'R' : 'N'}|${lang || 'it'}`;
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 4000); }
 function expName(id) { return state.exps[id]?.name || (state.expList.find(x => x[0] === id) || [])[1] || ('Set ' + id); }
 function cardOf(l) { return state.exps[l.exp]?.cards?.[l.p]; }
+// immagine: provo più fonti in fila (foto Cardmarket, foto Cardmarket ricostruita, foto inglese Limitless TCG)
+function imgSrcs(c) {
+  const u3 = /^\d+$/.test(c.u || '') ? String(parseInt(c.u, 10)).padStart(3, '0') : c.u;
+  return [...new Set([
+    c.i,
+    c.c && c.p ? `https://product-images.s3.cardmarket.com/51/${c.c}/${c.p}/${c.p}.jpg` : '',
+    c.c && u3 ? `https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpci/${c.c}/${c.c}_${u3}_R_EN_LG.png` : ''
+  ].filter(Boolean))];
+}
+function imgTag(c, lazy) {
+  const s = imgSrcs(c);
+  if (!s.length) return '';
+  return `<img ${lazy ? 'loading="lazy"' : ''} referrerpolicy="no-referrer" src="${esc(s[0])}" data-srcs="${esc(s.slice(1).join('|'))}" alt="" onerror="nextImg(this)">`;
+}
+function nextImg(im) {
+  const rest = (im.dataset.srcs || '').split('|').filter(Boolean);
+  if (!rest.length) { im.remove(); return; }
+  im.dataset.srcs = rest.slice(1).join('|');
+  im.src = rest[0];
+}
+// prezzo: quello inviato dallo script; se manca, il tuo prezzo attuale letto sulla pagina di Cardmarket
+const priceOf = l => l.price != null ? l.price : (cardOf(l)?.m ?? null);
 
 // ---------- arrivo dati dallo script di Cardmarket ----------
 function mergeCatalog(exp) {
@@ -223,7 +245,7 @@ function renderSet() {
   mine.forEach(([k, l]) => (byP[l.p] = byP[l.p] || []).push([k, l]));
   const cards = Object.values(E.cards).sort((a, b) => (parseInt(a.u) || 9999) - (parseInt(b.u) || 9999) || String(a.u).localeCompare(String(b.u)));
   const copies = mine.reduce((a, [, l]) => a + l.q, 0);
-  const value = mine.reduce((a, [, l]) => a + (l.price || 0) * l.q, 0);
+  const value = mine.reduce((a, [, l]) => a + (priceOf(l) || 0) * l.q, 0);
   let h = `<div class="sethead"><div><h2>${esc(E.name)}</h2>
     <div class="sub">${cards.length} carte nel set · in vendita ${Object.keys(byP).length} diverse, ${copies} copie · valore ${eur(value)}</div></div>
     <div class="row"><input type="search" id="qCard" placeholder="Cerca carta…">
@@ -233,10 +255,10 @@ function renderSet() {
     const ls = byP[c.p] || [];
     const n = ls.filter(([, l]) => !l.rev).reduce((a, [, l]) => a + l.q, 0);
     const r = ls.filter(([, l]) => l.rev).reduce((a, [, l]) => a + l.q, 0);
-    const prices = [...new Set(ls.map(([, l]) => l.price).filter(v => v != null))].sort((a, b) => a - b);
+    const prices = [...new Set(ls.map(([, l]) => priceOf(l)).filter(v => v != null))].sort((a, b) => a - b);
     const s = esc(`${c.n} ${c.u} ${norm(c.u)} ${c.r}`.toLowerCase());
     h += `<div class="card ${ls.length ? 'yes' : 'no'}${r ? ' r' : ''}" data-p="${esc(c.p)}" data-s="${s}">
-      <div class="im"><span>${esc(c.u)}</span>${c.i ? `<img loading="lazy" src="${esc(c.i)}" alt="" onerror="this.remove()">` : ''}</div>
+      <div class="im"><span>${esc(c.u)}</span>${imgTag(c, true)}</div>
       ${ls.length ? `<div class="badges">${n ? `<span class="bn">×${n}</span>` : ''}${r ? `<span class="br">R ×${r}</span>` : ''}</div>` : ''}
       <div class="info"><b>${esc(c.u)}</b> ${esc(c.n)}<small>${esc(c.r)}</small>${prices.length ? `<span class="price">${prices.map(eur).join(' / ')}</span>` : ''}</div></div>`;
   }
@@ -262,15 +284,16 @@ $('main').addEventListener('click', e => {
   if (!el) return;
   const E = state.exps[selected], c = E.cards[el.dataset.p];
   const ls = Object.entries(state.listings).filter(([, l]) => l.p === c.p);
-  openDlg(`<div class="big">${c.i ? `<img src="${esc(c.i)}" alt="">` : ''}</div>
+  openDlg(`<div class="big">${imgTag(c, false)}</div>
     <h3>${esc(c.u)} ${esc(c.n)} <span class="small">${esc(c.r)} · ${esc(E.name)}</span></h3>
     ${ls.length ? `<table><tr><th>Variante</th><th>Lingua</th><th>Quantità</th><th>Prezzo €</th><th></th></tr>${ls.map(([k, l]) => `<tr data-k="${esc(k)}">
       <td>${l.rev ? 'Reverse Holo' : 'Normale'}</td><td>${LANGN[l.lang] || l.lang}</td>
       <td><input type="number" min="0" value="${l.q}" data-f="q" style="width:70px"></td>
-      <td><input type="number" min="0" step="0.01" value="${l.price ?? ''}" data-f="price" style="width:90px"></td>
+      <td><input type="number" min="0" step="0.01" value="${priceOf(l) ?? ''}" data-f="price" style="width:90px">${l.price == null && priceOf(l) != null ? '<div class="small">da Cardmarket</div>' : ''}</td>
       <td><button class="sm" data-sell="1">venduta 1</button></td></tr>`).join('')}</table>
       <p class="small">In vendita dal ${new Date(ls[0][1].date).toLocaleDateString('it-IT')}${ls[0][1].com ? ` · commento: ${esc(ls[0][1].com)}` : ''}</p>`
     : '<p class="small">Non in vendita.</p>'}
+    <p class="small">${imgSrcs(c).map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noreferrer">immagine ${i + 1}</a>`).join(' · ') || 'nessun link immagine'}</p>
     <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
     $('dClose').onclick = closeDlg;
     $('dlgBody').querySelectorAll('input[data-f]').forEach(inp => inp.onchange = () => {
@@ -374,7 +397,7 @@ function sell(k, q, source, file) {
   const c = cardOf(L) || {};
   const n = Math.min(q, L.q);
   L.q -= n;
-  state.sold.push({ date: today(), p: L.p, exp: L.exp, name: c.n || '', num: c.u || '', rev: L.rev, lang: L.lang, q: n, price: L.price, source, file: file || '' });
+  state.sold.push({ date: today(), p: L.p, exp: L.exp, name: c.n || '', num: c.u || '', rev: L.rev, lang: L.lang, q: n, price: priceOf(L), source, file: file || '' });
   if (L.q <= 0) delete state.listings[k];
 }
 function showSold() {
@@ -404,7 +427,7 @@ function closeDlg() { $('dlg').close(); }
 function refresh() {
   const ls = Object.values(state.listings);
   const copies = ls.reduce((a, l) => a + l.q, 0);
-  const value = ls.reduce((a, l) => a + (l.price || 0) * l.q, 0);
+  const value = ls.reduce((a, l) => a + (priceOf(l) || 0) * l.q, 0);
   const sets = new Set(ls.map(l => l.exp)).size;
   $('stats').textContent = `In vendita su Cardmarket: ${copies} copie · ${ls.length} righe · ${sets} set · valore ${eur(value)} · vendute ${state.sold.reduce((a, s) => a + s.q, 0)}` +
     (state.legacy.length ? ` · ${state.legacy.length} carte della versione precedente in attesa dell'elenco del loro set` : '');
@@ -415,6 +438,8 @@ $('fSale').onchange = e => { importSales([...e.target.files]); e.target.value = 
 $('btnSold').onclick = showSold;
 $('btnMore').onclick = () => openDlg(`<h3>Altro</h3>
   <p class="row"><button id="bBackup">💾 Scarica backup</button><button id="bRestore">↩ Ripristina backup</button><button id="bWipe">🗑 Svuota carte in vendita</button></p>
+  <p class="small">${(() => { const all = Object.values(state.exps).flatMap(e => Object.values(e.cards)); const wi = all.filter(c => c.i).length, wm = all.filter(c => c.m != null).length;
+    return `Controllo: ${all.length} carte negli elenchi dei set · ${wi} con link immagine da Cardmarket · ${wm} con il tuo prezzo attuale da Cardmarket.`; })()}</p>
   <p class="small">I dati sono salvati in questo browser. Fai un backup ogni tanto: se pulisci i dati di Chrome o cambi PC, lo ripristini da qui.</p>
   <p class="small">Pulsante per Cardmarket: <a href="../cardmarket/">pagina di installazione</a>.</p>
   <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {

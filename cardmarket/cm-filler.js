@@ -53,7 +53,8 @@
     </div>
     <button id="csGo" style="width:100%;padding:10px;border:0;border-radius:8px;background:#ffcb05;color:#111;font-weight:700;cursor:pointer">Compila la pagina</button>
     <div id="csLog" style="margin-top:10px;font:12px/1.45 monospace;white-space:pre-wrap"></div>
-    <button id="csGest" style="display:none;width:100%;margin-top:10px;padding:10px;border:0;border-radius:8px;background:#3ecf6e;color:#111;font-weight:700;cursor:pointer">✔ Inviato su Cardmarket: segna nel gestionale</button>`;
+    <button id="csGest" style="display:none;width:100%;margin-top:10px;padding:10px;border:0;border-radius:8px;background:#3ecf6e;color:#111;font-weight:700;cursor:pointer"></button>
+    <div style="margin-top:8px;text-align:right"><a href="#" id="csCat" style="color:#9aa3ad;font-size:12px">Invia solo l'elenco di questo set al gestionale</a></div>`;
   document.body.appendChild(panel);
   const $ = id => panel.querySelector('#' + id);
   const log = (t, color) => {
@@ -240,6 +241,90 @@
     return { lang, langCode, setName, setId, items };
   }
 
+  // ---------- collegamento al gestionale ----------
+  const LANG_CODE = { 1: 'en', 2: 'fr', 3: 'de', 4: 'es', 5: 'it', 8: 'pt' };
+  function expansion() {
+    const id = new URLSearchParams(location.search).get('idExpansion') ||
+      (document.querySelector('select[name="idExpansion"]') || {}).value || '';
+    const opt = [...document.querySelectorAll('select[name="idExpansion"] option')].find(o => o.value === String(id));
+    return { id: String(id), name: opt ? opt.textContent.trim() : '' };
+  }
+  function catalog() {
+    const cards = [];
+    form.querySelectorAll('tbody tr').forEach(tr => {
+      const a = tr.querySelector('.col-product a');
+      const pid = field(tr, 'idProduct');
+      if (!a || !pid) return;
+      const full = a.textContent.trim();
+      const m = full.match(/^(.*?)\s*\(([A-Z0-9-]+)\s+([A-Z]*\d+[a-z]?)\)\s*$/i);
+      const th = tr.querySelector('.thumbnail-icon');
+      const tip = th ? (th.getAttribute('data-bs-title') || th.getAttribute('data-bs-original-title') || th.getAttribute('title') || '') : '';
+      const img = (tip.match(/src="([^"]+)"/) || [])[1] || '';
+      const rar = tr.querySelector('.rarity-symbol');
+      const revEl = field(tr, 'isReverseHolo');
+      if (cards.some(c => c.p === pid.value)) return; // righe duplicate
+      cards.push({ p: pid.value, n: m ? m[1].trim() : full, c: m ? m[2] : '', u: m ? m[3] : '', r: rar ? (rar.getAttribute('title') || rar.getAttribute('data-bs-original-title') || '') : '',
+        i: img, h: revEl && !revEl.disabled ? 1 : 0 });
+    });
+    return cards;
+  }
+  function snapshot() {
+    const rows = [];
+    form.querySelectorAll('tbody tr').forEach(tr => {
+      const amt = parseInt((field(tr, 'amount') || {}).value || '0', 10);
+      const pid = field(tr, 'idProduct');
+      if (!amt || !pid) return;
+      const p = parseFloat(String((field(tr, 'price') || {}).value || '').replace(',', '.'));
+      rows.push({ p: pid.value, rev: !!(field(tr, 'isReverseHolo') || {}).checked, q: amt, price: isNaN(p) ? null : p,
+        lang: LANG_CODE[(field(tr, 'idLanguage') || {}).value] || 'it', cond: +((field(tr, 'idCondition') || {}).value || 2),
+        com: (field(tr, 'comments') || {}).value || '' });
+    });
+    return rows;
+  }
+  const pending = () => { try { return JSON.parse(store.get('pending', '[]')); } catch (e) { return []; } };
+  function showGest() {
+    const pd = pending();
+    const n = pd.reduce((a, x) => a + x.rows.reduce((b, r) => b + r.q, 0), 0);
+    $('csGest').style.display = pd.length ? 'block' : 'none';
+    $('csGest').textContent = `✔ Aggiorna il gestionale (${n} carte messe in vendita)`;
+  }
+  // quando premi "Mettere in vendita le carte" registro esattamente quello che invii (prezzi compresi)
+  let lastSnap = 0;
+  function onSubmitted() {
+    if (Date.now() - lastSnap < 3000) return; // clic e invio dello stesso modulo: registro una volta sola
+    lastSnap = Date.now();
+    const rows = snapshot();
+    if (!rows.length) return;
+    const pd = pending();
+    const exp = expansion();
+    pd.push({ exp: exp.id, name: exp.name, at: new Date().toISOString(), rows, cards: catalog() });
+    store.set('pending', JSON.stringify(pd));
+    log(`Registrate ${rows.reduce((a, r) => a + r.q, 0)} carte inviate a Cardmarket. Ora premi il pulsante verde.`, '#3ecf6e');
+    showGest();
+  }
+  document.addEventListener('submit', e => { if (e.target === form) onSubmitted(); }, true);
+  // il pulsante di Cardmarket sta fuori dal modulo (attributo form=): lo ascolto anche direttamente
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[type="submit"]');
+    if (b && (b.getAttribute('form') === 'BulkListingForm' || b.form === form)) onSubmitted();
+  }, true);
+  function sendToGest(withListings) {
+    const exp = expansion();
+    const pd = withListings ? pending() : [];
+    const exps = [...document.querySelectorAll('select[name="idExpansion"]')][0];
+    const data = {
+      v: 2, exp: { id: exp.id, name: exp.name, cards: catalog() },
+      exps: exps ? [...exps.options].map(o => [o.value, o.textContent.trim()]).filter(x => x[0]) : [],
+      listed: pd
+    };
+    const enc = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+    window.open(GEST_URL + '#cm2=' + encodeURIComponent(enc), 'gestionaleCarte');
+    if (withListings) { store.set('pending', '[]'); showGest(); }
+  }
+  $('csGest').onclick = () => sendToGest(true);
+  $('csCat').onclick = e => { e.preventDefault(); sendToGest(false); };
+  showGest();
+
   $('csGo').onclick = async () => {
     $('csGo').disabled = true;
     $('csLog').textContent = '';
@@ -250,7 +335,6 @@
   async function run() {
     const { lang, langCode, setName, setId, items } = parseInput($('csInput').value);
     const filled = [];
-    $('csGest').style.display = 'none';
     if (!items.length) { log('Nessuna carta nella lista.', '#ff6b6b'); return; }
     const rows = pageRows();
     const wantPrice = $('csPrice').checked;
@@ -323,16 +407,7 @@
     }
     log(`\nCompilate ${total} copie. Verde = normali, viola = Reverse, arancione = da controllare (${warnings}).`, '#3ecf6e');
     log('Controlla e poi premi il pulsante di invio di Cardmarket in fondo alla pagina.', '#3ecf6e');
-    if (filled.length) {
-      log('Dopo aver premuto il pulsante di invio di Cardmarket, premi il pulsante verde qui sotto.', '#3ecf6e');
-      const b = $('csGest');
-      b.style.display = 'block';
-      b.onclick = () => {
-        const data = { site: 'Cardmarket', lang: langCode, setName, setId, items: filled };
-        const enc = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-        window.open(GEST_URL + '#cm=' + encodeURIComponent(enc), '_blank');
-      };
-    }
+    if (filled.length) log('Dopo il controllo premi "Mettere in vendita le carte" di Cardmarket: comparirà il pulsante verde per aggiornare il gestionale.', '#3ecf6e');
     if (blocked) log('Cardmarket ha bloccato le ricerche prezzi: per le carte restanti è stata usata la tendenza. Riprova tra qualche minuto.', '#ff9f43');
   }
 })();

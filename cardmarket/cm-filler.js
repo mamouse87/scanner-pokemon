@@ -25,6 +25,7 @@
   const DELAY_MS = 1300;
   const MIN_PRICE = 0.02;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const norm = n => /^\d+$/.test(n) ? String(parseInt(n, 10)) : n.toUpperCase();
   const store = {
     get: (k, d) => { try { const v = localStorage.getItem('cs_' + k); return v == null ? d : v; } catch (e) { return d; } },
@@ -51,9 +52,7 @@
       <span>Prezzo</span><span><input type="checkbox" id="csPrice" checked> offerta più bassa NM + <input id="csPlus" type="number" min="0" step="1" style="${inp};width:60px"> cent.</span>
       <span>Tuo utente</span><input id="csMe" style="${inp}" placeholder="per escludere le tue offerte">
     </div>
-    <div id="csProg" style="margin:0 0 8px;padding:8px;border-radius:8px;background:#0d1014;font-size:12.5px;display:none"></div>
-    <button id="csDone" title="Le carte compilate in questa pagina sono già in vendita su Cardmarket: le registro nel gestionale senza inviarle di nuovo"
-      style="width:100%;margin-bottom:8px;padding:7px;border:1px solid #333a44;border-radius:8px;background:#0d1014;color:#e8eaed;cursor:pointer">📌 Già in vendita: registra senza inviare</button>
+    <div id="csProg" style="margin:0 0 8px;padding:8px;border-radius:8px;background:#0d1014;font-size:12.5px;display:none;max-height:38vh;overflow:auto"></div>
     <button id="csGo" style="width:100%;padding:10px;border:0;border-radius:8px;background:#ffcb05;color:#111;font-weight:700;cursor:pointer">Compila la pagina</button>
     <div id="csLog" style="margin-top:10px;font:12px/1.45 monospace;white-space:pre-wrap"></div>
     <button id="csGest" style="display:none;width:100%;margin-top:10px;padding:10px;border:0;border-radius:8px;background:#3ecf6e;color:#111;font-weight:700;cursor:pointer"></button>
@@ -311,91 +310,72 @@
     return max;
   }
   function showProgress() {
-    const w = wanted();
     const box = $('csProg');
-    if (!w.size) { box.style.display = 'none'; return; }
-    const done = doneGet(), here = pageRows();
-    let tot = 0, sent = 0;
-    const missHere = [], missOther = [];
-    for (const [k, x] of w) {
-      const d = Math.min(done[k] || 0, x.qty);
-      tot += x.qty; sent += d;
-      const left = x.qty - d;
-      if (left > 0) (here.has(norm(x.num)) ? missHere : missOther).push(`${x.num}${x.rev ? 'R' : ''}${left > 1 ? '×' + left : ''}`);
-    }
+    const list = parseInput($('csInput').value).items;
+    if (!list.length) { box.style.display = 'none'; return; }
+    const done = Object.assign({}, doneGet()), here = pageRows();
+    let tot = 0, sent = 0, hereLeft = 0, otherLeft = 0;
+    const rowsHtml = list.map(it => {
+      const k = vkey(it.num, it.rev);
+      const d = Math.min(done[k] || 0, it.qty);
+      done[k] = (done[k] || 0) - d;
+      tot += it.qty; sent += d;
+      const left = it.qty - d;
+      const isHere = here.has(norm(it.num));
+      if (left) { if (isHere) hereLeft += left; else otherLeft += left; }
+      const st = !left ? '<span style="color:#3ecf6e">✔ inviata</span>'
+        : isHere ? '<span style="color:#ffcb05">da compilare qui</span>' : '<span style="color:#ff9f43">in un\'altra pagina</span>';
+      return `<tr style="${left ? '' : 'opacity:.5'}"><td>${esc(it.num)}</td><td>${esc(it.name || '')}${it.rev ? ' <b style="color:#cc5de8">R</b>' : ''}</td>` +
+        `<td style="text-align:right">${left ? '×' + left : '×' + it.qty}</td><td>${st}</td></tr>`;
+    }).join('');
     box.style.display = 'block';
-    box.innerHTML = `<b style="color:${sent >= tot ? '#3ecf6e' : '#ffcb05'}">📦 Lista: ${sent}/${tot} copie già inviate a Cardmarket</b>` +
-      (missHere.length ? `<div>Da caricare <b>in questa pagina</b> (${missHere.length}): ${missHere.join(', ')}</div>` : '') +
-      (missOther.length ? `<div style="color:#ff9f43;margin-top:4px">Da caricare <b>in altre pagine</b> del set (${missOther.length}): ${missOther.join(', ')}<br>` +
-        `Sei a pagina ${curPage()} di ${lastPage()}: ` +
-        Array.from({ length: lastPage() }, (_, i) => i + 1).filter(n => n !== curPage()).map(n => `<a href="${pageUrl(n)}" style="color:#ffcb05;font-weight:700">vai a pagina ${n}</a>`).join(' · ') +
-        `<br><span style="color:#9aa3ad">Prima premi "Mettere in vendita le carte" qui: cambiando pagina Cardmarket perde quello che non hai inviato.</span></div>` : '') +
-      (sent >= tot ? '<div style="color:#3ecf6e">Tutta la lista è stata caricata ✔</div>' : '') +
+    box.innerHTML = `<b style="color:${sent >= tot ? '#3ecf6e' : '#ffcb05'}">📦 Lista: ${sent}/${tot} copie inviate al gestionale</b>` +
+      `<div style="color:#9aa3ad">Da compilare: ${hereLeft} in questa pagina · ${otherLeft} in altre pagine</div>` +
+      `<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px">${rowsHtml}</table>` +
       `<div style="text-align:right"><a href="#" id="csReset" style="color:#9aa3ad;font-size:11px">azzera avanzamento</a></div>`;
     $('csReset').onclick = e => { e.preventDefault(); if (confirm('Azzerare l\'avanzamento di questa lista?')) { doneSet({}); showProgress(); } };
   }
   $('csInput').addEventListener('input', showProgress);
   $('csFile').addEventListener('change', () => setTimeout(showProgress, 300));
 
-  const pending = () => { try { return JSON.parse(store.get('pending', '[]')); } catch (e) { return []; } };
-  function showGest() {
-    const pd = pending();
-    const n = pd.reduce((a, x) => a + x.rows.reduce((b, r) => b + r.q, 0), 0);
-    $('csGest').style.display = pd.length ? 'block' : 'none';
-    $('csGest').textContent = `✔ Aggiorna il gestionale (${n} carte messe in vendita)`;
+  function showGest(state) {
+    const b = $('csGest');
+    const n = snapshot().reduce((a, r) => a + r.q, 0);
+    if (state === 'sent') { b.style.display = 'block'; b.disabled = true; b.style.opacity = '.6'; b.textContent = '✔ Inviate al gestionale'; return; }
+    b.disabled = false; b.style.opacity = '1';
+    b.style.display = n ? 'block' : 'none';
+    b.textContent = `📤 Invia al gestionale le carte compilate (${n})`;
   }
-  // quando premi "Mettere in vendita le carte" registro esattamente quello che invii (prezzi compresi)
-  let lastSnap = 0;
-  function onSubmitted(alreadyListed) {
-    if (!alreadyListed && Date.now() - lastSnap < 3000) return; // clic e invio dello stesso modulo: registro una volta sola
-    lastSnap = Date.now();
+  function sendCompiled() {
     const rows = snapshot();
-    if (alreadyListed) rows.forEach(r => {
-      const tr = [...form.querySelectorAll('tbody tr')].find(t => (field(t, 'idProduct') || {}).value === r.p);
-      const my = parseFloat(((tr && tr.querySelector('input[name="myPrice"]')) || {}).value || '0');
-      if (my > 0) r.price = my;
-    });
-    if (!rows.length) return;
-    const pd = pending();
+    if (!rows.length) { log('Nessuna carta compilata in questa pagina.', '#ff6b6b'); return; }
     const exp = expansion();
-    pd.push({ exp: exp.id, name: exp.name, at: new Date().toISOString(), rows, cards: catalog() });
-    store.set('pending', JSON.stringify(pd));
+    const entry = { exp: exp.id, name: exp.name, at: new Date().toISOString(), rows, cards: catalog() };
+    // segno nella lista le carte inviate
     const w = wanted(), done = doneGet();
     rows.forEach(r => { const k = vkey(r.u, r.rev); if (w.has(k)) done[k] = (done[k] || 0) + r.q; });
     doneSet(done);
+    sendToGest([entry]);
     showProgress();
-    const left = [...w.entries()].filter(([k, x]) => (done[k] || 0) < x.qty).length;
-    log(left ? `Mancano ancora ${left} carte della lista: guarda il riquadro 📦 qui sopra per sapere in che pagina sono.` : 'Tutta la lista è stata inviata ✔', left ? '#ff9f43' : '#3ecf6e');
-    log(`Registrate ${rows.reduce((a, r) => a + r.q, 0)} carte inviate a Cardmarket. Ora premi il pulsante verde.`, '#3ecf6e');
-    showGest();
+    showGest('sent');
+    const left = [...w.entries()].reduce((a, [k, x]) => a + Math.max(0, x.qty - (done[k] || 0)), 0);
+    log(`Inviate al gestionale ${rows.reduce((a, r) => a + r.q, 0)} copie. Ora puoi metterle in vendita su Cardmarket.` +
+      (left ? ` Restano ${left} copie della lista da compilare in altre pagine.` : ' Tutta la lista è stata inviata ✔'), left ? '#ff9f43' : '#3ecf6e');
   }
-  document.addEventListener('submit', e => { if (e.target === form) onSubmitted(false); }, true);
-  $('csDone').onclick = () => {
-    const n = snapshot().reduce((a, r) => a + r.q, 0);
-    if (!n) { log('Nessuna carta compilata in questa pagina: premi prima "Compila la pagina".', '#ff6b6b'); return; }
-    if (!confirm(`Registrare ${n} carte come GIÀ in vendita su Cardmarket, senza inviarle? Usalo solo per carte che hai già messo in vendita.`)) return;
-    onSubmitted(true);
-  };
-  // il pulsante di Cardmarket sta fuori dal modulo (attributo form=): lo ascolto anche direttamente
-  document.addEventListener('click', e => {
-    const b = e.target.closest && e.target.closest('[type="submit"]');
-    if (b && (b.getAttribute('form') === 'BulkListingForm' || b.form === form)) onSubmitted(false);
-  }, true);
-  function sendToGest(withListings) {
+  function sendToGest(listed) {
     const exp = expansion();
-    const pd = withListings ? pending() : [];
-    const exps = [...document.querySelectorAll('select[name="idExpansion"]')][0];
+    const exps = document.querySelector('select[name="idExpansion"]');
     const data = {
       v: 2, exp: { id: exp.id, name: exp.name, cards: catalog() },
       exps: exps ? [...exps.options].map(o => [o.value, o.textContent.trim()]).filter(x => x[0]) : [],
-      listed: pd
+      listed: listed || []
     };
     const enc = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
     window.open(GEST_URL + '#cm2=' + encodeURIComponent(enc), 'gestionaleCarte');
-    if (withListings) { store.set('pending', '[]'); showGest(); }
   }
-  $('csGest').onclick = () => sendToGest(true);
-  $('csCat').onclick = e => { e.preventDefault(); sendToGest(false); };
+  $('csGest').onclick = sendCompiled;
+  $('csCat').onclick = e => { e.preventDefault(); sendToGest([]); };
+  form.addEventListener('input', () => { if (!$('csGest').disabled) showGest(); });
   showGest();
   showProgress();
 
@@ -491,7 +471,8 @@
     }
     log(`\nCompilate ${total} copie. Verde = normali, viola = Reverse, arancione = da controllare (${warnings}).`, '#3ecf6e');
     log('Controlla e poi premi il pulsante di invio di Cardmarket in fondo alla pagina.', '#3ecf6e');
-    if (filled.length) log('Dopo il controllo premi "Mettere in vendita le carte" di Cardmarket: comparirà il pulsante verde per aggiornare il gestionale.', '#3ecf6e');
+    showGest();
+    if (filled.length) log('Controlla la pagina, poi premi il pulsante verde "Invia al gestionale". La messa in vendita su Cardmarket la fai tu.', '#3ecf6e');
     if (blocked) log('Cardmarket ha bloccato le ricerche prezzi: per le carte restanti è stata usata la tendenza. Riprova tra qualche minuto.', '#ff9f43');
   }
 })();

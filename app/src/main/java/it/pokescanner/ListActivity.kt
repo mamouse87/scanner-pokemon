@@ -71,21 +71,53 @@ class ListActivity : AppCompatActivity() {
     }
 
     private fun cardmarketDialog(g: Group) {
-        val text = Inventory.cardmarketText(g)
+        val prefs = getSharedPreferences("app", MODE_PRIVATE)
+        val et = android.widget.EditText(this).apply {
+            hint = "Commento per Cardmarket (facoltativo)"
+            setText(prefs.getString("cmComment", ""))
+            isSingleLine = true
+        }
+        val n = g.items.sumOf { it.second.qty }
+        val rev = g.items.filter { it.second.variant == "R" }.sumOf { it.second.qty }
+        val info = TextView(this).apply {
+            text = "$n carte ($rev Reverse). Il file contiene numero, nome, rarità, Normale/Reverse e commento: " +
+                "sul PC caricalo nel pulsante \"Card Scanner → CM\" sulla pagina Inserisci carte bulk."
+            setPadding(0, 0, 0, 16)
+        }
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 16, 48, 0)
+            addView(info); addView(et)
+        }
+        fun text(): String {
+            val c = et.text.toString()
+            prefs.edit().putString("cmComment", c).apply()
+            return Inventory.cardmarketText(g, c)
+        }
         AlertDialog.Builder(this)
             .setTitle("${g.setName} → Cardmarket")
-            .setMessage("Copia la lista di questo set e incollala sul PC nel pulsante \"Card Scanner → CM\" sulla pagina Inserisci carte bulk.\n\n" + text)
-            .setPositiveButton("Copia") { _, _ ->
-                getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Cardmarket", text))
+            .setView(box)
+            .setPositiveButton("Invia file") { _, _ -> shareCardmarketFile(g, text()) }
+            .setNeutralButton("Copia testo") { _, _ ->
+                getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Cardmarket", text()))
                 Toast.makeText(this, "Lista copiata", Toast.LENGTH_SHORT).show()
-            }
-            .setNeutralButton("Condividi") { _, _ ->
-                startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"; putExtra(Intent.EXTRA_TEXT, text)
-                }, "Invia la lista al PC"))
             }
             .setNegativeButton("Chiudi", null)
             .show()
+    }
+
+    /** Invia un vero file .txt (via Bluetooth, email, WhatsApp…): non viene trasformato in pagina HTML. */
+    private fun shareCardmarketFile(g: Group, text: String) {
+        val dir = File(cacheDir, "export").apply { mkdirs() }
+        val safe = g.setName.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').ifEmpty { "set" }
+        val f = File(dir, "cardmarket-$safe-${g.lang}.txt")
+        f.writeText(text, Charsets.UTF_8)
+        val uri = FileProvider.getUriForFile(this, "$packageName.files", f)
+        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }, "Invia la lista al PC"))
     }
 
     private fun refresh() {

@@ -1,7 +1,7 @@
 // Card Scanner → Cardmarket "Inserisci carte bulk"
-// Compila le righe della pagina con la lista copiata dall'app e imposta come prezzo
-// l'offerta più bassa su Cardmarket nella lingua scelta, condizione Near Mint o migliore.
-// Non invia nulla: l'invio lo fa l'utente con il pulsante di Cardmarket.
+// Compila le righe della pagina con la lista dell'app, controlla nome e rarità,
+// e imposta il prezzo = offerta più bassa (lingua della lista, Near Mint o migliore,
+// escluse le tue offerte) + i centesimi scelti. Non invia nulla da solo.
 (() => {
   if (window.__csPanel) { window.__csPanel.style.display = 'block'; return; }
 
@@ -13,26 +13,43 @@
 
   const LANG = { it: 5, en: 1, fr: 2, de: 3, es: 4, pt: 8 };
   const LANG_NAME = { 1: 'Inglese', 2: 'Francese', 3: 'Tedesco', 4: 'Spagnolo', 5: 'Italiano', 8: 'Portoghese' };
-  const DELAY_MS = 1300;   // pausa tra una ricerca prezzo e l'altra, per non sovraccaricare Cardmarket
-  const MIN_PRICE = 0.02;  // minimo accettato da Cardmarket
+  // Rarità TCGdex (italiano) → nome usato da Cardmarket
+  const RARITY = {
+    'comune': 'common', 'non comune': 'uncommon', 'rara': 'rare', 'rara holo': 'holo rare',
+    'doppia rara': 'double rare', 'ultra rara': 'ultra rare', 'rara illustrazione': 'illustration rare',
+    'rara illustrazione speciale': 'special illustration rare', 'iper rara': 'hyper rare',
+    'rara segreta': 'secret rare', 'asso tattico rara': 'ace spec rare', 'rara ace spec': 'ace spec rare',
+    'promo': 'promo', 'nessuna': ''
+  };
+  const DELAY_MS = 1300;
+  const MIN_PRICE = 0.02;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const norm = n => /^\d+$/.test(n) ? String(parseInt(n, 10)) : n.toUpperCase();
+  const store = {
+    get: (k, d) => { try { const v = localStorage.getItem('cs_' + k); return v == null ? d : v; } catch (e) { return d; } },
+    set: (k, v) => { try { localStorage.setItem('cs_' + k, v); } catch (e) {} }
+  };
 
   // ---------- pannello ----------
   const panel = document.createElement('div');
   window.__csPanel = panel;
-  panel.style.cssText = 'position:fixed;top:12px;right:12px;width:420px;max-height:90vh;overflow:auto;z-index:99999;' +
+  panel.style.cssText = 'position:fixed;top:12px;right:12px;width:460px;max-height:92vh;overflow:auto;z-index:99999;' +
     'background:#1c2128;color:#e8eaed;font:14px/1.4 system-ui,sans-serif;border-radius:12px;padding:14px;' +
     'box-shadow:0 8px 30px rgba(0,0,0,.4)';
+  const inp = 'background:#0d1014;color:#e8eaed;border:1px solid #333a44;border-radius:6px;padding:5px';
   panel.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <b style="color:#ffcb05">Card Scanner → Cardmarket</b>
       <button id="csClose" style="background:none;border:0;color:#e8eaed;font-size:18px;cursor:pointer">✕</button>
     </div>
-    <textarea id="csInput" placeholder="Incolla qui la lista copiata dall'app (Lista → tocca il nome del set → Copia per Cardmarket)"
-      style="width:100%;height:130px;box-sizing:border-box;background:#0d1014;color:#e8eaed;border:1px solid #333a44;border-radius:8px;padding:8px;font:12px monospace"></textarea>
-    <label style="display:block;margin:8px 0"><input type="checkbox" id="csPrice" checked>
-      Prezzo = offerta più bassa Near Mint nella lingua della lista</label>
+    <div style="margin-bottom:6px">📄 <input type="file" id="csFile" accept=".txt,.html,.htm,text/*" style="font-size:12px;width:85%"></div>
+    <textarea id="csInput" placeholder="…oppure incolla qui la lista dell'app"
+      style="width:100%;height:110px;box-sizing:border-box;${inp};font:12px monospace"></textarea>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin:8px 0">
+      <span>Commento</span><input id="csComment" style="${inp}" placeholder="es. Collezione privata">
+      <span>Prezzo</span><span><input type="checkbox" id="csPrice" checked> offerta più bassa NM + <input id="csPlus" type="number" min="0" step="1" style="${inp};width:60px"> cent.</span>
+      <span>Tuo utente</span><input id="csMe" style="${inp}" placeholder="per escludere le tue offerte">
+    </div>
     <button id="csGo" style="width:100%;padding:10px;border:0;border-radius:8px;background:#ffcb05;color:#111;font-weight:700;cursor:pointer">Compila la pagina</button>
     <div id="csLog" style="margin-top:10px;font:12px/1.45 monospace;white-space:pre-wrap"></div>`;
   document.body.appendChild(panel);
@@ -45,9 +62,68 @@
     panel.scrollTop = panel.scrollHeight;
   };
   $('csClose').onclick = () => { panel.style.display = 'none'; };
-  // la lista resta salvata nel browser: serve per la seconda pagina del set
-  try { $('csInput').value = localStorage.getItem('cardScannerList') || ''; } catch (e) {}
-  $('csInput').addEventListener('input', () => { try { localStorage.setItem('cardScannerList', $('csInput').value); } catch (e) {} });
+
+  function guessMe() {
+    // il nome utente compare nel menu account in alto (es. LULU-MOUSE)
+    const el = [...document.querySelectorAll('header a, header span, nav a, nav span')]
+      .find(x => /^[A-Za-z0-9_-]{3,}$/.test((x.textContent || '').trim()) && x.closest('[class*="account"],[id*="account"],[class*="user"]'));
+    return el ? el.textContent.trim() : '';
+  }
+  function syncComment(force) {
+    const m = $('csInput').value.match(/^COMMENTO\s+(.*)$/mi);
+    if (m && (force || !$('csComment').value)) { $('csComment').value = m[1].trim(); store.set('comment', $('csComment').value); }
+  }
+
+  // valori ricordati (servono anche per la seconda pagina del set)
+  $('csInput').value = store.get('list', '');
+  $('csPlus').value = store.get('plus', '0');
+  $('csMe').value = store.get('me', '') || guessMe();
+  $('csComment').value = store.get('comment', '');
+  $('csInput').addEventListener('input', () => { store.set('list', $('csInput').value); syncComment(); });
+  $('csPlus').addEventListener('input', () => store.set('plus', $('csPlus').value));
+  $('csMe').addEventListener('input', () => store.set('me', $('csMe').value));
+  $('csComment').addEventListener('input', () => store.set('comment', $('csComment').value));
+  $('csFile').addEventListener('change', async e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    let t = await f.text();
+    if (/<br|<html|<body/i.test(t)) {
+      // file arrivato come pagina HTML (es. via Bluetooth): tengo solo il testo
+      const d = new DOMParser().parseFromString(t.replace(/<br\s*\/?>/gi, '\n'), 'text/html');
+      t = d.body.textContent;
+    }
+    $('csInput').value = t.replace(/ /g, ' ');
+    store.set('list', $('csInput').value);
+    syncComment(true);
+  });
+
+  // ---------- confronto nomi e rarità ----------
+  const simp = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  function lev(a, b) {
+    const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+    let prev = Array.from({ length: n + 1 }, (_, j) => j);
+    for (let i = 1; i <= m; i++) {
+      const cur = [i];
+      for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+    return prev[n];
+  }
+  function sameName(a, b) {
+    const A = simp(a), B = simp(b);
+    if (!A || !B) return null; // non verificabile
+    if (A === B || A.includes(B) || B.includes(A)) return true;
+    const key = String(a).split(/[\s-]+/).map(simp).filter(w => w.length >= 3).sort((x, y) => y.length - x.length)[0] || A;
+    if (B.includes(key)) return true;
+    return 1 - lev(A, B) / Math.max(A.length, B.length) >= 0.7;
+  }
+  function sameRarity(app, cm) {
+    if (!app || !cm) return null;
+    const a = app.trim().toLowerCase(), c = cm.trim().toLowerCase();
+    if (a === c) return true;
+    if (!(a in RARITY)) return null; // rarità che non so tradurre: da controllare a occhio
+    return RARITY[a] === c;
+  }
 
   // ---------- righe della pagina ----------
   function pageRows() {
@@ -55,10 +131,15 @@
     form.querySelectorAll('tbody tr').forEach(tr => {
       const a = tr.querySelector('.col-product a');
       if (!a) return;
-      const m = a.textContent.trim().match(/\(([A-Z0-9-]+)\s+([A-Z]*\d+[a-z]?)\)\s*$/i);
+      const full = a.textContent.trim();
+      const m = full.match(/^(.*?)\s*\(([A-Z0-9-]+)\s+([A-Z]*\d+[a-z]?)\)\s*$/i);
       if (!m) return;
-      const k = norm(m[2]);
-      if (!map.has(k)) map.set(k, { tr, code: m[1], num: m[2], name: a.textContent.trim(), href: a.getAttribute('href') });
+      const k = norm(m[3]);
+      const rar = tr.querySelector('.rarity-symbol');
+      if (!map.has(k)) map.set(k, {
+        tr, name: m[1].trim(), code: m[2], num: m[3], label: full.replace(/\s+/g, ' '), href: a.getAttribute('href'),
+        rarity: rar ? (rar.getAttribute('title') || rar.getAttribute('data-bs-original-title') || '') : ''
+      });
     });
     return map;
   }
@@ -72,23 +153,15 @@
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
-  function setCheck(el, v) {
-    if (!el) return false;
-    if (el.disabled) return !v;
-    el.checked = v;
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    return true;
-  }
   function fillRow(tr, o) {
-    const revEl = field(tr, 'isReverseHolo');
-    if (o.rev && (!revEl || revEl.disabled)) return false; // non esiste in Reverse: non compilo
     setVal(field(tr, 'idLanguage'), String(o.lang));
     setVal(field(tr, 'idCondition'), '2'); // Near Mint
-    setCheck(revEl, o.rev);
+    const rev = field(tr, 'isReverseHolo');
+    if (rev && !rev.disabled) { rev.checked = o.rev; rev.dispatchEvent(new Event('change', { bubbles: true })); }
     setVal(field(tr, 'amount'), String(o.qty));
     if (o.price != null) setVal(field(tr, 'price'), o.price.toFixed(2));
-    tr.style.outline = '3px solid ' + (o.rev ? '#cc5de8' : '#3ecf6e');
-    return true;
+    if (o.comment) setVal(field(tr, 'comments'), o.comment);
+    tr.style.outline = '3px solid ' + (o.warn ? '#ff9f43' : o.rev ? '#cc5de8' : '#3ecf6e');
   }
   async function duplicate(tr) {
     const btn = tr.querySelector('.copy-row-button');
@@ -103,18 +176,14 @@
     return null;
   }
 
-  // ---------- prezzo più basso ----------
-  function trendOf(tr) {
-    const el = tr.querySelector('input[name="trendPrice"]');
-    const v = el ? parseFloat(el.value) : NaN;
-    return isNaN(v) ? null : v;
-  }
+  // ---------- prezzo ----------
   function parsePrice(t) {
-    const m = t.match(/(\d{1,3}(?:\.\d{3})*,\d{2})\s*€/);
+    const m = String(t).match(/(\d{1,3}(?:\.\d{3})*,\d{2})\s*€/);
     return m ? parseFloat(m[1].replace(/\./g, '').replace(',', '.')) : null;
   }
   let blocked = false;
-  async function lowest(row, rev, langId) {
+  /** Offerta più bassa sulla pagina della carta con i filtri (= il "Da" per lingua e condizione), escluse le tue. */
+  async function lowest(row, rev, langId, me) {
     const u = new URL(row.href, location.origin);
     u.searchParams.set('language', String(langId));
     u.searchParams.set('minCondition', '2');
@@ -123,14 +192,31 @@
     if (r.status === 429 || r.status === 403) { blocked = true; throw new Error('Cardmarket ha rallentato le richieste (' + r.status + ')'); }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
-    const rows = doc.querySelectorAll('[id^="articleRow"]');
+    if (/just a moment|attention required/i.test(doc.title)) { blocked = true; throw new Error('controllo anti-bot di Cardmarket'); }
+
+    const rows = [...new Set([...doc.querySelectorAll('[id^="articleRow"], .article-row')])];
+    const meL = (me || '').trim().toLowerCase();
     const prices = [];
-    rows.forEach(ar => {
+    let mine = 0;
+    for (const ar of rows) {
+      const seller = ar.querySelector('a[href*="/Users/"]');
+      if (meL && seller && seller.textContent.trim().toLowerCase() === meL) { mine++; continue; }
       const pc = ar.querySelector('.price-container') || ar.querySelector('.col-offer') || ar;
       const p = parsePrice(pc.textContent);
       if (p != null) prices.push(p);
-    });
-    return { price: prices.length ? Math.min(...prices) : null, offers: rows.length, url: u.href };
+    }
+    if (prices.length) return { base: Math.min(...prices), src: `più bassa tra ${prices.length} offerte` + (mine ? `, ${mine} tue escluse` : '') };
+
+    // ripiego: il valore "Da" nel riquadro informazioni della carta
+    const dt = [...doc.querySelectorAll('dt')].find(d => /^(da|from|disponibile da)$/i.test(d.textContent.trim()));
+    const da = dt && dt.nextElementSibling ? parsePrice(dt.nextElementSibling.textContent) : null;
+    if (da != null) return { base: da, src: rows.length ? 'valore "Da" (offerte non lette)' : 'valore "Da"' };
+    return { base: null, src: rows.length ? 'offerte trovate ma prezzo non leggibile' : 'nessuna offerta NM in questa lingua' };
+  }
+  function trendOf(tr) {
+    const el = tr.querySelector('input[name="trendPrice"]');
+    const v = el ? parseFloat(el.value) : NaN;
+    return isNaN(v) ? null : v;
   }
 
   // ---------- lista dall'app ----------
@@ -138,12 +224,16 @@
     let lang = 5, setName = '';
     const items = [];
     text.split(/\r?\n/).forEach(line => {
-      const l = line.trim();
-      if (!l || l.startsWith('#') || /^CARDSCANNER/i.test(l)) return;
-      const s = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*$/i);
-      if (s) { setName = s[1]; lang = LANG[s[2].toLowerCase()] || 5; return; }
-      const m = l.match(/^([A-Z]*\d+)(R?)\s*x\s*(\d+)/i);
-      if (m) items.push({ num: m[1], rev: m[2].toUpperCase() === 'R', qty: parseInt(m[3], 10) });
+      const l = line.replace(/ /g, ' ').trim();
+      if (!l || l.startsWith('#') || /^CARDSCANNER/i.test(l) || /^COMMENTO/i.test(l)) return;
+      let m = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*$/i);
+      if (m) { setName = m[1]; lang = LANG[m[2].toLowerCase()] || 5; return; }
+      // formato 2: 006 | x1 | N | Combee | Comune
+      m = l.match(/^([A-Z]*\d+)\s*\|\s*x\s*(\d+)\s*\|\s*([NR])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|]*?))?\s*$/i);
+      if (m) { items.push({ num: m[1], qty: +m[2], rev: m[3].toUpperCase() === 'R', name: m[4] || '', rarity: m[5] || '' }); return; }
+      // formato 1: 006R x1
+      m = l.match(/^([A-Z]*\d+)(R?)\s*x\s*(\d+)/i);
+      if (m) items.push({ num: m[1], rev: m[2].toUpperCase() === 'R', qty: +m[3], name: '', rarity: '' });
     });
     return { lang, setName, items };
   }
@@ -157,65 +247,77 @@
 
   async function run() {
     const { lang, setName, items } = parseInput($('csInput').value);
-    if (!items.length) { log('Nessuna carta nella lista incollata.', '#ff6b6b'); return; }
+    if (!items.length) { log('Nessuna carta nella lista.', '#ff6b6b'); return; }
     const rows = pageRows();
     const wantPrice = $('csPrice').checked;
-    log(`${setName ? setName + ' · ' : ''}${LANG_NAME[lang]} · ${items.length} righe da inserire`);
+    const plus = Math.max(0, parseInt($('csPlus').value || '0', 10)) / 100;
+    const comment = $('csComment').value.trim();
+    const me = $('csMe').value.trim();
+    if (wantPrice && !me) log('Suggerimento: scrivi il tuo nome utente, così le tue offerte non contano come "più bassa".', '#ff9f43');
+    log(`${setName ? setName + ' · ' : ''}${LANG_NAME[lang]} · ${items.length} righe` +
+        (wantPrice ? ` · prezzo = più bassa + ${Math.round(plus * 100)} cent.` : '') + (comment ? ` · commento "${comment}"` : ''));
 
-    // raggruppa per numero: copie normali e Reverse
     const byNum = new Map();
     const missing = [];
     for (const it of items) {
       const k = norm(it.num);
       if (!rows.has(k)) { missing.push(it.num + (it.rev ? 'R' : '')); continue; }
-      const g = byNum.get(k) || { row: rows.get(k), normal: 0, rev: 0 };
+      const g = byNum.get(k) || { row: rows.get(k), normal: 0, rev: 0, name: it.name, rarity: it.rarity };
       if (it.rev) g.rev += it.qty; else g.normal += it.qty;
       byNum.set(k, g);
     }
-    if (missing.length) log('Non presenti in questa pagina (sono nell\'altra pagina del set o il set è sbagliato): ' + missing.join(', '), '#ff9f43');
+    if (missing.length) log('Non in questa pagina (altra pagina del set o set sbagliato): ' + missing.join(', '), '#ff9f43');
     if (byNum.size > 100) log('Attenzione: più di 100 carte diverse, Cardmarket potrebbe non inserirle tutte in un solo invio.', '#ff9f43');
 
-    let done = 0, total = 0;
+    let total = 0, warnings = 0;
     for (const [, g] of byNum) {
+      const checks = [];
+      if (sameName(g.name, g.row.name) === false) checks.push(`NOME diverso: app "${g.name}" / Cardmarket "${g.row.name}"`);
+      if (sameRarity(g.rarity, g.row.rarity) === false) checks.push(`RARITÀ diversa: app "${g.rarity}" / Cardmarket "${g.row.rarity}"`);
+      const warn = checks.length > 0;
+      if (warn) warnings++;
+
       const variants = [];
       if (g.normal) variants.push({ rev: false, qty: g.normal });
       if (g.rev) variants.push({ rev: true, qty: g.rev });
-      for (let i = 0; i < variants.length; i++) {
-        const v = variants[i];
-        const revEl0 = field(g.row.tr, 'isReverseHolo');
-        if (v.rev && (!revEl0 || revEl0.disabled)) {
-          log(`${g.row.name}: non esiste in versione Reverse su Cardmarket, saltata (controlla la carta).`, '#ff6b6b');
+      let first = true;
+      for (const v of variants) {
+        const revEl = field(g.row.tr, 'isReverseHolo');
+        if (v.rev && (!revEl || revEl.disabled)) {
+          log(`${g.row.label}: non esiste in versione Reverse su Cardmarket, saltata (controlla la carta).`, '#ff6b6b');
           continue;
         }
         let price = null, src = '';
         if (wantPrice && !blocked) {
           try {
-            const res = await lowest(g.row, v.rev, lang);
-            if (res.price != null) { price = Math.max(MIN_PRICE, res.price); src = `più bassa (${res.offers} offerte)`; }
-            else src = 'nessuna offerta NM in questa lingua';
+            const res = await lowest(g.row, v.rev, lang, me);
+            src = res.src;
+            if (res.base != null) {
+              price = Math.max(MIN_PRICE, Math.round((res.base + plus) * 100) / 100);
+              src += `: ${res.base.toFixed(2)}${plus ? ' + ' + plus.toFixed(2) : ''}`;
+            }
           } catch (e) { src = e.message; }
           await sleep(DELAY_MS);
         }
-        if (price == null) {
+        if (price == null && wantPrice) {
           const t = trendOf(g.row.tr);
-          if (t != null) { price = Math.max(MIN_PRICE, t); src += (src ? ' → ' : '') + 'uso il prezzo di tendenza'; }
+          if (t != null) { price = Math.max(MIN_PRICE, Math.round((t + plus) * 100) / 100); src += (src ? ' → ' : '') + 'USATA LA TENDENZA, controlla'; }
         }
-        // seconda variante della stessa carta: duplica la riga
         let tr = g.row.tr;
-        if (i > 0) {
+        if (!first) {
           tr = await duplicate(g.row.tr);
-          if (!tr) { log(`${g.row.num}: non riesco a duplicare la riga per la Reverse, inseriscila a mano.`, '#ff6b6b'); continue; }
+          if (!tr) { log(`${g.row.label}: non riesco a duplicare la riga per la Reverse, inseriscila a mano.`, '#ff6b6b'); continue; }
         }
-        const ok = fillRow(tr, { lang, rev: v.rev, qty: v.qty, price });
-        if (!ok) { log(`${g.row.name}: non esiste in versione Reverse su Cardmarket, saltata (controlla la carta).`, '#ff6b6b'); continue; }
+        first = false;
+        fillRow(tr, { lang, rev: v.rev, qty: v.qty, price, comment, warn });
         total += v.qty;
-        log(`${g.row.name}${v.rev ? ' [REVERSE]' : ''} ×${v.qty} → ${price != null ? price.toFixed(2) + ' €' : 'prezzo vuoto'}  (${src || 'manuale'})`,
-            price == null ? '#ff6b6b' : null);
+        log(`${g.row.label} [${v.rev ? 'REVERSE' : 'normale'}] · ${g.row.rarity || '?'} ×${v.qty} → ${price != null ? price.toFixed(2) + ' €' : 'prezzo vuoto'}` +
+            (src ? `  (${src})` : ''), (price == null && wantPrice) || /TENDENZA/.test(src) ? '#ff9f43' : null);
       }
-      done++;
+      checks.forEach(c => log('   ⚠ ' + c, '#ff9f43'));
     }
-    log(`\nFatto: ${done} carte diverse, ${total} copie compilate (righe evidenziate in verde, Reverse in viola).`, '#3ecf6e');
-    log('Controlla prezzi e righe, poi premi il pulsante di invio di Cardmarket in fondo alla pagina.', '#3ecf6e');
-    if (blocked) log('Cardmarket ha bloccato le ricerche prezzi: per le carte restanti è stato usato il prezzo di tendenza. Riprova tra qualche minuto.', '#ff9f43');
+    log(`\nCompilate ${total} copie. Verde = normali, viola = Reverse, arancione = da controllare (${warnings}).`, '#3ecf6e');
+    log('Controlla e poi premi il pulsante di invio di Cardmarket in fondo alla pagina.', '#3ecf6e');
+    if (blocked) log('Cardmarket ha bloccato le ricerche prezzi: per le carte restanti è stata usata la tendenza. Riprova tra qualche minuto.', '#ff9f43');
   }
 })();

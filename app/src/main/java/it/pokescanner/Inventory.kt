@@ -159,10 +159,16 @@ object Inventory {
         return sb.toString()
     }
 
-    /** Testo da incollare nello script per la pagina "Inserisci carte bulk" di Cardmarket. */
-    fun cardmarketText(g: Group): String {
-        val sb = StringBuilder("CARDSCANNER 1\nSET ${g.setName} | ${g.lang}\n")
-        for ((_, i) in g.items) sb.append("${CardRepo.pad(i.num)}${if (i.variant == "R") "R" else ""} x${i.qty}\n")
+    /**
+     * File per lo script della pagina "Inserisci carte bulk" di Cardmarket.
+     * Una riga per carta e variante: numero | quantità | N/R | nome | rarità
+     */
+    fun cardmarketText(g: Group, comment: String): String {
+        val sb = StringBuilder("CARDSCANNER 2\nSET ${g.setName} | ${g.lang}\n")
+        if (comment.isNotBlank()) sb.append("COMMENTO ${comment.trim()}\n")
+        for ((_, i) in g.items) {
+            sb.append("${CardRepo.pad(i.num)} | x${i.qty} | ${if (i.variant == "R") "R" else "N"} | ${i.name} | ${i.rarity}\n")
+        }
         return sb.toString()
     }
 

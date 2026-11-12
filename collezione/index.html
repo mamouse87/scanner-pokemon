@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>La mia collezione Pokémon</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--fg:#1c2128;--mut:#6b7280;--acc:#e3b500;--rev:#a64fd1;--ok:#2f9e5b;--line:#d8dbe0}
+@media(prefers-color-scheme:dark){:root{--bg:#111418;--card:#1c2128;--fg:#e8eaed;--mut:#9aa3ad;--acc:#ffcb05;--rev:#cc5de8;--ok:#3ecf6e;--line:#2a313b}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+.top{position:sticky;top:0;z-index:5;background:var(--card);padding:12px 20px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+h1{margin:0;font-size:22px}
+.stats{color:var(--mut);font-size:14px}
+button,select,input[type=search]{font:inherit;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer}
+button.pri{background:var(--acc);color:#111;border:0;font-weight:700}
+input[type=search]{flex:1;min-width:180px;cursor:text}
+nav{display:flex;gap:6px;overflow-x:auto;margin-top:10px;padding-bottom:2px}
+nav a{white-space:nowrap;text-decoration:none;color:var(--fg);background:var(--bg);padding:4px 10px;border-radius:99px;font-size:13px}
+nav a b{color:var(--acc)}
+#drop{max-width:1300px;margin:16px auto 0;padding:0 20px}
+.dz{border:2px dashed var(--line);border-radius:12px;padding:18px;text-align:center;color:var(--mut)}
+.dz.over{border-color:var(--acc);color:var(--fg)}
+main{max-width:1300px;margin:0 auto;padding:0 20px 40px}
+.set{margin-top:28px}
+.set header{display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap}
+.set .logo{height:60px;max-width:200px;object-fit:contain}
+.set h2{margin:0;font-size:21px}
+.set .sub{color:var(--mut);font-size:13px}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;width:260px;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--ok)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.card{position:relative;background:var(--card);border-radius:10px;padding:7px;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.card img{width:100%;aspect-ratio:63/88;object-fit:contain;border-radius:6px;background:var(--bg);cursor:zoom-in}
+.card.missing img,.card.missing .ph{filter:grayscale(1);opacity:.35}
+.card.missing .info{opacity:.6}
+.card.own{outline:3px solid var(--ok)}
+.card.own.hasrev{outline-color:var(--rev)}
+.ph{aspect-ratio:63/88;display:flex;align-items:center;justify-content:center;background:var(--bg);border-radius:6px;font-size:26px;color:var(--mut)}
+.info{font-size:12.5px;margin-top:5px}
+.info small{display:block;color:var(--mut)}
+.badges{position:absolute;top:11px;right:11px;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.badges span{font-weight:700;font-size:12px;border-radius:99px;padding:2px 8px}
+.bn{background:var(--ok);color:#fff}.br{background:var(--rev);color:#fff}
+.hide{display:none!important}
+#zoom{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:9;cursor:zoom-out}
+#zoom img{max-width:92vw;max-height:92vh;border-radius:12px}
+dialog{border:0;border-radius:12px;background:var(--card);color:var(--fg);max-width:620px;width:92vw}
+dialog table{width:100%;border-collapse:collapse;font-size:14px}
+dialog td{padding:6px 4px;border-bottom:1px solid var(--line)}
+.empty{text-align:center;color:var(--mut);margin-top:60px}
+.err{color:#e5484d}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="row" style="justify-content:space-between">
+    <h1>La mia collezione Pokémon</h1>
+    <div class="row">
+      <button class="pri" id="btnLoad">📄 Carica file dall'app</button>
+      <button id="btnImports">🗂 Caricamenti</button>
+      <button id="btnBackup">💾 Backup</button>
+      <button id="btnRestore">↩ Ripristina</button>
+    </div>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div class="row" style="margin-top:8px">
+    <input type="search" id="q" placeholder="Cerca nome o numero…">
+    <select id="show">
+      <option value="all">Tutte le carte del set</option>
+      <option value="own">Solo quelle che ho</option>
+      <option value="missing">Solo quelle che mancano</option>
+      <option value="rev">Solo Reverse che ho</option>
+    </select>
+  </div>
+  <nav id="nav"></nav>
+</div>
+
+<div id="drop"><div class="dz" id="dz">Trascina qui il file inviato dall'app (o premi "Carica file dall'app"). Le carte si sommano a quelle già caricate.</div></div>
+<main id="main"></main>
+
+<input type="file" id="file" accept=".txt,.html,.htm,.json,text/*" multiple hidden>
+<input type="file" id="fileRestore" accept=".json" hidden>
+<div id="zoom"><img alt=""></div>
+<dialog id="dlg"><h3 style="margin-top:0">Caricamenti</h3><div id="dlgBody"></div>
+  <p style="text-align:right;margin-bottom:0"><button id="dlgClose">Chiudi</button></p></dialog>
+
+<script>
+const API = 'https://api.tcgdex.net/v2';
+const LANGN = { it: 'Italiano', en: 'Inglese', fr: 'Francese', de: 'Tedesco', es: 'Spagnolo', pt: 'Portoghese', ja: 'Giapponese' };
+const KEY = 'collezionePokemon_v1';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const norm = n => /^\d+$/.test(n) ? String(parseInt(n, 10)) : String(n).toUpperCase();
+const pad = n => /^\d+$/.test(n) ? n.padStart(3, '0') : n;
+
+// ---------- dati salvati nel browser ----------
+// imports: [{id, date, file, sets:[{lang,setId,setName,items:[{num,qty,rev,name,rarity}]}]}]
+let state = load();
+function load() { try { return JSON.parse(localStorage.getItem(KEY)) || { imports: [] }; } catch (e) { return { imports: [] }; } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { alert('Spazio del browser pieno: fai un Backup.'); } }
+
+// collezione = somma di tutti i caricamenti
+function collection() {
+  const sets = new Map();
+  for (const imp of state.imports) for (const s of imp.sets) {
+    const sk = s.lang + '|' + (s.setId || s.setName);
+    const S = sets.get(sk) || { lang: s.lang, setId: s.setId, setName: s.setName, cards: new Map() };
+    if (!S.setId && s.setId) S.setId = s.setId;
+    for (const it of s.items) {
+      const c = S.cards.get(norm(it.num)) || { num: it.num, n: 0, r: 0, name: it.name, rarity: it.rarity };
+      if (it.rev) c.r += it.qty; else c.n += it.qty;
+      if (!c.name && it.name) c.name = it.name;
+      if (!c.rarity && it.rarity) c.rarity = it.rarity;
+      S.cards.set(norm(it.num), c);
+    }
+    sets.set(sk, S);
+  }
+  return sets;
+}
+
+// ---------- lettura file dall'app ----------
+function textOf(raw) {
+  if (/<br|<html|<body/i.test(raw)) {
+    const d = new DOMParser().parseFromString(raw.replace(/<br\s*\/?>/gi, '\n'), 'text/html');
+    raw = d.body.textContent;
+  }
+  return raw.replace(/ /g, ' ');
+}
+function parseList(text) {
+  const sets = [];
+  let cur = null;
+  text.split(/\r?\n/).forEach(line => {
+    const l = line.trim();
+    if (!l || l.startsWith('#') || /^CARDSCANNER/i.test(l) || /^COMMENTO/i.test(l)) return;
+    let m = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*(?:\|\s*([^|]+?))?\s*$/i);
+    if (m) { cur = { setName: m[1].trim(), lang: m[2].toLowerCase(), setId: (m[3] || '').trim(), items: [] }; sets.push(cur); return; }
+    if (!cur) return;
+    m = l.match(/^([A-Z]*\d+)\s*\|\s*x\s*(\d+)\s*\|\s*([NR])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|]*?))?\s*$/i);
+    if (m) { cur.items.push({ num: m[1], qty: +m[2], rev: m[3].toUpperCase() === 'R', name: (m[4] || '').trim(), rarity: (m[5] || '').trim() }); return; }
+    m = l.match(/^([A-Z]*\d+)(R?)\s*x\s*(\d+)/i);
+    if (m) cur.items.push({ num: m[1], rev: m[2].toUpperCase() === 'R', qty: +m[3], name: '', rarity: '' });
+  });
+  return sets.filter(s => s.items.length);
+}
+async function addFiles(files) {
+  let added = 0;
+  for (const f of files) {
+    const sets = parseList(textOf(await f.text()));
+    if (!sets.length) { alert(`"${f.name}": non contiene carte nel formato dell'app.`); continue; }
+    // set senza codice TCGdex (file vecchi): lo cerco per nome
+    for (const s of sets) if (!s.setId) s.setId = await findSetId(s.lang, s.setName);
+    state.imports.push({ id: Date.now() + '_' + Math.random().toString(36).slice(2, 7), date: new Date().toISOString(), file: f.name, sets });
+    added += sets.reduce((a, s) => a + s.items.reduce((b, i) => b + i.qty, 0), 0);
+  }
+  save();
+  if (added) toastMsg(`Aggiunte ${added} carte alla collezione`);
+  render();
+}
+
+// ---------- TCGdex ----------
+const cache = {};
+async function getJSON(url) {
+  if (cache[url]) return cache[url];
+  const ck = 'tcgdex:' + url;
+  try { const c = JSON.parse(sessionStorage.getItem(ck)); if (c) return (cache[url] = c); } catch (e) {}
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const j = await r.json();
+  cache[url] = j;
+  try { sessionStorage.setItem(ck, JSON.stringify(j)); } catch (e) {}
+  return j;
+}
+async function findSetId(lang, name) {
+  try {
+    const list = await getJSON(`${API}/${lang}/sets`);
+    const n = name.trim().toLowerCase();
+    const s = list.find(x => x.name.trim().toLowerCase() === n) || list.find(x => x.name.toLowerCase().includes(n));
+    return s ? s.id : '';
+  } catch (e) { return ''; }
+}
+
+// ---------- disegno ----------
+let rendering = 0;
+async function render() {
+  const my = ++rendering;
+  const sets = [...collection().values()];
+  const main = $('main');
+  if (!sets.length) {
+    main.innerHTML = '<p class="empty">Nessuna carta ancora. Carica il file esportato dall\'app.</p>';
+    $('nav').innerHTML = ''; $('stats').textContent = '';
+    return;
+  }
+  let tot = 0, totRev = 0, diff = 0;
+  sets.forEach(S => S.cards.forEach(c => { tot += c.n + c.r; totRev += c.r; diff++; }));
+  $('stats').textContent = `${tot} carte · ${diff} diverse · ${sets.length} set${totRev ? ' · ' + totRev + ' Reverse' : ''} · ${state.imports.length} caricamenti`;
+  main.innerHTML = '';
+  const nav = [];
+  for (let i = 0; i < sets.length; i++) {
+    const S = sets[i];
+    const sec = document.createElement('section');
+    sec.className = 'set'; sec.id = 'set' + i;
+    sec.innerHTML = `<header><div class="sub">Carico ${esc(S.setName)}…</div></header>`;
+    main.appendChild(sec);
+    let data = null;
+    try { if (S.setId) data = await getJSON(`${API}/${S.lang}/sets/${encodeURIComponent(S.setId)}`); } catch (e) {}
+    if (my !== rendering) return;
+    sec.innerHTML = setHtml(S, data);
+    const have = S.cards.size, of = data ? (data.cardCount?.official || data.cards?.length || 0) : 0;
+    nav.push(`<a href="#set${i}">${esc(S.setName)} <b>${have}${of ? '/' + of : ''}</b></a>`);
+  }
+  $('nav').innerHTML = nav.join('');
+  wireImages();
+  applyFilter();
+}
+function setHtml(S, data) {
+  const own = S.cards;
+  let list;
+  if (data && Array.isArray(data.cards)) {
+    // tutte le carte del set + eventuali carte possedute non presenti nel database
+    list = data.cards.map(c => ({ num: c.localId, name: c.name, image: c.image }));
+    const known = new Set(list.map(c => norm(c.num)));
+    own.forEach((c, k) => { if (!known.has(k)) list.push({ num: c.num, name: c.name, image: '' }); });
+  } else {
+    list = [...own.values()].map(c => ({ num: c.num, name: c.name, image: '' }));
+  }
+  list.sort((a, b) => (parseInt(a.num) || 9999) - (parseInt(b.num) || 9999) || String(a.num).localeCompare(String(b.num)));
+  const total = data?.cardCount?.official || 0;
+  const have = [...own.keys()].filter(k => /^\d+$/.test(k) ? (!total || +k <= total) : true).length;
+  const pct = total ? Math.min(100, Math.round(have / total * 100)) : 0;
+  const copies = [...own.values()].reduce((a, c) => a + c.n + c.r, 0);
+  const logo = data?.logo ? `<img class="logo" src="${esc(data.logo)}.png" alt="" data-fb="1">` : '';
+  let h = `<header>${logo}<div><h2>${esc(data?.name || S.setName)}</h2>
+    <div class="sub">${LANGN[S.lang] || S.lang} · ${copies} copie · ${own.size} diverse${total ? ` · ${have}/${total} del set (${pct}%)` : ''}${!data ? ' · <span class="err">set non trovato nel database: mostro solo le tue carte</span>' : ''}</div>
+    ${total ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ''}</div></header><div class="grid">`;
+  for (const c of list) {
+    const o = own.get(norm(c.num));
+    const cls = o ? 'own' + (o.r ? ' hasrev' : '') : 'missing';
+    const name = c.name || o?.name || '';
+    const s = esc((name + ' ' + pad(String(c.num)) + ' ' + String(c.num)).toLowerCase());
+    h += `<div class="card ${cls}" data-s="${s}">`;
+    h += c.image ? `<img loading="lazy" src="${esc(c.image)}/low.webp" data-hi="${esc(c.image)}/high.webp" alt="${esc(name)}" data-fb="1">` : `<div class="ph">${esc(pad(String(c.num)))}</div>`;
+    if (o) h += `<div class="badges">${o.n ? `<span class="bn">×${o.n}</span>` : ''}${o.r ? `<span class="br">R ×${o.r}</span>` : ''}</div>`;
+    h += `<div class="info"><b>${esc(pad(String(c.num)))}${total ? '/' + total : ''}</b> ${esc(name)}${o?.rarity ? `<small>${esc(o.rarity)}</small>` : ''}</div></div>`;
+  }
+  return h + '</div>';
+}
+function wireImages() {
+  // immagine mancante in questa lingua: provo l'inglese, poi la nascondo
+  document.querySelectorAll('img[data-fb]:not([data-w])').forEach(im => {
+    im.dataset.w = '1';
+    im.addEventListener('error', () => {
+      if (!im.dataset.tried && /assets\.tcgdex\.net\/[a-z-]+\//.test(im.src)) {
+        im.dataset.tried = '1';
+        im.src = im.src.replace(/(assets\.tcgdex\.net\/)[a-z-]+\//, '$1en/');
+        if (im.dataset.hi) im.dataset.hi = im.dataset.hi.replace(/(assets\.tcgdex\.net\/)[a-z-]+\//, '$1en/');
+      } else im.style.visibility = 'hidden';
+    });
+  });
+}
+function applyFilter() {
+  const t = $('q').value.trim().toLowerCase(), mode = $('show').value;
+  document.querySelectorAll('.card').forEach(c => {
+    let ok = !t || c.dataset.s.includes(t);
+    if (mode === 'own') ok = ok && c.classList.contains('own');
+    if (mode === 'missing') ok = ok && c.classList.contains('missing');
+    if (mode === 'rev') ok = ok && c.classList.contains('hasrev');
+    c.classList.toggle('hide', !ok);
+  });
+  document.querySelectorAll('.set').forEach(s => {
+    const any = s.querySelector('.card');
+    s.classList.toggle('hide', !!any && !s.querySelector('.card:not(.hide)'));
+  });
+}
+
+// ---------- caricamenti (per togliere un file caricato per errore) ----------
+function showImports() {
+  const rows = state.imports.map((imp, i) => {
+    const n = imp.sets.reduce((a, s) => a + s.items.reduce((b, x) => b + x.qty, 0), 0);
+    const names = imp.sets.map(s => s.setName).join(', ');
+    return `<tr><td>${new Date(imp.date).toLocaleString('it-IT')}</td><td>${esc(imp.file)}<br><small>${esc(names)}</small></td><td>${n} carte</td>
+      <td><button data-del="${i}">Togli</button></td></tr>`;
+  }).reverse().join('');
+  $('dlgBody').innerHTML = state.imports.length
+    ? `<table>${rows}</table><p><button id="delAll">Svuota tutta la collezione</button></p>` : '<p>Nessun file caricato.</p>';
+  $('dlg').showModal();
+}
+$('dlgBody').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.id === 'delAll') {
+    if (confirm('Svuotare tutta la collezione? Fai prima un Backup se vuoi tenerla.')) { state.imports = []; save(); $('dlg').close(); render(); }
+    return;
+  }
+  const i = +b.dataset.del;
+  if (confirm('Togliere dalla collezione le carte di questo caricamento?')) { state.imports.splice(i, 1); save(); showImports(); render(); }
+});
+$('dlgClose').onclick = () => $('dlg').close();
+
+// ---------- comandi ----------
+$('btnLoad').onclick = () => $('file').click();
+$('file').onchange = e => { addFiles([...e.target.files]); e.target.value = ''; };
+$('btnImports').onclick = showImports;
+$('btnBackup').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 1)], { type: 'application/json' }));
+  a.download = `collezione-pokemon-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+};
+$('btnRestore').onclick = () => $('fileRestore').click();
+$('fileRestore').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const s = JSON.parse(await f.text());
+    if (!Array.isArray(s.imports)) throw 0;
+    if (confirm('Sostituire la collezione attuale con questo backup?')) { state = s; save(); render(); }
+  } catch (err) { alert('File di backup non valido.'); }
+};
+const dz = $('dz');
+['dragenter', 'dragover'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); if (ev === 'drop' || e.target === dz) dz.classList.remove('over'); }));
+document.addEventListener('drop', e => { if (e.dataTransfer.files.length) addFiles([...e.dataTransfer.files]); });
+$('q').addEventListener('input', applyFilter);
+$('show').addEventListener('change', applyFilter);
+const zoom = $('zoom');
+document.addEventListener('click', e => {
+  const im = e.target.closest('.card img');
+  if (im) { zoom.querySelector('img').src = im.dataset.hi || im.src; zoom.style.display = 'flex'; }
+  else if (e.target.closest('#zoom')) zoom.style.display = 'none';
+});
+function toastMsg(t) {
+  const d = document.createElement('div');
+  d.textContent = t;
+  d.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ok);color:#fff;padding:10px 18px;border-radius:10px;z-index:20;font-weight:600';
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 3000);
+}
+render();
+</script>
+</body>
+</html>

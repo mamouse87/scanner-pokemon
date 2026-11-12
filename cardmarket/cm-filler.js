@@ -226,7 +226,7 @@
     text.split(/\r?\n/).forEach(line => {
       const l = line.replace(/ /g, ' ').trim();
       if (!l || l.startsWith('#') || /^CARDSCANNER/i.test(l) || /^COMMENTO/i.test(l)) return;
-      let m = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*$/i);
+      let m = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*(?:\|.*)?$/i);
       if (m) { setName = m[1]; lang = LANG[m[2].toLowerCase()] || 5; return; }
       // formato 2: 006 | x1 | N | Combee | Comune
       m = l.match(/^([A-Z]*\d+)\s*\|\s*x\s*(\d+)\s*\|\s*([NR])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|]*?))?\s*$/i);

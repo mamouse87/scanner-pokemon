@@ -164,10 +164,22 @@ object Inventory {
      * Una riga per carta e variante: numero | quantità | N/R | nome | rarità
      */
     fun cardmarketText(g: Group, comment: String): String {
-        val sb = StringBuilder("CARDSCANNER 2\nSET ${g.setName} | ${g.lang}\n")
+        val sb = StringBuilder("CARDSCANNER 2\nSET ${g.setName} | ${g.lang} | ${g.items.first().second.setId}\n")
         if (comment.isNotBlank()) sb.append("COMMENTO ${comment.trim()}\n")
         for ((_, i) in g.items) {
             sb.append("${CardRepo.pad(i.num)} | x${i.qty} | ${if (i.variant == "R") "R" else "N"} | ${i.name} | ${i.rarity}\n")
+        }
+        return sb.toString()
+    }
+
+    /** Tutta la lista in un file, un blocco per set: per la pagina "La mia collezione" sul PC. */
+    fun collectionText(): String {
+        val sb = StringBuilder("CARDSCANNER 2\n")
+        for (g in groups()) {
+            sb.append("SET ${g.setName} | ${g.lang} | ${g.items.first().second.setId}\n")
+            for ((_, i) in g.items) {
+                sb.append("${CardRepo.pad(i.num)} | x${i.qty} | ${if (i.variant == "R") "R" else "N"} | ${i.name} | ${i.rarity}\n")
+            }
         }
         return sb.toString()
     }

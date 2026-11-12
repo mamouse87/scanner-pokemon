@@ -55,6 +55,25 @@ class ListActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.btnCsv).setOnClickListener { shareCsv() }
         findViewById<Button>(R.id.btnCatalog).setOnClickListener { makeCatalog(it as Button) }
+        findViewById<Button>(R.id.btnCollection).setOnClickListener {
+            if (Inventory.items.isEmpty()) { Toast.makeText(this, "Lista vuota", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            AlertDialog.Builder(this)
+                .setTitle("File per la collezione sul PC")
+                .setMessage("Invia al PC un file con tutte le ${Inventory.count()} carte della lista. Sul PC aprilo nella pagina \"La mia collezione\": le carte vengono segnate in automatico e si sommano a quelle già caricate.\n\nDopo averlo caricato puoi svuotare la lista dell'app, così la volta dopo mandi solo le carte nuove.")
+                .setPositiveButton("Invia file") { _, _ ->
+                    val dir = File(cacheDir, "export").apply { mkdirs() }
+                    val stamp = java.text.SimpleDateFormat("yyyy-MM-dd_HHmm", java.util.Locale.ITALY).format(java.util.Date())
+                    val f = File(dir, "collezione-$stamp.txt").apply { writeText(Inventory.collectionText(), Charsets.UTF_8) }
+                    val uri = FileProvider.getUriForFile(this, "$packageName.files", f)
+                    startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }, "Invia al PC"))
+                }
+                .setNegativeButton("Annulla", null)
+                .show()
+        }
         findViewById<Button>(R.id.btnClear).setOnClickListener {
             AlertDialog.Builder(this).setMessage("Svuotare tutta la lista?")
                 .setPositiveButton("Svuota") { _, _ -> Inventory.clear(this); refresh() }

@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gestionale carte in vendita</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--fg:#1c2128;--mut:#6b7280;--acc:#e3b500;--rev:#a64fd1;--ok:#2f9e5b;--warn:#e8590c;--line:#e1e4e8}
+@media(prefers-color-scheme:dark){:root{--bg:#111418;--card:#1c2128;--fg:#e8eaed;--mut:#9aa3ad;--acc:#ffcb05;--rev:#cc5de8;--ok:#3ecf6e;--warn:#ff9f43;--line:#2a313b}}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+.top{position:sticky;top:0;z-index:5;background:var(--card);padding:12px 20px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+h1{margin:0;font-size:21px}
+.stats{color:var(--mut);margin-top:2px}
+button,select,input{font:inherit;padding:6px 11px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+button{cursor:pointer}
+button.pri{background:var(--acc);color:#111;border:0;font-weight:700}
+button.sm{padding:2px 8px;font-size:12px}
+input[type=search]{flex:1;min-width:200px}
+.tabs button.on{background:var(--fg);color:var(--bg)}
+main{max-width:1400px;margin:0 auto;padding:0 20px 60px}
+.set{margin-top:22px;background:var(--card);border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.1);overflow:hidden}
+.set>header{display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.set .logo{height:46px;max-width:160px;object-fit:contain}
+.set h2{margin:0;font-size:18px}
+.sub{color:var(--mut);font-size:13px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:12px;color:var(--mut);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr.out td{opacity:.45}
+td.th{width:52px}
+td.th img{width:44px;height:61px;object-fit:contain;border-radius:4px;background:var(--bg);cursor:zoom-in;display:block}
+td.th .ph{width:44px;height:61px;border-radius:4px;background:var(--bg)}
+.num{font-family:ui-monospace,monospace;white-space:nowrap}
+.rev{background:var(--rev);color:#fff;font-size:11px;font-weight:700;border-radius:5px;padding:1px 6px;margin-left:4px}
+.qty{white-space:nowrap}.qty b{display:inline-block;min-width:22px;text-align:center}
+.site{white-space:nowrap}
+.site input[type=number]{width:72px;padding:3px 6px}
+.on{color:var(--ok);font-weight:700}
+.flag{color:var(--warn);font-size:12.5px}
+.hide{display:none!important}
+#zoom{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:30;cursor:zoom-out}
+#zoom img{max-width:92vw;max-height:92vh;border-radius:12px}
+dialog{border:0;border-radius:12px;background:var(--card);color:var(--fg);width:min(980px,94vw);max-height:90vh;padding:18px}
+dialog h3{margin-top:0}
+.dz{border:2px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--mut);margin-top:14px}
+.dz.over{border-color:var(--acc);color:var(--fg)}
+.empty{text-align:center;color:var(--mut);margin-top:60px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ok);color:#fff;padding:10px 18px;border-radius:10px;z-index:40;font-weight:600}
+.small{font-size:12px;color:var(--mut)}
+td.line{font-size:12px;color:var(--mut);max-width:380px}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="row" style="justify-content:space-between">
+    <div><h1>Gestionale carte in vendita</h1><div class="stats" id="stats"></div></div>
+    <div class="row">
+      <button class="pri" id="btnApp">📥 Carte dall'app</button>
+      <button class="pri" id="btnSale">🧾 Carica vendite</button>
+      <button id="btnMore">⚙ Altro</button>
+    </div>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <span class="row tabs" id="tabs">
+      <button data-v="stock" class="on">Magazzino</button>
+      <button data-v="todo">Da aggiornare <b id="nTodo"></b></button>
+      <button data-v="sold">Vendute</button>
+    </span>
+    <input type="search" id="q" placeholder="Cerca nome, numero, set…">
+    <select id="fSet"><option value="">Tutti i set</option></select>
+    <select id="fSite"></select>
+  </div>
+</div>
+
+<main id="main"></main>
+<div id="dz" class="dz" style="max-width:1400px;margin:14px auto">Trascina qui il file dell'app o una fattura di vendita (PDF / CSV).</div>
+
+<input type="file" id="fApp" accept=".txt,.html,.htm,text/*" multiple hidden>
+<input type="file" id="fSale" accept=".pdf,.csv,.txt,.html,.htm" multiple hidden>
+<input type="file" id="fRestore" accept=".json" hidden>
+<div id="zoom"><img alt=""></div>
+<dialog id="dlg"><div id="dlgBody"></div></dialog>
+
+<script>
+'use strict';
+const API = 'https://api.tcgdex.net/v2';
+const KEY = 'gestionaleCarte_v1';
+const LANGN = { it: 'Italiano', en: 'Inglese', fr: 'Francese', de: 'Tedesco', es: 'Spagnolo', pt: 'Portoghese', ja: 'Giapponese' };
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const norm = n => /^\d+$/.test(n) ? String(parseInt(n, 10)) : String(n).toUpperCase();
+const pad = n => /^\d+$/.test(n) ? String(n).padStart(3, '0') : String(n);
+const simp = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const today = () => new Date().toISOString();
+const fmtDate = d => d ? new Date(d).toLocaleDateString('it-IT') : '';
+const eur = v => v == null || v === '' ? '' : Number(v).toFixed(2);
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ---------- dati ----------
+// cards[key] = {lang,setId,setName,num,name,rarity,rev,qty,added,sites:{Cardmarket:{on,price,date}},flags:[{text,date}]}
+// sold = [{date,key,setName,num,name,rev,qty,source,file}]
+let state = load();
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && s.cards) return Object.assign({ sites: ['Cardmarket'], sold: [] }, s);
+  } catch (e) {}
+  return { sites: ['Cardmarket'], cards: {}, sold: [] };
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch (e) { alert('Il browser non riesce a salvare: fai un Backup da "Altro".'); }
+}
+const cardKey = (lang, setId, num, rev) => `${lang}|${setId}|${norm(num)}|${rev ? 'R' : 'N'}`;
+function toast(t, color) {
+  const d = document.createElement('div');
+  d.className = 'toast'; d.textContent = t;
+  if (color) d.style.background = color;
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 3500);
+}
+
+// ---------- TCGdex (nomi, immagini, loghi) ----------
+const mem = {};
+async function getJSON(url) {
+  if (url in mem) return mem[url];
+  try {
+    const r = await fetch(url);
+    mem[url] = r.ok ? await r.json() : null;
+  } catch (e) { mem[url] = null; }
+  return mem[url];
+}
+async function findSetId(lang, name) {
+  const list = await getJSON(`${API}/${lang}/sets`);
+  if (!list) return '';
+  const n = name.trim().toLowerCase();
+  const s = list.find(x => x.name.trim().toLowerCase() === n) || list.find(x => x.name.toLowerCase().includes(n));
+  return s ? s.id : '';
+}
+/** Immagini e logo del set: prima nella lingua delle carte, poi in inglese se mancano. */
+async function setMedia(lang, setId) {
+  const out = { logo: '', images: {}, name: '', total: 0, count: 0 };
+  if (!setId) return out;
+  const a = await getJSON(`${API}/${lang}/sets/${encodeURIComponent(setId)}`);
+  const missing = !a || !a.logo || !(a.cards || []).some(c => c.image);
+  const b = lang !== 'en' && missing ? await getJSON(`${API}/en/sets/${encodeURIComponent(setId)}`) : null;
+  for (const d of [b, a]) if (d) {
+    if (d.logo) out.logo = d.logo;
+    (d.cards || []).forEach(c => { if (c.image) out.images[norm(c.localId)] = c.image; });
+  }
+  if (a) { out.name = a.name; out.total = a.cardCount?.official || 0; out.count = (a.cards || []).length; }
+  return out;
+}
+
+// ---------- file dall'app ----------
+function textOf(raw) {
+  if (/<br|<html|<body/i.test(raw)) {
+    const d = new DOMParser().parseFromString(raw.replace(/<br\s*\/?>/gi, '\n'), 'text/html');
+    raw = d.body.textContent;
+  }
+  return raw.replace(/ /g, ' ');
+}
+function parseAppList(text) {
+  const sets = []; let cur = null;
+  text.split(/\r?\n/).forEach(line => {
+    const l = line.trim();
+    if (!l || l.startsWith('#') || /^CARDSCANNER/i.test(l) || /^COMMENTO/i.test(l)) return;
+    let m = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*(?:\|\s*([^|]+?))?\s*$/i);
+    if (m) { cur = { setName: m[1].trim(), lang: m[2].toLowerCase(), setId: (m[3] || '').trim(), items: [] }; sets.push(cur); return; }
+    if (!cur) return;
+    m = l.match(/^([A-Z]*\d+)\s*\|\s*x\s*(\d+)\s*\|\s*([NR])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|]*?))?\s*$/i);
+    if (m) { cur.items.push({ num: m[1], qty: +m[2], rev: m[3].toUpperCase() === 'R', name: (m[4] || '').trim(), rarity: (m[5] || '').trim() }); return; }
+    m = l.match(/^([A-Z]*\d+)(R?)\s*x\s*(\d+)/i);
+    if (m) cur.items.push({ num: m[1], rev: m[2].toUpperCase() === 'R', qty: +m[3], name: '', rarity: '' });
+  });
+  return sets.filter(s => s.items.length);
+}
+async function importAppFiles(files) {
+  let n = 0;
+  for (const f of files) {
+    const sets = parseAppList(textOf(await f.text()));
+    if (!sets.length) { alert(`"${f.name}" non è un file dell'app.`); continue; }
+    for (const s of sets) {
+      if (!s.setId) s.setId = await findSetId(s.lang, s.setName) || s.setName;
+      for (const it of s.items) {
+        const k = cardKey(s.lang, s.setId, it.num, it.rev);
+        const c = state.cards[k] || (state.cards[k] = {
+          lang: s.lang, setId: s.setId, setName: s.setName, num: it.num, name: it.name, rarity: it.rarity,
+          rev: it.rev, qty: 0, added: today(), sites: {}, flags: []
+        });
+        c.qty += it.qty;
+        if (!c.name) c.name = it.name;
+        if (!c.rarity) c.rarity = it.rarity;
+        n += it.qty;
+      }
+    }
+  }
+  save(); render();
+  if (n) toast(`Aggiunte ${n} carte al magazzino`);
+}
+
+// ---------- segno automatico da Cardmarket (dallo script della pagina "Inserisci carte bulk") ----------
+function importFromHash() {
+  const m = location.hash.match(/^#cm=(.+)$/);
+  if (!m) return;
+  history.replaceState(null, '', location.pathname);
+  let data;
+  try { data = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Dati da Cardmarket non leggibili.'); return; }
+  const site = data.site || 'Cardmarket';
+  if (!state.sites.includes(site)) state.sites.push(site);
+  let n = 0, added = 0;
+  const findCard = (it) => {
+    if (data.setId) { const k = cardKey(data.lang, data.setId, it.num, it.rev); if (state.cards[k]) return state.cards[k]; }
+    // file vecchi senza codice set: cerco per nome del set + numero
+    return Object.values(state.cards).find(c => c.lang === data.lang && simp(c.setName) === simp(data.setName) && norm(c.num) === norm(it.num) && c.rev === it.rev);
+  };
+  for (const it of data.items) {
+    let c = findCard(it);
+    if (!c) {
+      const sid = data.setId || data.setName;
+      c = state.cards[cardKey(data.lang, sid, it.num, it.rev)] = {
+        lang: data.lang, setId: sid, setName: data.setName, num: it.num, name: it.name || '', rarity: it.rarity || '',
+        rev: it.rev, qty: it.qty, added: today(), sites: {}, flags: []
+      };
+      added++;
+    }
+    c.sites[site] = { on: true, price: it.price ?? c.sites[site]?.price ?? null, date: today(), qty: it.qty };
+    n++;
+  }
+  save();
+  setTimeout(() => toast(`${site}: segnate ${n} carte come caricate${added ? ` (${added} non erano in magazzino, aggiunte)` : ''}`), 300);
+}
+
+// ---------- vendite ----------
+async function pdfText(file) {
+  if (!window.pdfjsLib) throw new Error('lettore PDF non caricato (serve internet)');
+  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+  const lines = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const tc = await (await pdf.getPage(p)).getTextContent();
+    // ricompongo le righe raggruppando i pezzi di testo per altezza
+    const rows = new Map();
+    tc.items.forEach(it => {
+      const y = Math.round(it.transform[5] / 3) * 3;
+      (rows.get(y) || rows.set(y, []).get(y)).push(it);
+    });
+    [...rows.entries()].sort((a, b) => b[0] - a[0]).forEach(([, its]) => {
+      lines.push(its.sort((a, b) => a.transform[4] - b.transform[4]).map(i => i.str).join(' ').replace(/\s+/g, ' ').trim());
+    });
+  }
+  return lines.join('\n');
+}
+function longestWord(name) {
+  return String(name || '').split(/[\s\-']+/).map(simp).filter(w => w.length >= 4).sort((a, b) => b.length - a.length)[0] || '';
+}
+function parseQty(line) {
+  const m = line.match(/(?:^|\s)(\d{1,3})\s*[x×]\s/i) || line.match(/(?:^|[^a-z])[x×]\s?(\d{1,3})\b/i) || line.match(/qt[aà]\.?\s*:?\s*(\d{1,3})/i) || line.match(/quantit[aà]\s*:?\s*(\d{1,3})/i);
+  return m ? Math.max(1, +m[1]) : 1;
+}
+/** Cerca nelle righe della fattura le carte del magazzino (per nome; numero, set e Reverse aumentano la sicurezza). */
+function matchSales(text) {
+  const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length > 2);
+  const inv = Object.entries(state.cards);
+  const found = [];
+  lines.forEach((line, i) => {
+    const ctx = line + ' ' + (lines[i + 1] || '');
+    const L = simp(line);
+    const cands = [];
+    for (const [k, c] of inv) {
+      const w = longestWord(c.name);
+      if (!w || !L.includes(w)) continue;
+      let score = 1;
+      if (simp(c.name) && L.includes(simp(c.name))) score += 1;
+      if (/^\d+$/.test(c.num) && new RegExp('(^|[^0-9])0*' + parseInt(c.num, 10) + '([^0-9]|$)').test(ctx)) score += 2;
+      if (c.setName && simp(ctx).includes(simp(c.setName))) score += 1;
+      if (/reverse/i.test(ctx) === c.rev) score += 1;
+      if (c.qty > 0) score += 0.5;
+      cands.push({ k, c, score });
+    }
+    if (cands.length) {
+      cands.sort((a, b) => b.score - a.score);
+      found.push({ line, qty: parseQty(line), cands });
+    }
+  });
+  return found;
+}
+async function importSales(files) {
+  const all = [];
+  for (const f of files) {
+    let text;
+    try { text = /\.pdf$/i.test(f.name) ? await pdfText(f) : textOf(await f.text()); }
+    catch (e) { alert(`"${f.name}": ${e.message}`); continue; }
+    matchSales(text).forEach(r => all.push(Object.assign(r, { file: f.name })));
+  }
+  saleReview(all, files.map(f => f.name).join(', '));
+}
+function saleReview(rows, fileNames) {
+  const sites = state.sites;
+  const guess = /ebay/i.test(fileNames) ? 'eBay' : 'Cardmarket';
+  let h = `<h3>Carte vendute trovate in: ${esc(fileNames)}</h3>`;
+  if (!rows.length) {
+    h += `<p>Non ho trovato nella fattura nomi di carte presenti nel magazzino.</p>
+      <p class="small">Se le carte ci sono, mandami un esempio di questa fattura e sistemo la lettura.</p>
+      <p style="text-align:right"><button id="dClose">Chiudi</button></p>`;
+    return openDlg(h, () => { $('dClose').onclick = closeDlg; });
+  }
+  h += `<div class="row" style="margin-bottom:8px">Venduta su <select id="saleSite">${[...new Set([...sites, 'eBay', 'Cardmarket', 'Altro'])].map(s => `<option ${s === guess ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+    <span class="small">Controlla le righe: quelle spuntate verranno tolte dal magazzino.</span></div>
+    <div style="max-height:55vh;overflow:auto"><table><tr><th></th><th>Riga della fattura</th><th>Carta del magazzino</th><th>Q.tà</th></tr>`;
+  rows.forEach((r, i) => {
+    const top = r.cands[0];
+    const sure = top.score >= 3 && (r.cands.length === 1 || r.cands[1].score < top.score);
+    h += `<tr><td><input type="checkbox" data-i="${i}" ${sure ? 'checked' : ''}></td><td class="line">${esc(r.line)}</td>
+      <td><select data-s="${i}">${r.cands.slice(0, 8).map((c, j) =>
+        `<option value="${j}">${esc(c.c.name)} · ${esc(pad(c.c.num))} · ${esc(c.c.setName)}${c.c.rev ? ' · REVERSE' : ''} (giacenza ${c.c.qty})</option>`).join('')}</select></td>
+      <td><input type="number" min="1" value="${r.qty}" data-q="${i}" style="width:60px"></td></tr>`;
+  });
+  h += `</table></div><p style="text-align:right"><button id="dClose">Annulla</button> <button class="pri" id="dApply">Togli dal magazzino</button></p>`;
+  openDlg(h, () => {
+    $('dClose').onclick = closeDlg;
+    $('dApply').onclick = () => {
+      const site = $('saleSite').value;
+      let n = 0;
+      rows.forEach((r, i) => {
+        if (!$('dlgBody').querySelector(`[data-i="${i}"]`).checked) return;
+        const cand = r.cands[+$('dlgBody').querySelector(`[data-s="${i}"]`).value];
+        const q = Math.max(1, +$('dlgBody').querySelector(`[data-q="${i}"]`).value || 1);
+        sell(cand.k, q, site, r.file);
+        n += q;
+      });
+      save(); closeDlg(); render();
+      toast(`Tolte ${n} carte vendute dal magazzino`);
+    };
+  });
+}
+function sell(k, q, site, file) {
+  const c = state.cards[k];
+  if (!c) return;
+  c.qty = Math.max(0, c.qty - q);
+  state.sold.push({ date: today(), key: k, setName: c.setName, num: c.num, name: c.name, rev: c.rev, qty: q, source: site, file: file || '' });
+  // avviso per gli altri siti dove la carta è caricata
+  for (const [s, v] of Object.entries(c.sites)) {
+    if (!v.on || s === site) continue;
+    c.flags.push({ date: today(), text: c.qty > 0
+      ? `Venduta ${q} su ${site}: aggiorna la quantità su ${s} (ora ${c.qty})`
+      : `Venduta su ${site}: togli l'annuncio da ${s}` });
+  }
+  if (c.qty === 0 && c.sites[site]) c.sites[site].on = false;
+}
+
+// ---------- disegno ----------
+let view = 'stock';
+const media = {};
+function siteFilterOptions() {
+  const cur = $('fSite').value;
+  $('fSite').innerHTML = `<option value="">Tutti gli stati</option>` + state.sites.map(s =>
+    `<option value="no:${esc(s)}">Non caricate su ${esc(s)}</option><option value="yes:${esc(s)}">Caricate su ${esc(s)}</option>`).join('');
+  $('fSite').value = cur;
+}
+function groups(list) {
+  const g = new Map();
+  for (const [k, c] of list) {
+    const gk = c.lang + '|' + c.setId;
+    (g.get(gk) || g.set(gk, { lang: c.lang, setId: c.setId, setName: c.setName, items: [] }).get(gk)).items.push([k, c]);
+  }
+  for (const x of g.values()) x.items.sort((a, b) => (parseInt(a[1].num) || 9999) - (parseInt(b[1].num) || 9999) || a[1].num.localeCompare(b[1].num) || (a[1].rev - b[1].rev));
+  return [...g.values()].sort((a, b) => a.setName.localeCompare(b.setName));
+}
+function visible(k, c) {
+  const t = $('q').value.trim().toLowerCase();
+  if (t && !`${c.name} ${pad(c.num)} ${c.num} ${c.setName} ${c.rarity} ${c.rev ? 'reverse' : ''}`.toLowerCase().includes(t)) return false;
+  if ($('fSet').value && $('fSet').value !== c.lang + '|' + c.setId) return false;
+  const fs = $('fSite').value;
+  if (fs) {
+    const [w, s] = [fs.slice(0, fs.indexOf(':')), fs.slice(fs.indexOf(':') + 1)];
+    const on = !!c.sites[s]?.on;
+    if (w === 'yes' ? !on : on) return false;
+  }
+  if (view === 'stock') return c.qty > 0 || c.flags.length > 0;
+  if (view === 'todo') return c.flags.length > 0 || (c.qty > 0 && state.sites.some(s => !c.sites[s]?.on));
+  return true;
+}
+async function render() {
+  const cards = Object.entries(state.cards);
+  const inStock = cards.filter(([, c]) => c.qty > 0);
+  const copies = inStock.reduce((a, [, c]) => a + c.qty, 0);
+  const todo = cards.filter(([, c]) => c.flags.length).length;
+  const perSite = state.sites.map(s => {
+    const n = inStock.filter(([, c]) => c.sites[s]?.on).length;
+    return `${s}: ${n}/${inStock.length}`;
+  }).join(' · ');
+  $('stats').textContent = `${copies} copie in magazzino · ${inStock.length} carte diverse · caricate ${perSite} · vendute ${state.sold.reduce((a, s) => a + s.qty, 0)}`;
+  $('nTodo').textContent = todo ? `(${todo})` : '';
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
+  siteFilterOptions();
+
+  // filtro set
+  const sets = groups(cards);
+  const curSet = $('fSet').value;
+  $('fSet').innerHTML = '<option value="">Tutti i set</option>' + sets.map(s => `<option value="${esc(s.lang + '|' + s.setId)}">${esc(s.setName)} (${s.lang.toUpperCase()})</option>`).join('');
+  $('fSet').value = curSet;
+
+  const main = $('main');
+  if (view === 'sold') return renderSold();
+  if (!cards.length) {
+    main.innerHTML = `<p class="empty">Magazzino vuoto. Premi "📥 Carte dall'app" e carica il file inviato dall'app.</p>`;
+    return;
+  }
+  const shown = groups(cards.filter(([k, c]) => visible(k, c)));
+  if (!shown.length) { main.innerHTML = '<p class="empty">Nessuna carta con questi filtri.</p>'; return; }
+  main.innerHTML = shown.map((g, i) => setHtml(g, i)).join('');
+  // immagini e loghi arrivano dopo, set per set
+  for (const g of shown) {
+    const mk = g.lang + '|' + g.setId;
+    if (!media[mk]) media[mk] = await setMedia(g.lang, g.setId);
+    paintMedia(g, media[mk]);
+  }
+}
+function setHtml(g, i) {
+  const sec = `sec_${simp(g.lang + g.setId)}`;
+  const copies = g.items.reduce((a, [, c]) => a + c.qty, 0);
+  const siteCounts = state.sites.map(s => `${s} ${g.items.filter(([, c]) => c.qty > 0 && c.sites[s]?.on).length}/${g.items.filter(([, c]) => c.qty > 0).length}`).join(' · ');
+  let h = `<section class="set" id="${sec}" data-set="${esc(g.lang + '|' + g.setId)}"><header>
+    <img class="logo hide" alt=""><div style="flex:1"><h2>${esc(g.setName)}</h2>
+    <div class="sub">${LANGN[g.lang] || g.lang} · ${copies} copie · ${g.items.length} righe · caricate: ${siteCounts}</div></div>
+    <div class="row">${state.sites.map(s => `<button class="sm" data-allsite="${esc(s)}">Segna tutto su ${esc(s)}</button>`).join('')}</div>
+    </header><table><tr><th></th><th>N.</th><th>Carta</th><th>Rarità</th><th>Q.tà</th>${state.sites.map(s => `<th>${esc(s)} (prezzo €)</th>`).join('')}<th></th></tr>`;
+  for (const [k, c] of g.items) {
+    h += `<tr class="${c.qty ? '' : 'out'}" data-k="${esc(k)}">
+      <td class="th"><div class="ph" data-num="${esc(norm(c.num))}"></div></td>
+      <td class="num">${esc(pad(c.num))}</td>
+      <td>${esc(c.name || '—')}${c.rev ? '<span class="rev">REVERSE</span>' : ''}
+        ${c.flags.map((f, j) => `<div class="flag">⚠ ${esc(f.text)} <button class="sm" data-flag="${j}">fatto</button></div>`).join('')}</td>
+      <td class="small">${esc(c.rarity)}</td>
+      <td class="qty"><button class="sm" data-q="-1">−</button> <b>${c.qty}</b> <button class="sm" data-q="1">+</button></td>
+      ${state.sites.map(s => {
+        const v = c.sites[s] || {};
+        return `<td class="site"><label><input type="checkbox" data-site="${esc(s)}" ${v.on ? 'checked' : ''}> ${v.on ? `<span class="on">sì</span>` : 'no'}</label>
+          <input type="number" step="0.01" min="0" data-price="${esc(s)}" value="${eur(v.price)}" placeholder="—">
+          ${v.on && v.date ? `<div class="small">dal ${fmtDate(v.date)}</div>` : ''}</td>`;
+      }).join('')}
+      <td><button class="sm" data-sell="1" title="Segna come venduta a mano">venduta</button></td></tr>`;
+  }
+  return h + '</table></section>';
+}
+function paintMedia(g, m) {
+  const sec = [...document.querySelectorAll('section[data-set]')].find(x => x.dataset.set === g.lang + '|' + g.setId);
+  if (!sec) return;
+  if (m.logo) { const im = sec.querySelector('.logo'); im.src = m.logo + '.png'; im.classList.remove('hide'); im.onerror = () => im.classList.add('hide'); }
+  sec.querySelectorAll('.ph[data-num]').forEach(ph => {
+    const base = m.images[ph.dataset.num];
+    if (!base) return;
+    const im = document.createElement('img');
+    im.loading = 'lazy'; im.src = base + '/low.webp'; im.dataset.hi = base + '/high.webp';
+    im.onerror = () => { im.replaceWith(ph); };
+    ph.replaceWith(im);
+  });
+}
+function renderSold() {
+  const t = $('q').value.trim().toLowerCase();
+  const list = state.sold.slice().reverse().filter(s => !t || `${s.name} ${pad(s.num)} ${s.setName} ${s.source}`.toLowerCase().includes(t));
+  $('main').innerHTML = list.length ? `<section class="set"><table><tr><th>Data</th><th>Carta</th><th>Set</th><th>Q.tà</th><th>Venduta su</th><th>File</th><th></th></tr>` +
+    list.map(s => `<tr><td>${fmtDate(s.date)}</td><td>${esc(pad(s.num))} ${esc(s.name)}${s.rev ? '<span class="rev">REVERSE</span>' : ''}</td>
+      <td>${esc(s.setName)}</td><td>${s.qty}</td><td>${esc(s.source)}</td><td class="small">${esc(s.file)}</td>
+      <td><button class="sm" data-undo="${state.sold.indexOf(s)}">annulla</button></td></tr>`).join('') + '</table></section>'
+    : '<p class="empty">Nessuna vendita registrata.</p>';
+}
+
+// ---------- azioni nella tabella ----------
+$('main').addEventListener('click', e => {
+  const im = e.target.closest('td.th img');
+  if (im) { $('zoom').querySelector('img').src = im.dataset.hi || im.src; $('zoom').style.display = 'flex'; return; }
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.undo != null) {
+    const s = state.sold[+b.dataset.undo];
+    if (s && confirm(`Annullare la vendita di ${s.qty} × ${s.name}? Torna in magazzino.`)) {
+      if (state.cards[s.key]) state.cards[s.key].qty += s.qty;
+      state.sold.splice(+b.dataset.undo, 1); save(); render();
+    }
+    return;
+  }
+  if (b.dataset.allsite) {
+    const s = b.dataset.allsite, set = b.closest('section').dataset.set;
+    if (!confirm(`Segnare tutte le carte di questo set come caricate su ${s}?`)) return;
+    Object.values(state.cards).forEach(c => { if (c.lang + '|' + c.setId === set && c.qty > 0) c.sites[s] = Object.assign(c.sites[s] || {}, { on: true, date: today() }); });
+    save(); render(); return;
+  }
+  const tr = b.closest('tr[data-k]');
+  if (!tr) return;
+  const c = state.cards[tr.dataset.k];
+  if (b.dataset.q) { c.qty = Math.max(0, c.qty + +b.dataset.q); }
+  else if (b.dataset.flag != null) { c.flags.splice(+b.dataset.flag, 1); }
+  else if (b.dataset.sell) {
+    const q = prompt(`Quante copie di ${c.name} hai venduto?`, '1');
+    if (!q) return;
+    const site = prompt(`Su quale sito? (${state.sites.join(', ')}, eBay…)`, state.sites[0] || 'Cardmarket');
+    if (!site) return;
+    sell(tr.dataset.k, Math.max(1, +q || 1), site.trim(), 'a mano');
+  }
+  save(); render();
+});
+$('main').addEventListener('change', e => {
+  const tr = e.target.closest('tr[data-k]');
+  if (!tr) return;
+  const c = state.cards[tr.dataset.k];
+  if (e.target.dataset.site) {
+    const s = e.target.dataset.site;
+    c.sites[s] = Object.assign(c.sites[s] || {}, { on: e.target.checked, date: e.target.checked ? today() : null });
+    save(); render();
+  } else if (e.target.dataset.price) {
+    const s = e.target.dataset.price;
+    c.sites[s] = Object.assign(c.sites[s] || {}, { price: e.target.value === '' ? null : +e.target.value });
+    save();
+  }
+});
+
+// ---------- dialoghi e comandi ----------
+function openDlg(html, wire) { $('dlgBody').innerHTML = html; $('dlg').showModal(); wire && wire(); }
+function closeDlg() { $('dlg').close(); }
+$('btnApp').onclick = () => $('fApp').click();
+$('btnSale').onclick = () => $('fSale').click();
+$('fApp').onchange = e => { importAppFiles([...e.target.files]); e.target.value = ''; };
+$('fSale').onchange = e => { importSales([...e.target.files]); e.target.value = ''; };
+$('btnMore').onclick = () => openDlg(`<h3>Altro</h3>
+  <p><b>Siti seguiti:</b> ${state.sites.map(esc).join(', ')}</p>
+  <div class="row"><input id="newSite" placeholder="Aggiungi un sito (es. eBay)"><button id="addSite">Aggiungi</button></div>
+  <p class="row" style="margin-top:16px"><button id="bBackup">💾 Scarica backup</button><button id="bRestore">↩ Ripristina backup</button><button id="bWipe">🗑 Svuota tutto</button></p>
+  <p class="small">I dati sono salvati in questo browser. Fai un backup ogni tanto: se pulisci i dati di Chrome o cambi PC, lo ripristini da qui.</p>
+  <p class="small">Script per Cardmarket: <a href="../cardmarket/">pagina del pulsante</a>.</p>
+  <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
+  $('dClose').onclick = closeDlg;
+  $('addSite').onclick = () => {
+    const s = $('newSite').value.trim();
+    if (s && !state.sites.includes(s)) { state.sites.push(s); save(); closeDlg(); render(); }
+  };
+  $('bBackup').onclick = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(state)], { type: 'application/json' }));
+    a.download = `gestionale-carte-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+  };
+  $('bRestore').onclick = () => $('fRestore').click();
+  $('bWipe').onclick = () => {
+    if (confirm('Cancellare tutto il magazzino e le vendite? Fai prima un backup.')) { state = { sites: state.sites, cards: {}, sold: [] }; save(); closeDlg(); render(); }
+  };
+});
+$('fRestore').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const s = JSON.parse(await f.text());
+    if (!s.cards) throw 0;
+    if (confirm('Sostituire i dati attuali con questo backup?')) { state = Object.assign({ sites: ['Cardmarket'], sold: [] }, s); save(); closeDlg(); render(); }
+  } catch (err) { alert('Backup non valido.'); }
+};
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { view = b.dataset.v; render(); });
+$('q').addEventListener('input', () => render());
+$('fSet').addEventListener('change', () => render());
+$('fSite').addEventListener('change', () => render());
+$('zoom').onclick = () => { $('zoom').style.display = 'none'; };
+
+// trascina file: quelli dell'app vanno in magazzino, PDF e CSV sono vendite
+const dz = $('dz');
+document.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+document.addEventListener('dragleave', e => { if (e.target === dz) dz.classList.remove('over'); });
+document.addEventListener('drop', async e => {
+  e.preventDefault(); dz.classList.remove('over');
+  const files = [...e.dataTransfer.files];
+  const app = [], sales = [];
+  for (const f of files) {
+    if (/\.pdf$|\.csv$/i.test(f.name)) { sales.push(f); continue; }
+    (/CARDSCANNER/i.test(await f.text()) ? app : sales).push(f);
+  }
+  if (app.length) await importAppFiles(app);
+  if (sales.length) await importSales(sales);
+});
+
+importFromHash();
+render();
+</script>
+</body>
+</html>

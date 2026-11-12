@@ -21,6 +21,7 @@
     'rara segreta': 'secret rare', 'asso tattico rara': 'ace spec rare', 'rara ace spec': 'ace spec rare',
     'promo': 'promo', 'nessuna': ''
   };
+  const GEST_URL = 'https://mamouse87.github.io/scanner-pokemon/gestionale/';
   const DELAY_MS = 1300;
   const MIN_PRICE = 0.02;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -51,7 +52,8 @@
       <span>Tuo utente</span><input id="csMe" style="${inp}" placeholder="per escludere le tue offerte">
     </div>
     <button id="csGo" style="width:100%;padding:10px;border:0;border-radius:8px;background:#ffcb05;color:#111;font-weight:700;cursor:pointer">Compila la pagina</button>
-    <div id="csLog" style="margin-top:10px;font:12px/1.45 monospace;white-space:pre-wrap"></div>`;
+    <div id="csLog" style="margin-top:10px;font:12px/1.45 monospace;white-space:pre-wrap"></div>
+    <button id="csGest" style="display:none;width:100%;margin-top:10px;padding:10px;border:0;border-radius:8px;background:#3ecf6e;color:#111;font-weight:700;cursor:pointer">✔ Inviato su Cardmarket: segna nel gestionale</button>`;
   document.body.appendChild(panel);
   const $ = id => panel.querySelector('#' + id);
   const log = (t, color) => {
@@ -221,13 +223,13 @@
 
   // ---------- lista dall'app ----------
   function parseInput(text) {
-    let lang = 5, setName = '';
+    let lang = 5, setName = '', setId = '', langCode = 'it';
     const items = [];
     text.split(/\r?\n/).forEach(line => {
       const l = line.replace(/ /g, ' ').trim();
       if (!l || l.startsWith('#') || /^CARDSCANNER/i.test(l) || /^COMMENTO/i.test(l)) return;
-      let m = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*(?:\|.*)?$/i);
-      if (m) { setName = m[1]; lang = LANG[m[2].toLowerCase()] || 5; return; }
+      let m = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*(?:\|\s*([^|]*?))?\s*$/i);
+      if (m) { setName = m[1]; langCode = m[2].toLowerCase(); lang = LANG[langCode] || 5; setId = (m[3] || '').trim(); return; }
       // formato 2: 006 | x1 | N | Combee | Comune
       m = l.match(/^([A-Z]*\d+)\s*\|\s*x\s*(\d+)\s*\|\s*([NR])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|]*?))?\s*$/i);
       if (m) { items.push({ num: m[1], qty: +m[2], rev: m[3].toUpperCase() === 'R', name: m[4] || '', rarity: m[5] || '' }); return; }
@@ -235,7 +237,7 @@
       m = l.match(/^([A-Z]*\d+)(R?)\s*x\s*(\d+)/i);
       if (m) items.push({ num: m[1], rev: m[2].toUpperCase() === 'R', qty: +m[3], name: '', rarity: '' });
     });
-    return { lang, setName, items };
+    return { lang, langCode, setName, setId, items };
   }
 
   $('csGo').onclick = async () => {
@@ -246,7 +248,9 @@
   };
 
   async function run() {
-    const { lang, setName, items } = parseInput($('csInput').value);
+    const { lang, langCode, setName, setId, items } = parseInput($('csInput').value);
+    const filled = [];
+    $('csGest').style.display = 'none';
     if (!items.length) { log('Nessuna carta nella lista.', '#ff6b6b'); return; }
     const rows = pageRows();
     const wantPrice = $('csPrice').checked;
@@ -310,6 +314,7 @@
         }
         first = false;
         fillRow(tr, { lang, rev: v.rev, qty: v.qty, price, comment, warn });
+        filled.push({ num: g.row.num.replace(/^0+(?=\d)/, ''), rev: v.rev, qty: v.qty, price, name: g.name || g.row.name, rarity: g.rarity || '' });
         total += v.qty;
         log(`${g.row.label} [${v.rev ? 'REVERSE' : 'normale'}] · ${g.row.rarity || '?'} ×${v.qty} → ${price != null ? price.toFixed(2) + ' €' : 'prezzo vuoto'}` +
             (src ? `  (${src})` : ''), (price == null && wantPrice) || /TENDENZA/.test(src) ? '#ff9f43' : null);
@@ -318,6 +323,16 @@
     }
     log(`\nCompilate ${total} copie. Verde = normali, viola = Reverse, arancione = da controllare (${warnings}).`, '#3ecf6e');
     log('Controlla e poi premi il pulsante di invio di Cardmarket in fondo alla pagina.', '#3ecf6e');
+    if (filled.length) {
+      log('Dopo aver premuto il pulsante di invio di Cardmarket, premi il pulsante verde qui sotto.', '#3ecf6e');
+      const b = $('csGest');
+      b.style.display = 'block';
+      b.onclick = () => {
+        const data = { site: 'Cardmarket', lang: langCode, setName, setId, items: filled };
+        const enc = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+        window.open(GEST_URL + '#cm=' + encodeURIComponent(enc), '_blank');
+      };
+    }
     if (blocked) log('Cardmarket ha bloccato le ricerche prezzi: per le carte restanti è stata usata la tendenza. Riprova tra qualche minuto.', '#ff9f43');
   }
 })();

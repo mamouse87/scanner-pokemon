@@ -58,12 +58,12 @@ class ListActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnCollection).setOnClickListener {
             if (Inventory.items.isEmpty()) { Toast.makeText(this, "Lista vuota", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
             AlertDialog.Builder(this)
-                .setTitle("File per la collezione sul PC")
-                .setMessage("Invia al PC un file con tutte le ${Inventory.count()} carte della lista. Sul PC aprilo nella pagina \"La mia collezione\": le carte vengono segnate in automatico e si sommano a quelle già caricate.\n\nDopo averlo caricato puoi svuotare la lista dell'app, così la volta dopo mandi solo le carte nuove.")
+                .setTitle("File per il gestionale sul PC")
+                .setMessage("Invia al PC un file con tutte le ${Inventory.count()} carte della lista. Sul PC caricalo nel gestionale (📥 Carte dall'app): le carte entrano in magazzino e si sommano a quelle già presenti.\n\nDopo averlo caricato puoi svuotare la lista dell'app, così la volta dopo mandi solo le carte nuove.")
                 .setPositiveButton("Invia file") { _, _ ->
                     val dir = File(cacheDir, "export").apply { mkdirs() }
                     val stamp = java.text.SimpleDateFormat("yyyy-MM-dd_HHmm", java.util.Locale.ITALY).format(java.util.Date())
-                    val f = File(dir, "collezione-$stamp.txt").apply { writeText(Inventory.collectionText(), Charsets.UTF_8) }
+                    val f = File(dir, "carte-$stamp.txt").apply { writeText(Inventory.collectionText(), Charsets.UTF_8) }
                     val uri = FileProvider.getUriForFile(this, "$packageName.files", f)
                     startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"

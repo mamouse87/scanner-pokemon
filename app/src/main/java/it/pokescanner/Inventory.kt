@@ -15,7 +15,9 @@ data class Item(
     val cardId: String,
     var rarity: String,
     var qty: Int,
-    val variant: String = ""
+    val variant: String = "",
+    /** immagine TCGdex (indirizzo base, senza /low.webp) */
+    var img: String = ""
 )
 
 data class Group(val lang: String, val setName: String, val total: Int, val items: List<Pair<String, Item>>)
@@ -46,7 +48,7 @@ object Inventory {
                 val item = Item(
                     o.getString("lang"), o.getString("setId"), o.optString("setName"), o.optInt("total"),
                     o.getString("num"), o.optString("name"), o.optString("cardId"), o.optString("rarity"),
-                    o.optInt("qty", 1), o.optString("variant", "")
+                    o.optInt("qty", 1), o.optString("variant", ""), o.optString("img", "")
                 )
                 items[key(item.lang, item.setId, item.num, item.variant)] = item
             }
@@ -61,7 +63,7 @@ object Inventory {
                 JSONObject()
                     .put("lang", i.lang).put("setId", i.setId).put("setName", i.setName).put("total", i.total)
                     .put("num", i.num).put("name", i.name).put("cardId", i.cardId).put("rarity", i.rarity)
-                    .put("qty", i.qty).put("variant", i.variant)
+                    .put("qty", i.qty).put("variant", i.variant).put("img", i.img)
             )
         }
         prefs(ctx).edit().putString("data", a.toString()).apply()
@@ -73,8 +75,9 @@ object Inventory {
         val k = key(lang, set.id, n, variant)
         val card = set.cards[n]
         val item = items.getOrPut(k) {
-            Item(lang, set.id, set.name, set.total, n, card?.name ?: "", card?.id ?: "", "", 0, variant)
+            Item(lang, set.id, set.name, set.total, n, card?.name ?: "", card?.id ?: "", "", 0, variant, card?.image ?: "")
         }
+        if (item.img.isEmpty() && !card?.image.isNullOrEmpty()) item.img = card!!.image
         item.qty++
         history.addLast(k)
         if (persist) save(ctx)

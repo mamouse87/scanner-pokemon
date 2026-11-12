@@ -1,172 +1,291 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:paddingHorizontal="12dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="8dp">
 
+    <!-- intestazione -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <Spinner
-            android:id="@+id/spLang"
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Card Scanner"
+            android:textColor="#FFCB05"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipLang"
+            style="@style/Widget.Material3.Chip.Assist"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:text="🇮🇹 IT" />
 
         <Button
-            android:id="@+id/btnSet"
+            android:id="@+id/btnHelp"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="48dp"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:text="?"
+            android:textSize="18sp" />
+    </LinearLayout>
+
+    <!-- set scelto -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/setCard"
+        style="@style/Widget.Material3.CardView.Filled"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:clickable="true"
+        android:focusable="true"
+        app:cardCornerRadius="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="10dp">
+
+            <ImageView
+                android:id="@+id/ivSetLogo"
+                android:layout_width="72dp"
+                android:layout_height="36dp"
+                android:scaleType="fitCenter" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvSetName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="Scegli il set"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvSetSub"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:alpha="0.7"
+                    android:text="Tocca per scegliere"
+                    android:textSize="12.5sp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:alpha="0.6"
+                android:text="Cambia ›"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- modalità e opzioni -->
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/modeGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        app:checkedButton="@+id/btnModeSingle"
+        app:selectionRequired="true"
+        app:singleSelection="true">
+
+        <Button
+            android:id="@+id/btnModeSingle"
             style="?attr/materialButtonOutlinedStyle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:text="Scegli set" />
-    </LinearLayout>
+            android:text="🃏 Carta singola" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <RadioGroup
-            android:id="@+id/rgMode"
-            android:layout_width="wrap_content"
+        <Button
+            android:id="@+id/btnModeFan"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:layout_weight="1"
+            android:text="🪭 Ventaglio" />
+    </com.google.android.material.button.MaterialButtonToggleGroup>
 
-            <RadioButton
-                android:id="@+id/rbSingle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="true"
-                android:text="Singola" />
-
-            <RadioButton
-                android:id="@+id/rbFan"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Ventaglio" />
-        </RadioGroup>
-
-    </LinearLayout>
-
-    <LinearLayout
+    <com.google.android.material.chip.ChipGroup
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        app:chipSpacingHorizontal="8dp">
 
-        <CheckBox
+        <com.google.android.material.chip.Chip
             android:id="@+id/cbName"
+            style="@style/Widget.Material3.Chip.Filter"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Verifica nome" />
 
-        <CheckBox
+        <com.google.android.material.chip.Chip
             android:id="@+id/cbRev"
+            style="@style/Widget.Material3.Chip.Filter"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:text="Modalità Reverse" />
-    </LinearLayout>
+            android:text="✦ Reverse" />
+    </com.google.android.material.chip.ChipGroup>
 
-    <FrameLayout
+    <!-- fotocamera -->
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_marginTop="4dp"
+        android:layout_weight="1"
+        app:cardCornerRadius="18dp"
+        app:strokeWidth="0dp">
 
-        <androidx.camera.view.PreviewView
-            android:id="@+id/previewView"
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent">
 
-        <it.pokescanner.OverlayView
-            android:id="@+id/overlay"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            <androidx.camera.view.PreviewView
+                android:id="@+id/previewView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
 
-        <Button
-            android:id="@+id/btnShot"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|center_horizontal"
-            android:layout_margin="16dp"
-            android:paddingHorizontal="28dp"
-            android:paddingVertical="14dp"
-            android:text="📷 Leggi ventaglio"
-            android:textSize="17sp"
-            android:visibility="gone" />
-    </FrameLayout>
+            <it.pokescanner.OverlayView
+                android:id="@+id/overlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
 
-    <TextView
-        android:id="@+id/tvLast"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="6dp"
-        android:textSize="18sp"
-        android:textStyle="bold" />
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top"
+                android:layout_margin="10dp"
+                android:background="#99000000"
+                android:gravity="center"
+                android:padding="8dp"
+                android:textColor="#FFFFFF"
+                android:textSize="13.5sp" />
 
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minLines="2"
-        android:textSize="14sp" />
+            <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+                android:id="@+id/btnShot"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|center_horizontal"
+                android:layout_margin="16dp"
+                android:text="📷 Leggi ventaglio"
+                android:visibility="gone" />
+        </FrameLayout>
+    </com.google.android.material.card.MaterialCardView>
 
     <Button
         android:id="@+id/btnForce"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
         android:visibility="gone" />
 
+    <!-- ultima carta aggiunta -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/lastCard"
+        style="@style/Widget.Material3.CardView.Filled"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:visibility="gone"
+        app:cardCornerRadius="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="8dp">
+
+            <ImageView
+                android:id="@+id/ivLast"
+                android:layout_width="44dp"
+                android:layout_height="61dp"
+                android:background="@drawable/card_placeholder"
+                android:scaleType="fitCenter" />
+
+            <TextView
+                android:id="@+id/tvLast"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:textSize="15sp" />
+
+            <Button
+                android:id="@+id/btnUndo"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="↶ Annulla" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- comandi -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
         android:orientation="horizontal">
 
         <Button
             android:id="@+id/btnTorch"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="wrap_content"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="🔦" />
-
-        <Button
-            android:id="@+id/btnUndo"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:text="↶" />
+            android:layout_weight="1"
+            android:paddingHorizontal="0dp"
+            android:text="🔦 Luce" />
 
         <Button
             android:id="@+id/btnSwap"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="wrap_content"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:paddingHorizontal="0dp"
             android:text="⇄ Rev" />
 
         <Button
             android:id="@+id/btnManual"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="wrap_content"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:text="+" />
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:paddingHorizontal="0dp"
+            android:text="✍ Manuale" />
 
         <Button
             android:id="@+id/btnList"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:layout_weight="1"
-            android:text="Lista (0)" />
+            android:layout_marginStart="6dp"
+            android:layout_weight="1.4"
+            android:paddingHorizontal="0dp"
+            android:text="📋 Lista (0)"
+            android:textStyle="bold" />
     </LinearLayout>
 </LinearLayout>

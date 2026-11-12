@@ -11,7 +11,12 @@ import java.net.URLEncoder
 
 data class SetInfo(val id: String, val name: String, val official: Int)
 data class CardInfo(val id: String, val localId: String, val name: String, val image: String = "")
-class SetData(val id: String, val name: String, val total: Int, val cards: Map<String, CardInfo>, val logo: String = "", val symbol: String = "")
+class SetData(
+    val id: String, val name: String, val total: Int, val cards: Map<String, CardInfo>,
+    val logo: String = "", val symbol: String = "",
+    /** carte oltre il numero ufficiale (fuoriserie / segrete) */
+    val extra: Int = 0
+)
 
 /** Dati carte da TCGdex (gratuito, anche in italiano). Ogni risposta viene salvata: offline usa la copia. */
 object CardRepo {
@@ -53,9 +58,7 @@ object CardRepo {
         return out.reversed() // i più recenti in alto
     }
 
-    fun set(ctx: Context, lang: String, id: String): SetData {
-        val enc = URLEncoder.encode(id, "UTF-8")
-        val o = JSONObject(get(ctx, "/$lang/sets/$enc", "set_${lang}_$id.json"))
+    private fun parseCards(o: JSONObject): HashMap<String, CardInfo> {
         val cards = HashMap<String, CardInfo>()
         val arr = o.optJSONArray("cards") ?: JSONArray()
         for (i in 0 until arr.length()) {
@@ -64,14 +67,52 @@ object CardRepo {
             if (local.isEmpty()) continue
             cards[norm(local)] = CardInfo(c.optString("id", ""), local, c.optString("name", ""), c.optString("image", ""))
         }
-        val total = o.optJSONObject("cardCount")?.optInt("official", 0) ?: 0
-        return SetData(o.getString("id"), o.optString("name", id), total, cards, o.optString("logo", ""), o.optString("symbol", ""))
+        return cards
     }
 
-    fun rarity(ctx: Context, lang: String, cardId: String): String? = try {
-        val enc = URLEncoder.encode(cardId, "UTF-8")
-        JSONObject(get(ctx, "/$lang/cards/$enc", "card_${lang}_$cardId.json")).optString("rarity", "")
-    } catch (_: Exception) {
-        null
+    fun set(ctx: Context, lang: String, id: String): SetData {
+        val enc = URLEncoder.encode(id, "UTF-8")
+        val o = JSONObject(get(ctx, "/$lang/sets/$enc", "set_${lang}_$id.json"))
+        val cards = parseCards(o)
+        var logo = o.optString("logo", "")
+        var total = o.optJSONObject("cardCount")?.optInt("official", 0) ?: 0
+        // Per i set nuovi TCGdex in italiano spesso non ha fuoriserie e immagini: le completo dalla versione inglese
+        if (lang != "en") {
+            try {
+                val en = JSONObject(get(ctx, "/en/sets/$enc", "set_en_$id.json"))
+                for ((k, c) in parseCards(en)) {
+                    val mine = cards[k]
+                    if (mine == null) cards[k] = c
+                    else if (mine.image.isEmpty() && c.image.isNotEmpty()) cards[k] = mine.copy(image = c.image)
+                }
+                if (logo.isEmpty()) logo = en.optString("logo", "")
+                if (total == 0) total = en.optJSONObject("cardCount")?.optInt("official", 0) ?: 0
+            } catch (_: Exception) {
+            }
+        }
+        val extra = if (total > 0) cards.keys.count { k -> k.toIntOrNull()?.let { it > total } ?: false } else 0
+        return SetData(o.getString("id"), o.optString("name", id), total, cards, logo, o.optString("symbol", ""), extra)
+    }
+
+    /** Rarità in italiano (TCGdex inglese tradotto, se la carta non c'è in italiano) */
+    private val RAR_IT = mapOf(
+        "common" to "Comune", "uncommon" to "Non comune", "rare" to "Rara", "rare holo" to "Rara holo", "holo rare" to "Rara holo",
+        "double rare" to "Doppia rara", "ultra rare" to "Ultra rara", "illustration rare" to "Rara illustrazione",
+        "special illustration rare" to "Rara illustrazione speciale", "hyper rare" to "Iper rara", "secret rare" to "Rara segreta",
+        "ace spec rare" to "Rara ASSO TATTICO", "shiny rare" to "Rara cromatica", "shiny ultra rare" to "Ultra rara cromatica",
+        "mega hyper rare" to "Mega iper rara", "black white rare" to "Rara bianco nero", "none" to ""
+    )
+    fun rarityIt(r: String): String = RAR_IT[r.trim().lowercase()] ?: r
+
+    fun rarity(ctx: Context, lang: String, cardId: String): String? {
+        val enc = try { URLEncoder.encode(cardId, "UTF-8") } catch (_: Exception) { return null }
+        for (l in listOf(lang, "en").distinct()) {
+            try {
+                val r = JSONObject(get(ctx, "/$l/cards/$enc", "card_${l}_$cardId.json")).optString("rarity", "")
+                if (r.isNotEmpty()) return rarityIt(r)
+            } catch (_: Exception) {
+            }
+        }
+        return null
     }
 }

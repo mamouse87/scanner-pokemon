@@ -2,8 +2,20 @@
 <resources>
     <color name="ic_bg">#1C2128</color>
     <color name="accent">#FFCB05</color>
-    <style name="Theme.PokeScanner" parent="Theme.Material3.DayNight.NoActionBar">
+    <color name="reverse">#CC5DE8</color>
+    <color name="ok">#3ECF6E</color>
+    <style name="Theme.PokeScanner" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">#FFCB05</item>
         <item name="colorOnPrimary">#111111</item>
+        <item name="colorPrimaryContainer">#4A3D00</item>
+        <item name="colorOnPrimaryContainer">#FFE38A</item>
+        <item name="colorSecondaryContainer">#3A3F47</item>
+        <item name="colorOnSecondaryContainer">#E8EAED</item>
+        <item name="android:colorBackground">#111418</item>
+        <item name="colorSurface">#111418</item>
+        <item name="colorSurfaceContainer">#1C2128</item>
+        <item name="colorSurfaceContainerHigh">#232933</item>
+        <item name="android:statusBarColor">#111418</item>
+        <item name="android:navigationBarColor">#111418</item>
     </style>
 </resources>

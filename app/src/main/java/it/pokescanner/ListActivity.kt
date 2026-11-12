@@ -80,6 +80,27 @@ class ListActivity : AppCompatActivity() {
                 .setNegativeButton("Annulla", null).show()
         }
         refresh()
+        fillImages()
+    }
+
+    /** Carte aggiunte con versioni precedenti dell'app: recupero l'immagine dai dati del set già salvati. */
+    private fun fillImages() {
+        val missing = Inventory.items.values.filter { it.img.isEmpty() }.map { it.lang to it.setId }.distinct()
+        if (missing.isEmpty()) return
+        lifecycleScope.launch {
+            var changed = false
+            withContext(Dispatchers.IO) {
+                for ((lang, setId) in missing) {
+                    val sd = try { CardRepo.set(this@ListActivity, lang, setId) } catch (_: Exception) { continue }
+                    Inventory.items.values.filter { it.lang == lang && it.setId == setId && it.img.isEmpty() }.forEach {
+                        val img = sd.cards[it.num]?.image ?: ""
+                        if (img.isNotEmpty()) { it.img = img; changed = true }
+                        if (it.name.isEmpty()) sd.cards[it.num]?.name?.let { n -> if (n.isNotEmpty()) { it.name = n; changed = true } }
+                    }
+                }
+            }
+            if (changed) { Inventory.save(this@ListActivity); refresh() }
+        }
     }
 
     private fun makeCatalog(btn: Button) {
@@ -224,6 +245,7 @@ class ListActivity : AppCompatActivity() {
                 is Row.Card -> {
                     val v = holder.itemView
                     v.findViewById<TextView>(R.id.tvNum).text = CardRepo.pad(r.item.num)
+                    ImageLoader.load(this@ListActivity, lifecycleScope, v.findViewById(R.id.ivThumb), *ImageLoader.cardUrls(r.item.img))
                     v.findViewById<TextView>(R.id.tvName).text = r.item.name.ifEmpty { "—" }
                     val rar = v.findViewById<TextView>(R.id.tvRarity)
                     val extra = listOfNotNull(

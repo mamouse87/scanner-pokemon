@@ -26,6 +26,7 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.CompoundButton
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -67,11 +68,14 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
     private lateinit var overlay: OverlayView
-    private lateinit var spLang: Spinner
-    private lateinit var btnSet: Button
-    private lateinit var rbFan: RadioButton
-    private lateinit var cbName: CheckBox
-    private lateinit var cbRev: CheckBox
+    private lateinit var chipLang: com.google.android.material.chip.Chip
+    private lateinit var tvSetName: TextView
+    private lateinit var tvSetSub: TextView
+    private lateinit var ivSetLogo: ImageView
+    private lateinit var cbName: CompoundButton
+    private lateinit var cbRev: CompoundButton
+    private lateinit var lastCard: View
+    private lateinit var ivLast: ImageView
     private lateinit var btnShot: Button
     private lateinit var tvLast: TextView
     private lateinit var tvStatus: TextView
@@ -122,9 +126,12 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         previewView = findViewById(R.id.previewView)
         overlay = findViewById(R.id.overlay)
-        spLang = findViewById(R.id.spLang)
-        btnSet = findViewById(R.id.btnSet)
-        rbFan = findViewById(R.id.rbFan)
+        chipLang = findViewById(R.id.chipLang)
+        tvSetName = findViewById(R.id.tvSetName)
+        tvSetSub = findViewById(R.id.tvSetSub)
+        ivSetLogo = findViewById(R.id.ivSetLogo)
+        lastCard = findViewById(R.id.lastCard)
+        ivLast = findViewById(R.id.ivLast)
         cbName = findViewById(R.id.cbName)
         cbRev = findViewById(R.id.cbRev)
         btnShot = findViewById(R.id.btnShot)
@@ -141,23 +148,28 @@ class MainActivity : AppCompatActivity() {
         nameCheck = prefs.getBoolean("nameCheck", true)
         reverseMode = prefs.getBoolean("reverseMode", false)
 
+        // schermo sempre acceso mentre scansioni
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
         // lingua
-        spLang.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
-            langs.map { it.uppercase() })
-        spLang.setSelection(max(0, langs.indexOf(lang)), false)
-        spLang.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
-                val l = langs[pos]
-                if (l != lang) { lang = l; prefs.edit().putString("lang", l).apply(); loadSets() }
-            }
-            override fun onNothingSelected(p: AdapterView<*>?) {}
+        showLang()
+        chipLang.setOnClickListener {
+            val names = langs.map { "${LANG_FLAG[it] ?: ""} ${Inventory.LANG_NAMES[it] ?: it}" }.toTypedArray()
+            AlertDialog.Builder(this).setTitle("Lingua delle carte")
+                .setSingleChoiceItems(names, max(0, langs.indexOf(lang))) { d, i ->
+                    d.dismiss()
+                    if (langs[i] != lang) { lang = langs[i]; prefs.edit().putString("lang", lang).apply(); showLang(); loadSets() }
+                }.show()
         }
-        btnSet.setOnClickListener { pickSet() }
+        findViewById<View>(R.id.setCard).setOnClickListener { pickSet() }
+        findViewById<Button>(R.id.btnHelp).setOnClickListener { showHelp() }
 
         // modalità
-        if (fanMode) rbFan.isChecked = true
-        findViewById<android.widget.RadioGroup>(R.id.rgMode).setOnCheckedChangeListener { _, id ->
-            fanMode = id == R.id.rbFan
+        val modeGroup = findViewById<com.google.android.material.button.MaterialButtonToggleGroup>(R.id.modeGroup)
+        modeGroup.check(if (fanMode) R.id.btnModeFan else R.id.btnModeSingle)
+        modeGroup.addOnButtonCheckedListener { _, id, checked ->
+            if (!checked) return@addOnButtonCheckedListener
+            fanMode = id == R.id.btnModeFan
             prefs.edit().putBoolean("fan", fanMode).apply()
             applyMode()
         }
@@ -166,16 +178,16 @@ class MainActivity : AppCompatActivity() {
         cbRev.isChecked = reverseMode
         overlay.reverseMode = reverseMode
         cbRev.setOnCheckedChangeListener { _, c ->
-            reverseMode = c; overlay.reverseMode = c
+            reverseMode = c; overlay.reverseMode = c; tintReverse()
             prefs.edit().putBoolean("reverseMode", c).apply()
             resetCand(); locked = null
             status(if (c) "Modalità REVERSE: tutte le carte che scansioni ora sono Reverse Holo." else "Modalità normale.")
         }
         findViewById<Button>(R.id.btnSwap).setOnClickListener {
             val r = Inventory.toggleLastVariant(this)
-            if (r == null) { tvLast.text = "Nessuna carta da cambiare"; return@setOnClickListener }
+            if (r == null) { showLast("Nessuna carta da cambiare", ""); return@setOnClickListener }
             val (k, it2) = r
-            tvLast.text = "⇄ ${CardRepo.pad(it2.num)} ${it2.name} ora è ${Inventory.variantName(it2.variant)} (×${it2.qty})"
+            showLast("⇄ ${CardRepo.pad(it2.num)} ${it2.name}\nora è ${Inventory.variantName(it2.variant)} (×${it2.qty})", it2.img)
             lastAddVar = it2.variant
             fetchRarityFor(k)
         }
@@ -192,14 +204,16 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.btnUndo).setOnClickListener {
             val removed = Inventory.undo(this)
-            tvLast.text = if (removed != null) "↶ tolta ${CardRepo.pad(removed.num)} ${removed.name}" else "Niente da annullare"
+            showLast(if (removed != null) "↶ tolta ${CardRepo.pad(removed.num)} ${removed.name}" else "Niente da annullare", removed?.img ?: "")
             locked = null; updateListBtn()
         }
         findViewById<Button>(R.id.btnManual).setOnClickListener { manualAdd() }
         btnList.setOnClickListener { startActivity(Intent(this, ListActivity::class.java)) }
 
+        tintReverse()
         setupGestures()
         loadSets()
+        if (!prefs.getBoolean("helpSeen", false)) { prefs.edit().putBoolean("helpSeen", true).apply(); showHelp() }
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
             startCamera()
@@ -221,7 +235,7 @@ class MainActivity : AppCompatActivity() {
     // ---------------- set ----------------
 
     private fun loadSets() {
-        btnSet.text = "Caricamento set…"
+        tvSetName.text = "Caricamento set…"; tvSetSub.text = ""
         set = null
         lifecycleScope.launch {
             val res = withContext(Dispatchers.IO) { runCatching { CardRepo.sets(this@MainActivity, lang) } }
@@ -229,27 +243,32 @@ class MainActivity : AppCompatActivity() {
                 sets = list
                 val saved = prefs.getString("set_$lang", null)
                 val s = list.firstOrNull { it.id == saved } ?: list.firstOrNull()
-                if (s != null) selectSet(s.id) else btnSet.text = "Nessun set"
+                if (s != null) selectSet(s.id) else tvSetName.text = "Nessun set"
             }.onFailure {
-                btnSet.text = "Set non disponibili – tocca per riprovare"
+                tvSetName.text = "Set non disponibili"; tvSetSub.text = "Tocca per riprovare (serve internet la prima volta)"
                 status("Impossibile scaricare l'elenco dei set: serve internet la prima volta.", true)
             }
         }
     }
 
     private fun selectSet(id: String) {
-        btnSet.text = "Caricamento…"
+        tvSetName.text = "Caricamento…"
         lifecycleScope.launch {
             val res = withContext(Dispatchers.IO) { runCatching { CardRepo.set(this@MainActivity, lang, id) } }
             res.onSuccess { sd ->
                 set = sd
                 prefs.edit().putString("set_$lang", id).apply()
-                btnSet.text = "${sd.name} · /${sd.total}"
+                rememberRecent(id)
+                tvSetName.text = sd.name
+                tvSetSub.text = "${Inventory.LANG_NAMES[lang] ?: lang} · ${sd.cards.size} carte" +
+                    (if (sd.extra > 0) " (${sd.total} + ${sd.extra} fuoriserie)" else if (sd.total > 0) " · /${sd.total}" else "")
+                ImageLoader.load(this@MainActivity, lifecycleScope, ivSetLogo, if (sd.logo.isNotEmpty()) sd.logo + ".png" else "",
+                    if (sd.logo.isNotEmpty()) sd.logo.replace(Regex("(assets\\.tcgdex\\.net/)[a-z-]+/"), "$1en/") + ".png" else "")
                 resetCand(); locked = null; hideForce()
                 status(if (fanMode) "Disponi le carte a ventaglio e premi \"Leggi ventaglio\"."
                        else "Inquadra la carta intera: la aggiungo da sola.")
             }.onFailure {
-                btnSet.text = "Errore set – tocca per riprovare"
+                tvSetName.text = "Errore nel set"; tvSetSub.text = "Tocca per riprovare"
                 status("Non riesco a caricare il set scelto.", true)
             }
         }
@@ -260,8 +279,12 @@ class MainActivity : AppCompatActivity() {
         val search = EditText(this).apply { hint = "Cerca set…"; isSingleLine = true }
         val lv = ListView(this)
         var filtered = sets
-        fun label(s: SetInfo) = "${s.name}  (/${s.official})"
-        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, sets.map { label(it) }.toMutableList())
+        val recentIds = (prefs.getString("recent_$lang", "") ?: "").split(',').filter { it.isNotBlank() }
+        val recent = recentIds.mapNotNull { id -> sets.firstOrNull { it.id == id } }
+        fun label(s: SetInfo) = (if (s in recent) "🕘 " else "") + "${s.name}  (/${s.official})"
+        val ordered = recent + sets.filter { it !in recent }
+        filtered = ordered
+        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, ordered.map { label(it) }.toMutableList())
         lv.adapter = adapter
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -275,7 +298,7 @@ class MainActivity : AppCompatActivity() {
         search.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
                 val q = s.toString().trim().lowercase()
-                filtered = sets.filter { q.isEmpty() || it.name.lowercase().contains(q) || it.id.lowercase().contains(q) }
+                filtered = ordered.filter { q.isEmpty() || it.name.lowercase().contains(q) || it.id.lowercase().contains(q) }
                 adapter.clear(); adapter.addAll(filtered.map { label(it) })
             }
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -549,7 +572,7 @@ class MainActivity : AppCompatActivity() {
             for ((nv, c) in counts) repeat(c) { Inventory.add(this, lang, sd, nv.first, nv.second, persist = false) }
             Inventory.save(this)
             counts.keys.forEach { nv -> fetchRarityFor(Inventory.key(lang, sd.id, nv.first, nv.second)) }
-            tvLast.text = "✓ aggiunte $total carte dal ventaglio"
+            showLast("✓ Aggiunte $total carte dal ventaglio", "")
             feedback(); updateListBtn()
         }
         b.show()
@@ -561,9 +584,10 @@ class MainActivity : AppCompatActivity() {
         val sd = set ?: return
         val (k, item) = Inventory.add(this, lang, sd, num, variant)
         lastAddN = item.num; lastAddVar = variant; lastAddTime = System.currentTimeMillis()
-        tvLast.text = "✓ ${CardRepo.pad(item.num)}/${sd.total}  ${item.name}" +
-            (if (variant == "R") "  ✦REVERSE" else "") + "  ×${item.qty}" +
-            if (note.isNotEmpty()) "  ($note)" else ""
+        val extra = sd.total > 0 && (item.num.toIntOrNull() ?: 0) > sd.total
+        showLast("✓ ${CardRepo.pad(item.num)}/${sd.total}${if (extra) " · fuoriserie" else ""}\n${item.name.ifEmpty { "—" }}" +
+            (if (variant == "R") "  ✦ REVERSE" else "") + "   ×${item.qty}" +
+            (if (note.isNotEmpty()) "  ($note)" else ""), item.img)
         feedback()
         updateListBtn()
         fetchRarityFor(k)
@@ -597,7 +621,44 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun updateListBtn() { btnList.text = "Lista (${Inventory.count()})" }
+    private fun updateListBtn() { btnList.text = "📋 Lista (${Inventory.count()})" }
+
+    /** Scheda "ultima carta" con immagine. */
+    private fun showLast(text: String, img: String) {
+        lastCard.visibility = View.VISIBLE
+        tvLast.text = text
+        ImageLoader.load(this, lifecycleScope, ivLast, *ImageLoader.cardUrls(img))
+    }
+
+    private val LANG_FLAG = mapOf("it" to "🇮🇹", "en" to "🇬🇧", "fr" to "🇫🇷", "de" to "🇩🇪", "es" to "🇪🇸", "pt" to "🇵🇹", "ja" to "🇯🇵")
+    private fun showLang() { chipLang.text = "${LANG_FLAG[lang] ?: ""} ${lang.uppercase()}" }
+
+    /** Colori viola quando la modalità Reverse è attiva, per non dimenticarla accesa. */
+    private fun tintReverse() {
+        val c = if (reverseMode) Color.rgb(204, 93, 232) else Color.rgb(255, 203, 5)
+        btnList.backgroundTintList = android.content.res.ColorStateList.valueOf(c)
+    }
+
+    private fun rememberRecent(id: String) {
+        val list = (prefs.getString("recent_$lang", "") ?: "").split(',').filter { it.isNotBlank() && it != id }
+        prefs.edit().putString("recent_$lang", (listOf(id) + list).take(6).joinToString(",")).apply()
+    }
+
+    private fun showHelp() {
+        AlertDialog.Builder(this).setTitle("Come si usa")
+            .setMessage(
+                "1. Tocca la scheda del set in alto e scegli il set delle carte (in alto trovi quelli usati di recente).\n\n" +
+                "2. CARTA SINGOLA: inquadra una carta alla volta. Appena legge il numero (es. 123/198) la aggiunge da sola con un bip. " +
+                "Se riconosce la stessa carta entro 3 secondi ti chiede se è un'altra copia.\n\n" +
+                "3. VENTAGLIO: sovrapponi le carte lasciando visibile la riga del numero in basso e premi \"Leggi ventaglio\".\n\n" +
+                "4. ✦ REVERSE: finché è attiva, tutte le carte che scansioni sono Reverse Holo (la cornice diventa viola).\n\n" +
+                "5. Verifica nome: controlla anche il nome stampato, per evitare numeri letti male.\n\n" +
+                "Altri comandi: due dita per lo zoom, tocca l'immagine per mettere a fuoco, 🔦 luce, ↶ annulla l'ultima, " +
+                "⇄ Rev cambia l'ultima tra normale e Reverse, ✍ aggiunge a mano.\n\n" +
+                "6. In 📋 Lista trovi tutte le carte: tocca il nome di un set per mandare il file al PC (Cardmarket e gestionale)."
+            )
+            .setPositiveButton("Ho capito", null).show()
+    }
 
     private fun feedback() {
         try { tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 80) } catch (_: Exception) {}
@@ -612,7 +673,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun status(t: String, warn: Boolean = false) {
         tvStatus.text = t
-        tvStatus.setTextColor(if (warn) Color.rgb(255, 107, 107) else tvLast.currentTextColor)
+        tvStatus.setTextColor(if (warn) Color.rgb(255, 140, 140) else Color.WHITE)
+        tvStatus.visibility = if (t.isBlank()) View.GONE else View.VISIBLE
     }
 
     @Suppress("unused")

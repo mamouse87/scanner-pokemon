@@ -54,12 +54,26 @@
                 android:text="Ventaglio" />
         </RadioGroup>
 
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
         <CheckBox
             android:id="@+id/cbName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
             android:text="Verifica nome" />
+
+        <CheckBox
+            android:id="@+id/cbRev"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Rileva Reverse" />
     </LinearLayout>
 
     <FrameLayout
@@ -132,12 +146,20 @@
             android:text="↶" />
 
         <Button
+            android:id="@+id/btnSwap"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="⇄ Rev" />
+
+        <Button
             android:id="@+id/btnManual"
             style="?attr/materialButtonOutlinedStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="4dp"
-            android:text="+ a mano" />
+            android:text="+" />
 
         <Button
             android:id="@+id/btnList"

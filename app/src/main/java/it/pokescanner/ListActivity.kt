@@ -109,8 +109,12 @@ class ListActivity : AppCompatActivity() {
                     v.findViewById<TextView>(R.id.tvNum).text = CardRepo.pad(r.item.num)
                     v.findViewById<TextView>(R.id.tvName).text = r.item.name.ifEmpty { "—" }
                     val rar = v.findViewById<TextView>(R.id.tvRarity)
-                    rar.text = r.item.rarity
-                    rar.visibility = if (r.item.rarity.isEmpty()) View.GONE else View.VISIBLE
+                    val extra = listOfNotNull(
+                        if (r.item.variant == "R") "✦ Reverse Holo" else null,
+                        r.item.rarity.ifEmpty { null }
+                    ).joinToString(" · ")
+                    rar.text = extra
+                    rar.visibility = if (extra.isEmpty()) View.GONE else View.VISIBLE
                     v.findViewById<TextView>(R.id.tvQty).text = r.item.qty.toString()
                     v.findViewById<Button>(R.id.btnMinus).setOnClickListener { Inventory.change(this@ListActivity, r.key, -1); refresh() }
                     v.findViewById<Button>(R.id.btnPlus).setOnClickListener { Inventory.change(this@ListActivity, r.key, 1); refresh() }

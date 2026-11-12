@@ -71,6 +71,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnSet: Button
     private lateinit var rbFan: RadioButton
     private lateinit var cbName: CheckBox
+    private lateinit var cbRev: CheckBox
     private lateinit var btnShot: Button
     private lateinit var tvLast: TextView
     private lateinit var tvStatus: TextView
@@ -89,6 +90,7 @@ class MainActivity : AppCompatActivity() {
     private var lang = "it"
     private var fanMode = false
     private var nameCheck = true
+    private var detectRev = true
     private val prefs by lazy { getSharedPreferences("app", MODE_PRIVATE) }
 
     @Volatile private var paused = false   // durante lo scatto del ventaglio / i dialoghi
@@ -102,6 +104,12 @@ class MainActivity : AppCompatActivity() {
     private var nameFailN = 0
     private var pending: String? = null
     private var lastScan: Recognizer.Scan? = null
+    private val candRev = ArrayList<Boolean>()
+    // per la conferma dei doppioni ravvicinati
+    private var lastAddN: String? = null
+    private var lastAddVar = ""
+    private var lastAddTime = 0L
+    private val DUP_MS = 3000L
 
     private val langs = listOf("it", "en", "fr", "de", "es", "pt", "ja")
 
@@ -118,6 +126,7 @@ class MainActivity : AppCompatActivity() {
         btnSet = findViewById(R.id.btnSet)
         rbFan = findViewById(R.id.rbFan)
         cbName = findViewById(R.id.cbName)
+        cbRev = findViewById(R.id.cbRev)
         btnShot = findViewById(R.id.btnShot)
         tvLast = findViewById(R.id.tvLast)
         tvStatus = findViewById(R.id.tvStatus)
@@ -130,6 +139,7 @@ class MainActivity : AppCompatActivity() {
         lang = prefs.getString("lang", "it") ?: "it"
         fanMode = prefs.getBoolean("fan", false)
         nameCheck = prefs.getBoolean("nameCheck", true)
+        detectRev = prefs.getBoolean("detectRev", true)
 
         // lingua
         spLang.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
@@ -153,12 +163,22 @@ class MainActivity : AppCompatActivity() {
         }
         cbName.isChecked = nameCheck
         cbName.setOnCheckedChangeListener { _, c -> nameCheck = c; prefs.edit().putBoolean("nameCheck", c).apply() }
+        cbRev.isChecked = detectRev
+        cbRev.setOnCheckedChangeListener { _, c -> detectRev = c; prefs.edit().putBoolean("detectRev", c).apply() }
+        findViewById<Button>(R.id.btnSwap).setOnClickListener {
+            val r = Inventory.toggleLastVariant(this)
+            if (r == null) { tvLast.text = "Nessuna carta da cambiare"; return@setOnClickListener }
+            val (k, it2) = r
+            tvLast.text = "⇄ ${CardRepo.pad(it2.num)} ${it2.name} ora è ${Inventory.variantName(it2.variant)} (×${it2.qty})"
+            lastAddVar = it2.variant
+            fetchRarityFor(k)
+        }
         applyMode()
 
         btnShot.setOnClickListener { shootFan() }
         btnForce.setOnClickListener {
             val p = pending ?: return@setOnClickListener
-            addCard(p, "forzata")
+            addCard(p, "forzata", decideVariant().first)
             locked = p; resetCand(); hideForce()
         }
         findViewById<Button>(R.id.btnTorch).setOnClickListener {
@@ -324,18 +344,30 @@ class MainActivity : AppCompatActivity() {
         val w = if (swap) proxy.height else proxy.width
         val h = if (swap) proxy.width else proxy.height
         recognizer.process(InputImage.fromMediaImage(media, rot))
-            .addOnSuccessListener { text -> if (!paused) onFrame(text, w, h) }
-            .addOnCompleteListener { proxy.close() }
+            .addOnSuccessListener { text ->
+                try {
+                    if (!paused) {
+                        val pl = proxy.planes[0]
+                        val yp = Recognizer.YPlane(pl.buffer, pl.rowStride, pl.pixelStride, proxy.width, proxy.height, rot)
+                        onFrame(text, w, h, yp)
+                    }
+                } catch (_: Exception) {
+                } finally { proxy.close() }
+            }
+            .addOnFailureListener { proxy.close() }
     }
 
     // ---------------- modalità carta singola ----------------
 
-    private fun onFrame(text: Text, w: Int, h: Int) {
+    private fun onFrame(text: Text, w: Int, h: Int, yp: Recognizer.YPlane) {
         val sd = set ?: return
         val lines = Recognizer.lines(text)
         val scan = Recognizer.scanLines(lines, sd)
+        if (detectRev) scan.good.forEach { hit ->
+            hit.codeBox?.let { hit.reverse = Recognizer.isLightBadge(it, yp::lum, w, h) }
+        }
         lastScan = scan
-        overlay.show(scan.good.map { it.box }, scan.bad.map { it.box }, w, h)
+        overlay.show(scan, w, h)
 
         if (fanMode) {
             val n = scan.good.size
@@ -360,7 +392,8 @@ class MainActivity : AppCompatActivity() {
         emptyN = 0; badN = 0
         val n = nums[0]
         if (n == locked) return
-        if (n == cand) candN++ else { cand = n; candN = 1; nameFailN = 0; if (pending != null && pending != n) hideForce() }
+        if (n == cand) candN++ else { cand = n; candN = 1; nameFailN = 0; candRev.clear(); if (pending != null && pending != n) hideForce() }
+        scan.good.firstOrNull { CardRepo.norm(it.num) == n }?.reverse?.let { candRev.add(it) }
         if (candN < 2) return
 
         val card = sd.cards[n]
@@ -376,12 +409,43 @@ class MainActivity : AppCompatActivity() {
                 return
             }
         }
-        addCard(n, "")
-        locked = n; resetCand(); hideForce()
+        val (variant, sure) = decideVariant()
+        locked = n
+        // stessa carta di nuovo entro pochi secondi: probabilmente è la stessa copia ancora davanti alla fotocamera
+        if (n == lastAddN && variant == lastAddVar && System.currentTimeMillis() - lastAddTime < DUP_MS) {
+            resetCand(); hideForce()
+            askDuplicate(n, variant, sure)
+            return
+        }
+        addCard(n, if (sure) "" else "variante non letta", variant)
+        resetCand(); hideForce()
         status("Ok, prossima carta.")
     }
 
-    private fun resetCand() { cand = null; candN = 0; nameFailN = 0 }
+    /** Variante decisa a maggioranza sui fotogrammi letti. Restituisce ("" o "R", deciso con certezza?) */
+    private fun decideVariant(): Pair<String, Boolean> {
+        if (!detectRev || candRev.isEmpty()) return "" to !detectRev
+        val rev = candRev.count { it }
+        val norm = candRev.size - rev
+        return (if (rev > norm) "R" else "") to (rev != norm)
+    }
+
+    private fun askDuplicate(n: String, variant: String, sure: Boolean) {
+        val sd = set ?: return
+        paused = true
+        val name = sd.cards[n]?.name ?: ""
+        val qty = Inventory.items[Inventory.key(lang, sd.id, n, variant)]?.qty ?: 0
+        feedbackSoft()
+        AlertDialog.Builder(this)
+            .setTitle("Stessa carta?")
+            .setMessage("${CardRepo.pad(n)} $name${if (variant == "R") " (Reverse)" else ""} è stata appena aggiunta (ora ×$qty).\n\nÈ un'altra copia?")
+            .setPositiveButton("Sì, aggiungi") { _, _ -> addCard(n, if (sure) "" else "variante non letta", variant) }
+            .setNegativeButton("No, è la stessa") { _, _ -> status("Ok, non aggiunta. Prossima carta.") }
+            .setOnDismissListener { paused = false; locked = n }
+            .show()
+    }
+
+    private fun resetCand() { cand = null; candN = 0; nameFailN = 0; candRev.clear() }
     private fun hideForce() { pending = null; btnForce.visibility = View.GONE }
 
     // ---------------- modalità ventaglio ----------------
@@ -411,7 +475,14 @@ class MainActivity : AppCompatActivity() {
                 val bmp = try { prepare(image.toBitmap(), rot, 3200) } catch (e: Exception) { null } finally { image.close() }
                 if (bmp == null) { runOnUiThread { fanDone(); status("Errore nella foto, riprova.", true) }; return }
                 recognizer.process(InputImage.fromBitmap(bmp, 0))
-                    .addOnSuccessListener { t -> fanDone(); showFanResult(bmp, Recognizer.scan(t, sd), sd) }
+                    .addOnSuccessListener { t ->
+                        fanDone()
+                        val sc = Recognizer.scan(t, sd)
+                        if (detectRev) sc.good.forEach { hit ->
+                            hit.codeBox?.let { hit.reverse = Recognizer.isLightBadge(it, { x, y -> bmpLum(bmp, x, y) }, bmp.width, bmp.height) }
+                        }
+                        showFanResult(bmp, sc, sd)
+                    }
                     .addOnFailureListener { fanDone(); status("Errore di lettura, riprova.", true) }
             }
             override fun onError(e: ImageCaptureException) {
@@ -421,6 +492,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fanDone() { paused = false; btnShot.isEnabled = true }
+
+    private fun bmpLum(b: Bitmap, x: Int, y: Int): Int {
+        val p = b.getPixel(x, y)
+        return (Color.red(p) * 299 + Color.green(p) * 587 + Color.blue(p) * 114) / 1000
+    }
 
     private fun prepare(src: Bitmap, rot: Int, maxSide: Int): Bitmap {
         val m = Matrix()
@@ -432,8 +508,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun showFanResult(bmp: Bitmap?, scan: Recognizer.Scan, sd: SetData) {
         paused = true
-        val counts = scan.good.groupingBy { CardRepo.norm(it.num) }.eachCount()
-            .toSortedMap(compareBy<String>({ it.toIntOrNull() ?: Int.MAX_VALUE }, { it }))
+        val counts = scan.good.groupingBy { CardRepo.norm(it.num) to (if (it.reverse == true) "R" else "") }.eachCount()
+            .toSortedMap(compareBy<Pair<String, String>>({ it.first.toIntOrNull() ?: Int.MAX_VALUE }, { it.first }, { it.second }))
+        val revN = scan.good.count { it.reverse == true }
+        val unknownN = if (detectRev) scan.good.count { it.reverse == null } else 0
         val total = scan.good.size
 
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 16, 40, 0) }
@@ -445,6 +523,8 @@ class MainActivity : AppCompatActivity() {
             val pb = Paint().apply { color = Color.rgb(255, 80, 80); style = Paint.Style.STROKE; strokeWidth = sw }
             scan.bad.forEach { h -> h.box?.let { c.drawRect(it, pb) } }
             scan.good.forEach { h -> h.box?.let { c.drawRect(it, pg) } }
+            val pc = Paint().apply { style = Paint.Style.STROKE; strokeWidth = sw }
+            scan.good.forEach { h -> h.codeBox?.let { pc.color = OverlayView.codeColor(h.reverse); c.drawRect(it, pc) } }
             content.addView(ImageView(this).apply {
                 adjustViewBounds = true
                 maxHeight = (resources.displayMetrics.heightPixels * 0.45).toInt()
@@ -453,10 +533,12 @@ class MainActivity : AppCompatActivity() {
         }
         val sb = StringBuilder()
         sb.append(if (total == 0) "Nessuna carta riconosciuta.\n" else "Riconosciute $total carte (${counts.size} diverse):\n")
-        for ((n, c) in counts) {
-            val name = sd.cards[n]?.name ?: ""
-            sb.append("${CardRepo.pad(n)} $name${if (c > 1) "  ×$c" else ""}\n")
+        for ((nv, c) in counts) {
+            val name = sd.cards[nv.first]?.name ?: ""
+            sb.append("${CardRepo.pad(nv.first)} $name${if (nv.second == "R") "  ✦Reverse" else ""}${if (c > 1) "  ×$c" else ""}\n")
         }
+        if (revN > 0) sb.append("\nDi cui $revN Reverse Holo (sigla in viola).\n")
+        if (unknownN > 0) sb.append("⚠ Per $unknownN carte non sono riuscito a capire se sono Reverse (sigla grigia): contate come normali.\n")
         if (scan.bad.isNotEmpty())
             sb.append("\n⚠ ${scan.bad.size} righe con totale diverso da /${sd.total} (in rosso, ignorate).\n")
         if (total > 0) sb.append("\nConta le carte del ventaglio: se sono di più, qualcuna non è stata letta (non ha il riquadro verde).")
@@ -468,9 +550,9 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("Annulla", null)
             .setOnDismissListener { paused = false }
         if (total > 0) b.setPositiveButton("Aggiungi $total") { _, _ ->
-            for ((n, c) in counts) repeat(c) { Inventory.add(this, lang, sd, n, persist = false) }
+            for ((nv, c) in counts) repeat(c) { Inventory.add(this, lang, sd, nv.first, nv.second, persist = false) }
             Inventory.save(this)
-            counts.keys.forEach { n -> fetchRarityFor(Inventory.key(lang, sd.id, n)) }
+            counts.keys.forEach { nv -> fetchRarityFor(Inventory.key(lang, sd.id, nv.first, nv.second)) }
             tvLast.text = "✓ aggiunte $total carte dal ventaglio"
             feedback(); updateListBtn()
         }
@@ -479,10 +561,12 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------- lista ----------------
 
-    private fun addCard(num: String, note: String) {
+    private fun addCard(num: String, note: String, variant: String = "") {
         val sd = set ?: return
-        val (k, item) = Inventory.add(this, lang, sd, num)
-        tvLast.text = "✓ ${CardRepo.pad(item.num)}/${sd.total}  ${item.name}  ×${item.qty}" +
+        val (k, item) = Inventory.add(this, lang, sd, num, variant)
+        lastAddN = item.num; lastAddVar = variant; lastAddTime = System.currentTimeMillis()
+        tvLast.text = "✓ ${CardRepo.pad(item.num)}/${sd.total}  ${item.name}" +
+            (if (variant == "R") "  ✦REVERSE" else "") + "  ×${item.qty}" +
             if (note.isNotEmpty()) "  ($note)" else ""
         feedback()
         updateListBtn()
@@ -510,6 +594,7 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Aggiungi") { _, _ ->
                 val v = et.text.toString().trim().substringBefore('/').trim()
                 if (v.isNotEmpty()) addCard(v, "a mano")
+                // per una Reverse inserita a mano: usa il tasto ⇄ Rev subito dopo
             }
             .setNegativeButton("Annulla", null)
             .setOnDismissListener { paused = false }
@@ -523,6 +608,10 @@ class MainActivity : AppCompatActivity() {
         try {
             getSystemService(Vibrator::class.java)?.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
         } catch (_: Exception) {}
+    }
+
+    private fun feedbackSoft() {
+        try { tone?.startTone(ToneGenerator.TONE_PROP_ACK, 120) } catch (_: Exception) {}
     }
 
     private fun status(t: String, warn: Boolean = false) {

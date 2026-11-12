@@ -62,6 +62,28 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ok);color:#fff;padding:10px 18px;border-radius:10px;z-index:40;font-weight:600}
 .small{font-size:12px;color:var(--mut)}
 .big{position:relative;min-height:80px}.big img{max-width:100%;max-height:58vh;border-radius:10px;display:block;margin:0 auto 10px}
+#sets a.dash{font-weight:700;border-bottom:1px solid var(--line)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--card);border-radius:12px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.kpi b{display:block;font-size:24px;margin-top:2px}
+.kpi span{font-size:12px;color:var(--mut)}
+.panels{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}
+.panel{background:var(--card);border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.panel h3{margin:0 0 10px;font-size:15px}
+.bars .br2{display:grid;grid-template-columns:150px 1fr 90px;gap:8px;align-items:center;font-size:12.5px;margin:4px 0}
+.bars .tr{height:14px;background:var(--bg);border-radius:4px;overflow:hidden}
+.bars .tr i{display:block;height:100%;background:var(--ok);border-radius:4px}
+.bars .tr i.r{background:var(--rev)}.bars .tr i.a{background:var(--acc)}
+.bars .lb{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bars .vl{text-align:right;color:var(--mut)}
+.cols{display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:6px}
+.cols .c{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:11px;color:var(--mut)}
+.cols .c i{display:block;width:100%;background:var(--ok);border-radius:4px 4px 0 0;min-height:2px}
+.cols .c b{color:var(--fg);font-size:11px}
+.panel table{width:100%;border-collapse:collapse;font-size:12.5px}
+.panel td,.panel th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left}
+.panel th{color:var(--mut);font-weight:600}
+.up{color:#e5484d}.down{color:var(--ok)}
 </style>
 </head>
 <body>
@@ -256,7 +278,7 @@ function renderSets() {
   const items = all.filter(s => (!q || simp(s.name).includes(q)) && (!only || cnt(s.id)));
   const mine = items.filter(s => cnt(s.id)), rest = items.filter(s => !cnt(s.id));
   const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}">${s.symbol ? `<img src="${esc(s.symbol)}.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<span style="width:22px"></span>'}<span class="nm">${esc(s.name)}</span>${cnt(s.id) ? `<span class="n">${cnt(s.id)}</span>` : ''}</a>`;
-  $('sets').innerHTML = ((mine.length ? `<div class="grp">Con carte in vendita</div>${mine.map(link).join('')}` : '') +
+  $('sets').innerHTML = `<a href="#" data-id="__dash" class="dash ${selected === '__dash' ? 'sel' : ''}"><span style="width:22px;text-align:center">📊</span><span class="nm">Statistiche</span></a>` + ((mine.length ? `<div class="grp">Con carte in vendita</div>${mine.map(link).join('')}` : '') +
     (rest.length ? `<div class="grp">${mine.length ? 'Tutti gli altri set' : 'Tutti i set'} · dal più recente (${rest.length})</div>${rest.map(link).join('')}` : '')) ||
     '<p class="small" style="padding:12px">Nessun set trovato.</p>';
 }
@@ -297,6 +319,7 @@ let filter = 'all', filterText = '', current = null;
 async function renderSet() {
   const main = $('main');
   current = null;
+  if (selected === '__dash') { renderDash(); return; }
   if (!selected) {
     main.innerHTML = `<div class="empty">Scegli un set dalla lista a sinistra.<br>
       Le carte in vendita arrivano da Cardmarket con il pulsante <b>Card Scanner → CM</b>: dopo "Mettere in vendita le carte" premi il pulsante verde dello script.</div>`;
@@ -404,6 +427,118 @@ $('main').addEventListener('click', e => {
   });
 });
 
+// ---------- statistiche ----------
+const DAY = 86400e3;
+const daysAgo = d => d ? Math.floor((Date.now() - new Date(d)) / DAY) : null;
+function bars(items, fmt, cls) {
+  const max = Math.max(1e-9, ...items.map(x => x[1]));
+  return `<div class="bars">${items.map(([label, v, extra]) => `<div class="br2"><span class="lb" title="${esc(label)}">${esc(label)}</span>
+    <span class="tr"><i class="${cls || ''}" style="width:${Math.max(1, v / max * 100)}%"></i></span><span class="vl">${fmt(v)}${extra ? ' ' + extra : ''}</span></div>`).join('')}</div>`;
+}
+function info(l) {
+  const c = state.cm[l.exp]?.cards?.[l.p] || {};
+  return { c, name: c.n || '', set: l.expName || state.cm[l.exp]?.name || '', rar: rarIt(c.r) || 'Non indicata' };
+}
+function renderDash() {
+  const ls = Object.entries(state.listings).map(([k, l]) => Object.assign({ k }, l, info(l)));
+  const sold = state.sold;
+  const copies = ls.reduce((a, l) => a + l.q, 0);
+  const value = ls.reduce((a, l) => a + (l.price || 0) * l.q, 0);
+  const priced = ls.filter(l => l.price != null);
+  const avg = priced.length ? priced.reduce((a, l) => a + l.price * l.q, 0) / priced.reduce((a, l) => a + l.q, 0) : 0;
+  const soldQ = sold.reduce((a, s) => a + s.q, 0);
+  const soldV = sold.reduce((a, s) => a + (s.price || 0) * s.q, 0);
+  const now = new Date(), ym = d => { const x = new Date(d); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0'); };
+  const thisM = ym(now);
+  const monthSold = sold.filter(s => ym(s.date) === thisM);
+  const dts = sold.filter(s => s.listed).map(s => (new Date(s.date) - new Date(s.listed)) / DAY);
+  const avgDays = dts.length ? Math.round(dts.reduce((a, b) => a + b, 0) / dts.length) : null;
+  const revQ = ls.filter(l => l.rev).reduce((a, l) => a + l.q, 0);
+
+  // vendite ultimi 12 mesi
+  const months = [];
+  for (let i = 11; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); months.push(ym(d)); }
+  const mQ = {}, mV = {};
+  sold.forEach(s => { const m = ym(s.date); mQ[m] = (mQ[m] || 0) + s.q; mV[m] = (mV[m] || 0) + (s.price || 0) * s.q; });
+  const maxV = Math.max(0.01, ...months.map(m => mV[m] || 0));
+  const MN = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+
+  // raggruppamenti
+  const group = (arr, key, val) => { const m = {}; arr.forEach(x => { const k = key(x); m[k] = (m[k] || 0) + val(x); }); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
+  const valBySet = group(ls, l => l.set, l => (l.price || 0) * l.q).slice(0, 10);
+  const qByRar = group(ls, l => l.rar, l => l.q);
+  const bands = [['meno di 0,10 €', 0, 0.10], ['0,10 – 0,49 €', 0.10, 0.50], ['0,50 – 0,99 €', 0.50, 1], ['1 – 4,99 €', 1, 5], ['5 – 19,99 €', 5, 20], ['20 € e oltre', 20, 1e9]];
+  const qByBand = bands.map(([lb, a, b]) => [lb, priced.filter(l => l.price >= a && l.price < b).reduce((s, l) => s + l.q, 0)]);
+  const ages = [['meno di 30 giorni', 0, 30], ['30 – 89 giorni', 30, 90], ['90 – 179 giorni', 90, 180], ['180 giorni e oltre', 180, 1e9]];
+  const qByAge = ages.map(([lb, a, b]) => [lb, ls.filter(l => { const d = daysAgo(l.date) ?? 0; return d >= a && d < b; }).reduce((s, l) => s + l.q, 0)]);
+
+  // per set: in vendita, vendute, % vendute
+  const setNames = [...new Set([...ls.map(l => l.set), ...sold.map(s => s.expName || state.cm[s.exp]?.name || '')])].filter(Boolean);
+  const perSet = setNames.map(n => {
+    const inV = ls.filter(l => l.set === n), sd = sold.filter(s => (s.expName || state.cm[s.exp]?.name) === n);
+    const q = inV.reduce((a, l) => a + l.q, 0), v = inV.reduce((a, l) => a + (l.price || 0) * l.q, 0);
+    const sq = sd.reduce((a, s) => a + s.q, 0), sv = sd.reduce((a, s) => a + (s.price || 0) * s.q, 0);
+    return { n, q, v, sq, sv, pct: q + sq ? Math.round(sq / (q + sq) * 100) : 0 };
+  }).sort((a, b) => b.v + b.sv - (a.v + a.sv));
+
+  // prezzi da rivedere (confronto con la tendenza di Cardmarket)
+  const withT = ls.filter(l => l.price != null && l.c.t);
+  const high = withT.filter(l => l.price > l.c.t * 1.5 && l.price - l.c.t >= 0.05).sort((a, b) => (b.price / b.c.t) - (a.price / a.c.t)).slice(0, 15);
+  const low = withT.filter(l => l.price < l.c.t * 0.7 && l.c.t - l.price >= 0.05).sort((a, b) => (a.price / a.c.t) - (b.price / b.c.t)).slice(0, 15);
+  const old = ls.filter(l => (daysAgo(l.date) ?? 0) >= 60).sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 15);
+  const noPrice = ls.filter(l => l.price == null);
+  const topVal = ls.filter(l => l.price != null).sort((a, b) => b.price - a.price).slice(0, 10);
+  const topSoldCards = group(sold, s => `${s.num} ${s.name}${s.rev ? ' (R)' : ''} · ${s.expName || ''}`, s => s.q).slice(0, 10);
+  const row = l => `<tr><td>${esc(l.u)} ${esc(l.name)}${l.rev ? ' <b style="color:var(--rev)">R</b>' : ''}</td><td>${esc(l.set)}</td>`;
+
+  $('main').innerHTML = `<div class="sethead"><div><h2>📊 Statistiche</h2><div class="sub">Aggiornate al ${now.toLocaleDateString('it-IT')} · valori calcolati sui prezzi di listino</div></div>
+    <div class="row"><button id="xInv">⬇ Magazzino (Excel)</button><button id="xSold">⬇ Vendite (Excel)</button></div></div>
+  <div class="kpis">
+    <div class="kpi"><span>Copie in vendita</span><b>${copies}</b><span>${ls.length} righe · ${revQ} Reverse</span></div>
+    <div class="kpi"><span>Valore a listino</span><b>${eur(value)}</b><span>prezzo medio ${eur(avg)}</span></div>
+    <div class="kpi"><span>Set con carte in vendita</span><b>${new Set(ls.map(l => l.set)).size}</b><span>${noPrice.length} righe senza prezzo</span></div>
+    <div class="kpi"><span>Vendute in totale</span><b>${soldQ}</b><span>${eur(soldV)}</span></div>
+    <div class="kpi"><span>Vendute questo mese</span><b>${monthSold.reduce((a, s) => a + s.q, 0)}</b><span>${eur(monthSold.reduce((a, s) => a + (s.price || 0) * s.q, 0))}</span></div>
+    <div class="kpi"><span>Tempo medio di vendita</span><b>${avgDays == null ? '—' : avgDays + ' gg'}</b><span>dalla messa in vendita</span></div>
+  </div>
+  <div class="panels">
+    <div class="panel"><h3>Vendite per mese (€)</h3><div class="cols">${months.map(m => `<div class="c"><b>${mQ[m] ? eur(mV[m] || 0).replace(' €', '') : ''}</b><i style="height:${(mV[m] || 0) / maxV * 100}%"></i>${MN[+m.slice(5) - 1]}</div>`).join('')}</div>
+      <div class="small" style="margin-top:6px">Copie: ${months.map(m => mQ[m] || 0).join(' · ')}</div></div>
+    <div class="panel"><h3>Valore in vendita per set</h3>${valBySet.length ? bars(valBySet, eur) : '<p class="small">Nessun dato.</p>'}</div>
+    <div class="panel"><h3>Copie per rarità</h3>${qByRar.length ? bars(qByRar, v => v + ' copie', 'a') : '<p class="small">Nessun dato.</p>'}</div>
+    <div class="panel"><h3>Copie per fascia di prezzo</h3>${bars(qByBand, v => v + ' copie')}
+      <h3 style="margin-top:14px">Normali e Reverse</h3>${bars([['Normali', copies - revQ], ['Reverse Holo', revQ]], v => v + ' copie', 'r')}</div>
+    <div class="panel"><h3>Da quanto sono in vendita</h3>${bars(qByAge, v => v + ' copie', 'a')}
+      ${old.length ? `<h3 style="margin-top:14px">Ferme da più di 60 giorni (da ribassare?)</h3><table><tr><th>Carta</th><th>Set</th><th>Prezzo</th><th>Giorni</th></tr>${old.map(l => row(l) + `<td>${eur(l.price)}</td><td>${daysAgo(l.date)}</td></tr>`).join('')}</table>` : ''}</div>
+    <div class="panel"><h3>Per set</h3>${perSet.length ? `<table><tr><th>Set</th><th>In vendita</th><th>Valore</th><th>Vendute</th><th>Incasso</th><th>% vendute</th></tr>
+      ${perSet.map(x => `<tr><td>${esc(x.n)}</td><td>${x.q}</td><td>${eur(x.v)}</td><td>${x.sq}</td><td>${eur(x.sv)}</td><td>${x.pct}%</td></tr>`).join('')}</table>` : '<p class="small">Nessun dato.</p>'}</div>
+    <div class="panel"><h3>Prezzi da rivedere (rispetto alla tendenza Cardmarket)</h3>
+      ${!withT.length ? '<p class="small">Serve la tendenza di Cardmarket: arriva quando invii carte o l\'elenco del set con lo script aggiornato.</p>' : ''}
+      ${high.length ? `<p class="small up">Molto sopra la tendenza (difficili da vendere):</p><table><tr><th>Carta</th><th>Set</th><th>Tuo</th><th>Tendenza</th></tr>${high.map(l => row(l) + `<td class="up">${eur(l.price)}</td><td>${eur(l.c.t)}</td></tr>`).join('')}</table>` : ''}
+      ${low.length ? `<p class="small down" style="margin-top:10px">Molto sotto la tendenza (stai regalando?):</p><table><tr><th>Carta</th><th>Set</th><th>Tuo</th><th>Tendenza</th></tr>${low.map(l => row(l) + `<td class="down">${eur(l.price)}</td><td>${eur(l.c.t)}</td></tr>`).join('')}</table>` : ''}
+      ${withT.length && !high.length && !low.length ? '<p class="small">Tutti i prezzi sono in linea con la tendenza ✔</p>' : ''}</div>
+    <div class="panel"><h3>Le carte di valore più alto in vendita</h3>${topVal.length ? `<table><tr><th>Carta</th><th>Set</th><th>Prezzo</th><th>Q.tà</th></tr>${topVal.map(l => row(l) + `<td>${eur(l.price)}</td><td>${l.q}</td></tr>`).join('')}</table>` : '<p class="small">Nessun dato.</p>'}</div>
+    <div class="panel"><h3>Le più vendute</h3>${topSoldCards.length ? bars(topSoldCards, v => v + ' copie') : '<p class="small">Ancora nessuna vendita registrata.</p>'}</div>
+    ${noPrice.length ? `<div class="panel"><h3>Senza prezzo (${noPrice.length})</h3><table><tr><th>Carta</th><th>Set</th><th>Q.tà</th></tr>${noPrice.slice(0, 30).map(l => row(l) + `<td>${l.q}</td></tr>`).join('')}</table>
+      <p class="small">Clicca la carta nel suo set per inserire il prezzo, oppure reinvia l'elenco del set dallo script per prendere il tuo prezzo attuale.</p></div>` : ''}
+  </div>`;
+  $('xInv').onclick = () => downloadCsv(`magazzino-${now.toISOString().slice(0, 10)}.csv`,
+    [['Set', 'Numero', 'Nome', 'Rarità', 'Variante', 'Lingua', 'Quantità', 'Prezzo', 'Valore', 'Tendenza CM', 'In vendita dal', 'Giorni', 'Commento']].concat(
+      ls.sort((a, b) => a.set.localeCompare(b.set) || (parseInt(a.u) || 0) - (parseInt(b.u) || 0)).map(l => [l.set, l.u, l.name, l.rar, l.rev ? 'Reverse Holo' : 'Normale', LANGN[l.lang] || l.lang, l.q,
+        l.price, l.price != null ? +(l.price * l.q).toFixed(2) : '', l.c.t ?? '', l.date ? new Date(l.date).toLocaleDateString('it-IT') : '', daysAgo(l.date) ?? '', l.com || ''])));
+  $('xSold').onclick = () => downloadCsv(`vendite-${now.toISOString().slice(0, 10)}.csv`,
+    [['Data', 'Set', 'Numero', 'Nome', 'Variante', 'Quantità', 'Prezzo', 'Totale', 'Venduta su', 'File', 'Giorni per vendere']].concat(
+      sold.map(s => [new Date(s.date).toLocaleDateString('it-IT'), s.expName || state.cm[s.exp]?.name || '', s.num, s.name, s.rev ? 'Reverse Holo' : 'Normale', s.q,
+        s.price ?? '', s.price != null ? +(s.price * s.q).toFixed(2) : '', s.source, s.file || '', s.listed ? Math.round((new Date(s.date) - new Date(s.listed)) / DAY) : ''])));
+}
+function downloadCsv(name, rows) {
+  const cell = v => { if (typeof v === 'number') return String(v).replace('.', ','); const t = String(v ?? ''); return /[";\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+  const csv = '\ufeff' + rows.map(r => r.map(cell).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = name; a.click();
+}
+
 // ---------- vendite da fattura ----------
 async function pdfText(file) {
   if (!window.pdfjsLib) throw new Error('lettore PDF non caricato (serve internet)');
@@ -495,7 +630,7 @@ function sell(k, q, source, file) {
   const c = state.cm[L.exp]?.cards?.[L.p] || {};
   const n = Math.min(q, L.q);
   L.q -= n;
-  state.sold.push({ date: today(), p: L.p, exp: L.exp, expName: L.expName, name: c.n || '', num: L.u || c.u || '', rev: L.rev, lang: L.lang, q: n, price: L.price, source, file: file || '' });
+  state.sold.push({ date: today(), listed: L.date, p: L.p, exp: L.exp, expName: L.expName, name: c.n || '', num: L.u || c.u || '', rev: L.rev, lang: L.lang, q: n, price: L.price, source, file: file || '' });
   if (L.q <= 0) delete state.listings[k];
 }
 function showSold() {

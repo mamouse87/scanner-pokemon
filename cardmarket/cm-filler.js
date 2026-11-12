@@ -266,9 +266,10 @@
       const rar = tr.querySelector('.rarity-symbol');
       const revEl = field(tr, 'isReverseHolo');
       const myP = parseFloat((tr.querySelector('input[name="myPrice"]') || {}).value || '0');
+      const num = n => { const v = parseFloat((tr.querySelector(`input[name="${n}"]`) || {}).value || ''); return isNaN(v) ? null : v; };
       if (cards.some(c => c.p === pid.value)) return; // righe duplicate
       cards.push({ p: pid.value, n: m ? m[1].trim() : full, c: m ? m[2] : '', u: m ? m[3] : '', r: rar ? (rar.getAttribute('title') || rar.getAttribute('data-bs-original-title') || '') : '',
-        i: img, h: revEl && !revEl.disabled ? 1 : 0, m: myP > 0 ? myP : null });
+        i: img, h: revEl && !revEl.disabled ? 1 : 0, m: myP > 0 ? myP : null, t: num('trendPrice'), l: num('lowPrice'), a30: num('avg30Price') });
     });
     return cards;
   }

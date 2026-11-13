@@ -108,6 +108,12 @@ class MainActivity : AppCompatActivity() {
     private var nameFailN = 0
     private var pending: String? = null
     private var lastScan: Recognizer.Scan? = null
+    // "impronta" dell'immagine quando la carta è stata aggiunta: la carta si considera tolta
+    // solo quando l'immagine cambia davvero (non basta che diventi più scura o che il numero non si legga)
+    private var lockedSig: FloatArray? = null
+    private var curSig: FloatArray? = null
+    private var curStd = 0f
+    private var goneN = 0
     private val candRev = ArrayList<Boolean>()
     // per la conferma dei doppioni ravvicinati
     private var lastAddN: String? = null
@@ -197,7 +203,7 @@ class MainActivity : AppCompatActivity() {
         btnForce.setOnClickListener {
             val p = pending ?: return@setOnClickListener
             addCard(p, "forzata", decideVariant().first)
-            locked = p; resetCand(); hideForce()
+            lockCurrent(p); resetCand(); hideForce()
         }
         findViewById<Button>(R.id.btnTorch).setOnClickListener {
             torch = !torch; camera?.cameraControl?.enableTorch(torch)
@@ -402,9 +408,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         val nums = scan.good.map { CardRepo.norm(it.num) }.distinct()
+        computeSignature(yp, w, h)
+        val lk = locked
+        if (lk != null) {
+            // carta tolta = immagine diversa da quando è stata aggiunta, per almeno 2 fotogrammi,
+            // e il suo numero non si legge più (se la stessa carta viene solo spostata resta bloccata)
+            if (lk !in nums && sceneChanged()) goneN++ else goneN = 0
+            if (goneN >= 2) { locked = null; lockedSig = null; goneN = 0 }
+        }
         if (nums.size != 1) {
             emptyN++; resetCand()
-            if (emptyN >= 3) { locked = null; if (pending != null) hideForce() }
+            if (emptyN >= 3 && pending != null) hideForce()
             if (nums.size > 1) status("Vedo più carte: inquadrane una sola (o usa la modalità Ventaglio).")
             else if (scan.bad.isNotEmpty()) {
                 badN++
@@ -436,7 +450,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         val (variant, sure) = decideVariant()
-        locked = n
+        lockCurrent(n)
         // stessa carta di nuovo entro pochi secondi: probabilmente è la stessa copia ancora davanti alla fotocamera
         if (n == lastAddN && variant == lastAddVar && System.currentTimeMillis() - lastAddTime < DUP_MS) {
             resetCand(); hideForce()
@@ -446,6 +460,40 @@ class MainActivity : AppCompatActivity() {
         addCard(n, if (sure) "" else "variante non letta", variant)
         resetCand(); hideForce()
         status("Ok, prossima carta.")
+    }
+
+    private fun lockCurrent(n: String) { locked = n; lockedSig = curSig; goneN = 0 }
+
+    /** Impronta dell'immagine: griglia 16×12 di luminosità, normalizzata (indipendente da luce più o meno forte). */
+    private fun computeSignature(yp: Recognizer.YPlane, w: Int, h: Int) {
+        val gx = 16; val gy = 12
+        val v = FloatArray(gx * gy)
+        for (j in 0 until gy) for (i in 0 until gx) {
+            var sum = 0
+            for (dy in 0..1) for (dx in 0..1) {
+                val x = ((i + 0.25f + dx * 0.5f) / gx * w).toInt().coerceIn(0, w - 1)
+                val y = ((j + 0.25f + dy * 0.5f) / gy * h).toInt().coerceIn(0, h - 1)
+                sum += yp.lum(x, y)
+            }
+            v[j * gx + i] = sum / 4f
+        }
+        val mean = v.average().toFloat()
+        var varSum = 0f
+        for (x in v) varSum += (x - mean) * (x - mean)
+        val std = kotlin.math.sqrt(varSum / v.size)
+        curStd = std
+        if (std > 0.5f) for (k in v.indices) v[k] = (v[k] - mean) / std
+        curSig = v
+    }
+
+    /** L'immagine è cambiata davvero rispetto a quando la carta è stata aggiunta? */
+    private fun sceneChanged(): Boolean {
+        val a = lockedSig ?: return true
+        val b = curSig ?: return false
+        if (curStd < 6f) return true               // inquadratura quasi uniforme: tappetino vuoto, carta tolta
+        var dot = 0f
+        for (k in a.indices) dot += a[k] * b[k]
+        return dot / a.size < 0.7f                 // forme diverse (mano, carta spostata via, altra carta)
     }
 
     /** Variante decisa a maggioranza sui fotogrammi letti. Restituisce ("" o "R", deciso con certezza?) */
@@ -462,7 +510,7 @@ class MainActivity : AppCompatActivity() {
             .setMessage("${CardRepo.pad(n)} $name${if (variant == "R") " (Reverse)" else ""} è stata appena aggiunta (ora ×$qty).\n\nÈ un'altra copia?")
             .setPositiveButton("Sì, aggiungi") { _, _ -> addCard(n, if (sure) "" else "variante non letta", variant) }
             .setNegativeButton("No, è la stessa") { _, _ -> status("Ok, non aggiunta. Prossima carta.") }
-            .setOnDismissListener { paused = false; locked = n }
+            .setOnDismissListener { paused = false; lockCurrent(n) }
             .show()
     }
 

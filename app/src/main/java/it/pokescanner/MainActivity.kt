@@ -120,6 +120,7 @@ class MainActivity : AppCompatActivity() {
     private var lastAddVar = ""
     private var lastAddTime = 0L
     private val DUP_MS = 3000L
+    private val STABLE_FRAMES = 10
 
     private val langs = listOf("it", "en", "fr", "de", "es", "pt", "ja")
 
@@ -431,10 +432,17 @@ class MainActivity : AppCompatActivity() {
         }
         emptyN = 0; badN = 0
         val n = nums[0]
-        if (n == locked) return
+        // rivedo il numero della carta bloccata: azzero un eventuale "altro numero" letto per sbaglio (es. 078 letto 008)
+        if (n == locked) { resetCand(); return }
         if (n == cand) candN++ else { cand = n; candN = 1; nameFailN = 0; candRev.clear(); if (pending != null && pending != n) hideForce() }
         scan.good.firstOrNull { CardRepo.norm(it.num) == n }?.reverse?.let { candRev.add(it) }
-        if (candN < 2) return
+        // carta precedente ancora davanti (inquadratura non cambiata): un numero diverso va confermato per molti
+        // fotogrammi di fila, così le letture sbagliate a intermittenza (riflessi, luce) non aggiungono carte
+        val need = if (locked != null) STABLE_FRAMES else 2
+        if (candN < need) {
+            if (locked != null && candN >= 3) status("Leggo ${CardRepo.pad(n)}: tengo ferma la carta…")
+            return
+        }
 
         val card = sd.cards[n]
         if (nameCheck && lang != "ja" && card != null && card.name.isNotEmpty()) {

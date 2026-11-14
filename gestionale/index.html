@@ -184,7 +184,7 @@ async function tcg(path, maxAgeH) {
     if (c && Date.now() - c.t < (maxAgeH || 24) * 3600e3) return (mem[path] = c.d);
   } catch (e) {}
   try {
-    const r = await fetch(API + path);
+    const r = await fetch(path.startsWith('@en') ? API_EN + path.slice(3) : API + path);
     if (!r.ok) throw 0;
     const d = await r.json();
     mem[path] = d;
@@ -196,9 +196,22 @@ async function tcg(path, maxAgeH) {
   }
 }
 let tcgSets = [];          // elenco set TCGdex, dal più recente
+// TCGdex in italiano a volte non ha nome, simbolo o logo di un set: li completo con i dati inglesi
+const API_EN = 'https://api.tcgdex.net/v2/en';
+let enSets = {};
 async function loadSets() {
-  const list = await tcg('/sets', 12);
-  tcgSets = Array.isArray(list) ? list.slice().reverse() : [];
+  const [list, en] = await Promise.all([tcg('/sets', 12), tcg('@en/sets', 12)]);
+  enSets = {};
+  (Array.isArray(en) ? en : []).forEach(x => { enSets[x.id] = x; });
+  tcgSets = (Array.isArray(list) ? list.slice().reverse() : []).map(x => {
+    const e = enSets[x.id] || {};
+    const serie = String(x.id).replace(/[0-9.]+[a-z]?$/i, '') || x.id;
+    return Object.assign({}, x, {
+      name: x.name || e.name || x.id,
+      symbol: x.symbol || e.symbol || `https://assets.tcgdex.net/univ/${serie}/${x.id}/symbol`,
+      logo: x.logo || e.logo || ''
+    });
+  });
 }
 /** set TCGdex corrispondente a un'espansione di Cardmarket (stesso nome italiano) */
 function tcgIdFor(expName) {
@@ -352,7 +365,7 @@ async function renderSet() {
     main.innerHTML = '<p class="empty">Carico le carte del set…</p>';
     const S = await tcg('/sets/' + encodeURIComponent(selected), 24);
     if (!S) { main.innerHTML = '<p class="empty">Non riesco a caricare il set da TCGdex (serve internet).</p>'; return; }
-    setId = S.id; setName = S.name; logo = S.logo || ''; official = S.cardCount?.official || 0;
+    setId = S.id; setName = S.name || enSets[S.id]?.name || S.id; logo = S.logo || enSets[S.id]?.logo || ''; official = S.cardCount?.official || 0;
     cards = (S.cards || []).map(c => ({ id: c.id, localId: c.localId, name: c.name, image: c.image || '' }));
   }
   const cmCat = cmCatalogFor(setName);

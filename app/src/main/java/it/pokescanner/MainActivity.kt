@@ -120,7 +120,7 @@ class MainActivity : AppCompatActivity() {
     private var lastAddVar = ""
     private var lastAddTime = 0L
     private val DUP_MS = 3000L
-    private val STABLE_FRAMES = 10
+    private val votes = Votes()
 
     private val langs = listOf("it", "en", "fr", "de", "es", "pt", "ja")
 
@@ -409,40 +409,56 @@ class MainActivity : AppCompatActivity() {
         }
 
         val nums = scan.good.map { CardRepo.norm(it.num) }.distinct()
+        val now = System.currentTimeMillis()
         computeSignature(yp, w, h)
+        votes.add(now, nums.toSet())
+
+        // 1) carta tolta? Solo se l'immagine è cambiata davvero (2 fotogrammi) e il suo numero non si legge.
+        //    Un calo di luce o un riflesso non la sbloccano.
         val lk = locked
         if (lk != null) {
-            // carta tolta = immagine diversa da quando è stata aggiunta, per almeno 2 fotogrammi,
-            // e il suo numero non si legge più (se la stessa carta viene solo spostata resta bloccata)
             if (lk !in nums && sceneChanged()) goneN++ else goneN = 0
-            if (goneN >= 2) { locked = null; lockedSig = null; goneN = 0 }
+            if (goneN >= 2) { locked = null; lockedSig = null; goneN = 0; votes.clear(); votes.add(now, nums.toSet()) }
         }
-        if (nums.size != 1) {
-            emptyN++; resetCand()
-            if (emptyN >= 3 && pending != null) hideForce()
-            if (nums.size > 1) status("Vedo più carte: inquadrane una sola (o usa la modalità Ventaglio).")
-            else if (scan.bad.isNotEmpty()) {
+
+        // avviso set sbagliato (totale diverso) se per un po' legge solo numeri con un altro totale
+        if (nums.isEmpty()) {
+            if (scan.bad.isNotEmpty()) {
                 badN++
                 if (badN >= 4) {
                     val b = scan.bad.first()
                     status("Letto ${b.num}/${b.total}, ma il set scelto ha /${sd.total}: set o lingua giusti?", true)
                 }
             } else badN = 0
+        } else badN = 0
+
+        // 2) votazione sull'ultimo secondo e mezzo: vince il numero letto più spesso.
+        //    I fotogrammi senza lettura non azzerano nulla; una lettura sbagliata ogni tanto resta in minoranza.
+        val rank = votes.ranking(now, 1500)
+        if (rank.isEmpty()) { if (pending != null && votes.size(now, 1500) >= 6) hideForce(); return }
+        val (top, tv) = rank[0]
+        val sv = rank.getOrNull(1)?.second ?: 0
+        if (top == locked) return                                   // la carta appena aggiunta è ancora lì
+        if (sv >= 3 && tv < 2 * sv) {
+            status("Leggo ${CardRepo.pad(top)} e ${CardRepo.pad(rank[1].first)}: tieni ferma la carta (riflesso?) o inquadrane una sola.")
             return
         }
-        emptyN = 0; badN = 0
-        val n = nums[0]
-        // rivedo il numero della carta bloccata: azzero un eventuale "altro numero" letto per sbaglio (es. 078 letto 008)
-        if (n == locked) { resetCand(); return }
-        if (n == cand) candN++ else { cand = n; candN = 1; nameFailN = 0; candRev.clear(); if (pending != null && pending != n) hideForce() }
-        scan.good.firstOrNull { CardRepo.norm(it.num) == n }?.reverse?.let { candRev.add(it) }
-        // carta precedente ancora davanti (inquadratura non cambiata): un numero diverso va confermato per molti
-        // fotogrammi di fila, così le letture sbagliate a intermittenza (riflessi, luce) non aggiungono carte
-        val need = if (locked != null) STABLE_FRAMES else 2
-        if (candN < need) {
-            if (locked != null && candN >= 3) status("Leggo ${CardRepo.pad(n)}: tengo ferma la carta…")
+        val L = locked
+        val ok = when {
+            L == null -> tv >= 3
+            // la carta precedente si vede ancora ogni tanto: è la stessa carta letta male (es. 078 letto 008)
+            votes.count(L, now, 1000) > 0 -> false
+            // immagine cambiata: è davvero un'altra carta
+            sceneChanged() -> tv >= 3
+            // immagine quasi uguale: serve una conferma più lunga
+            else -> votes.count(top, now, 3000) >= 6 && votes.count(L, now, 1500) == 0
+        }
+        if (!ok) {
+            if (tv >= 2) status("Leggo ${CardRepo.pad(top)}: tengo ferma la carta…")
             return
         }
+        val n = top
+        if (n != cand) { cand = n; nameFailN = 0; if (pending != null && pending != n) hideForce() }
 
         val card = sd.cards[n]
         if (nameCheck && lang != "ja" && card != null && card.name.isNotEmpty()) {
@@ -735,4 +751,20 @@ class MainActivity : AppCompatActivity() {
 
     @Suppress("unused")
     private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_SHORT).show()
+}
+
+/** Letture degli ultimi secondi: per ogni fotogramma l'insieme dei numeri validi letti. */
+class Votes {
+    private val frames = ArrayDeque<Pair<Long, Set<String>>>()
+    fun add(t: Long, nums: Set<String>) {
+        frames.addLast(t to nums)
+        while (frames.isNotEmpty() && t - frames.first().first > 3000) frames.removeFirst()
+        while (frames.size > 90) frames.removeFirst()
+    }
+    fun clear() = frames.clear()
+    fun size(now: Long, ms: Long) = frames.count { now - it.first <= ms }
+    fun count(n: String, now: Long, ms: Long) = frames.count { now - it.first <= ms && n in it.second }
+    fun ranking(now: Long, ms: Long): List<Pair<String, Int>> =
+        frames.filter { now - it.first <= ms }.flatMap { it.second }.groupingBy { it }.eachCount()
+            .toList().sortedByDescending { it.second }
 }

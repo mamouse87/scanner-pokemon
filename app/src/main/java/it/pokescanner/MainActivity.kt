@@ -215,6 +215,9 @@ class MainActivity : AppCompatActivity() {
             locked = null; updateListBtn()
         }
         findViewById<Button>(R.id.btnManual).setOnClickListener { manualAdd() }
+        // ＋: un'altra copia dell'ultima carta; tenendo premuto chiede quante
+        findViewById<Button>(R.id.btnPlus).setOnClickListener { addMoreCopies(1) }
+        findViewById<Button>(R.id.btnPlus).setOnLongClickListener { askHowMany(); true }
         btnList.setOnClickListener { startActivity(Intent(this, ListActivity::class.java)) }
 
         tintReverse()
@@ -428,6 +431,7 @@ class MainActivity : AppCompatActivity() {
                 if (badN >= 4) {
                     val b = scan.bad.first()
                     status("Letto ${b.num}/${b.total}, ma il set scelto ha /${sd.total}: set o lingua giusti?", true)
+                    if (badN == 4) feedbackError()
                 }
             } else badN = 0
         } else badN = 0
@@ -441,6 +445,7 @@ class MainActivity : AppCompatActivity() {
         if (top == locked) return                                   // la carta appena aggiunta è ancora lì
         if (sv >= 3 && tv < 2 * sv) {
             status("Leggo ${CardRepo.pad(top)} e ${CardRepo.pad(rank[1].first)}: tieni ferma la carta (riflesso?) o inquadrane una sola.")
+            feedbackError()
             return
         }
         val L = locked
@@ -469,6 +474,7 @@ class MainActivity : AppCompatActivity() {
                     btnForce.text = "Aggiungi comunque ${CardRepo.pad(n)} ${card.name}"
                     btnForce.visibility = View.VISIBLE
                     status("Il numero ${CardRepo.pad(n)} corrisponde a \"${card.name}\", ma non leggo quel nome sulla carta. Inquadra anche il nome.", true)
+                    feedbackError()
                 } else if (nameFailN < 8) status("Controllo il nome…")
                 return
             }
@@ -528,7 +534,7 @@ class MainActivity : AppCompatActivity() {
         paused = true
         val name = sd.cards[n]?.name ?: ""
         val qty = Inventory.items[Inventory.key(lang, sd.id, n, variant)]?.qty ?: 0
-        feedbackSoft()
+        feedbackPresent()
         AlertDialog.Builder(this)
             .setTitle("Stessa carta?")
             .setMessage("${CardRepo.pad(n)} $name${if (variant == "R") " (Reverse)" else ""} è stata appena aggiunta (ora ×$qty).\n\nÈ un'altra copia?")
@@ -566,17 +572,17 @@ class MainActivity : AppCompatActivity() {
             override fun onCaptureSuccess(image: ImageProxy) {
                 val rot = image.imageInfo.rotationDegrees
                 val bmp = try { prepare(image.toBitmap(), rot, 3200) } catch (e: Exception) { null } finally { image.close() }
-                if (bmp == null) { runOnUiThread { fanDone(); status("Errore nella foto, riprova.", true) }; return }
+                if (bmp == null) { runOnUiThread { fanDone(); status("Errore nella foto, riprova.", true); feedbackError() }; return }
                 recognizer.process(InputImage.fromBitmap(bmp, 0))
                     .addOnSuccessListener { t ->
                         fanDone()
                         val sc = Recognizer.scan(t, sd)
                         showFanResult(bmp, sc, sd)
                     }
-                    .addOnFailureListener { fanDone(); status("Errore di lettura, riprova.", true) }
+                    .addOnFailureListener { fanDone(); status("Errore di lettura, riprova.", true); feedbackError() }
             }
             override fun onError(e: ImageCaptureException) {
-                runOnUiThread { fanDone(); status("Errore nello scatto: ${e.message}", true) }
+                runOnUiThread { fanDone(); status("Errore nello scatto: ${e.message}", true); feedbackError() }
             }
         })
     }
@@ -635,6 +641,7 @@ class MainActivity : AppCompatActivity() {
         if (total > 0) sb.append("\nConta le carte del ventaglio: se sono di più, qualcuna non è stata letta (non ha il riquadro verde).")
         content.addView(TextView(this).apply { text = sb.toString(); textSize = 15f; setPadding(0, 12, 0, 0) })
 
+        if (total == 0) feedbackError()
         val b = AlertDialog.Builder(this)
             .setTitle("Ventaglio")
             .setView(ScrollView(this).apply { addView(content) })
@@ -660,9 +667,41 @@ class MainActivity : AppCompatActivity() {
         showLast("✓ ${CardRepo.pad(item.num)}/${sd.total}${if (extra) " · fuoriserie" else ""}\n${item.name.ifEmpty { "—" }}" +
             (if (variant == "R") "  ✦ REVERSE" else "") + "   ×${item.qty}" +
             (if (note.isNotEmpty()) "  ($note)" else ""), item.img)
-        feedback()
+        when {
+            sd.cards[item.num] == null && sd.cards.isNotEmpty() -> {   // numero che nel set non esiste (es. scritto male a mano)
+                feedbackError()
+                status("Attenzione: la carta ${CardRepo.pad(item.num)} non risulta nel set ${sd.name}. Se è sbagliata premi ↶ Annulla.", true)
+            }
+            item.qty > 1 -> feedbackPresent()                          // c'era già nella lista: un'altra copia
+            else -> feedback()                                         // carta nuova
+        }
         updateListBtn()
         fetchRarityFor(k)
+    }
+
+    /** ＋: altre copie dell'ultima carta, con la stessa variante (Normale o Reverse). */
+    private fun addMoreCopies(n: Int) {
+        val r = Inventory.addAgain(this, n)
+        if (r == null) { showLast("Nessuna carta a cui aggiungere copie: scansionane prima una", ""); feedbackError(); return }
+        val (_, it2) = r
+        showLast("＋$n ${CardRepo.pad(it2.num)} ${it2.name}" + (if (it2.variant == "R") "  ✦ REVERSE" else "") + "   ×${it2.qty}", it2.img)
+        lastAddN = it2.num; lastAddVar = it2.variant; lastAddTime = System.currentTimeMillis()
+        feedbackPresent()
+        updateListBtn()
+    }
+
+    private fun askHowMany() {
+        val et = EditText(this).apply { hint = "Quante copie in più?"; inputType = InputType.TYPE_CLASS_NUMBER; setText("2"); selectAll() }
+        paused = true
+        AlertDialog.Builder(this).setTitle("Aggiungi copie dell'ultima carta")
+            .setView(LinearLayout(this).apply { setPadding(48, 16, 48, 0); addView(et, ViewGroup.LayoutParams(-1, -2)) })
+            .setPositiveButton("Aggiungi") { _, _ ->
+                val n = et.text.toString().trim().toIntOrNull() ?: 0
+                if (n in 1..99) addMoreCopies(n) else status("Numero di copie non valido (1–99).", true)
+            }
+            .setNegativeButton("Annulla", null)
+            .setOnDismissListener { paused = false }
+            .show()
     }
 
     private fun fetchRarityFor(k: String) {
@@ -726,21 +765,39 @@ class MainActivity : AppCompatActivity() {
                 "4. ✦ REVERSE: finché è attiva, tutte le carte che scansioni sono Reverse Holo (la cornice diventa viola).\n\n" +
                 "5. Verifica nome: controlla anche il nome stampato, per evitare numeri letti male.\n\n" +
                 "Altri comandi: due dita per lo zoom, tocca l'immagine per mettere a fuoco, 🔦 luce, ↶ annulla l'ultima, " +
-                "⇄ Rev cambia l'ultima tra normale e Reverse, ✍ aggiunge a mano.\n\n" +
+                "⇄ Rev cambia l'ultima tra normale e Reverse, ✍ aggiunge a mano, ＋ aggiunge un'altra copia dell'ultima carta (tieni premuto per scegliere quante).\n\n" +
+                "SUONI: bip corto = carta nuova aggiunta · doppio bip = carta già presente nella lista (un'altra copia) · suono basso e lungo = errore di lettura (set sbagliato, nome non letto, due numeri insieme).\n\n" +
                 "6. In 📋 Lista trovi tutte le carte: tocca il nome di un set per mandare il file al PC (Cardmarket e gestionale)."
             )
             .setPositiveButton("Ho capito", null).show()
     }
 
+    /** Carta nuova aggiunta: bip corto (come prima). */
     private fun feedback() {
         try { tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 80) } catch (_: Exception) {}
-        try {
-            getSystemService(Vibrator::class.java)?.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
-        } catch (_: Exception) {}
+        vibrate(longArrayOf(0, 50))
     }
 
-    private fun feedbackSoft() {
-        try { tone?.startTone(ToneGenerator.TONE_PROP_ACK, 120) } catch (_: Exception) {}
+    /** Carta già presente nella lista (un'altra copia): doppio bip. */
+    private fun feedbackPresent() {
+        try { tone?.startTone(ToneGenerator.TONE_PROP_BEEP2, 260) } catch (_: Exception) {}
+        vibrate(longArrayOf(0, 40, 90, 40))
+    }
+
+    private var lastErrSound = 0L
+    /** Errore di scansione: suono basso e lungo + vibrazione lunga (al massimo una volta ogni 2,5 s). */
+    private fun feedbackError() {
+        val now = System.currentTimeMillis()
+        if (now - lastErrSound < 2500) return
+        lastErrSound = now
+        try { tone?.startTone(ToneGenerator.TONE_SUP_ERROR, 450) } catch (_: Exception) {}
+        vibrate(longArrayOf(0, 300))
+    }
+
+    private fun vibrate(pattern: LongArray) {
+        try {
+            getSystemService(Vibrator::class.java)?.vibrate(VibrationEffect.createWaveform(pattern, -1))
+        } catch (_: Exception) {}
     }
 
     private fun status(t: String, warn: Boolean = false) {

@@ -234,10 +234,22 @@
                 android:textSize="15sp" />
 
             <Button
+                android:id="@+id/btnPlus"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:paddingHorizontal="14dp"
+                android:text="＋"
+                android:textSize="20sp"
+                android:contentDescription="Aggiungi un'altra copia dell'ultima carta (tieni premuto per scegliere quante)" />
+
+            <Button
                 android:id="@+id/btnUndo"
                 style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
                 android:text="↶ Annulla" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>

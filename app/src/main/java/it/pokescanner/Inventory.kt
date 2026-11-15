@@ -84,6 +84,16 @@ object Inventory {
         return k to item
     }
 
+    /** Aggiunge altre [n] copie dell'ultima carta aggiunta (stessa variante). Ogni copia si può annullare una alla volta. */
+    fun addAgain(ctx: Context, n: Int = 1): Pair<String, Item>? {
+        val k = history.lastOrNull { items.containsKey(it) } ?: return null
+        val item = items[k] ?: return null
+        item.qty += n
+        repeat(n) { history.addLast(k) }
+        save(ctx)
+        return k to item
+    }
+
     fun change(ctx: Context, k: String, d: Int) {
         val item = items[k] ?: return
         item.qty += d

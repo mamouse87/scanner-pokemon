@@ -51,7 +51,12 @@ main{flex:1;overflow:auto;padding:16px 22px 60px}
 .badges span{font-weight:700;font-size:12px;border-radius:99px;padding:2px 8px;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .bn{background:var(--ok)}.br{background:var(--rev)}.cd{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.03em;background:var(--line);color:var(--fg);border-radius:4px;padding:0 4px;vertical-align:1px}
 .cd.big{font-size:13px;padding:1px 7px;cursor:pointer;vertical-align:3px}
-.bs{background:#7c8591}.bs.bsr{background:#8a6aa0}.bv{background:#e8590c}
+.bs{background:#7c8591}
+.card.sel{outline:4px solid var(--acc);outline-offset:2px}
+.selbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;margin:0 0 12px;border:2px solid var(--acc);border-radius:10px;background:var(--card);position:sticky;top:0;z-index:5}
+button.danger{background:#e5484d;color:#fff;border-color:#e5484d}
+.undobar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#1c2128;color:#fff;padding:10px 14px;border-radius:12px;display:flex;gap:14px;align-items:center;z-index:50;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.undobar button{background:var(--acc);color:#111;border:0;font-weight:700}.bs.bsr{background:#8a6aa0}.bv{background:#e8590c}
 .card.sb{outline:3px dashed #7c8591}
 .card.sb .im{filter:none;opacity:1}
 .card.vr{box-shadow:0 0 0 3px #e8590c,0 1px 4px rgba(0,0,0,.12)}
@@ -416,6 +421,9 @@ function nextImg(im) {
 
 // ---------- set aperto: tutte le carte, fuoriserie comprese ----------
 let filter = 'all', filterText = '', current = null;
+// selezione di più carte nel set (per togliere dalla vendita, riportare in Standby…)
+let selMode = false, selSet = null;
+const sel = new Set();
 async function renderSet() {
   const main = $('main');
   current = null;
@@ -426,6 +434,7 @@ async function renderSet() {
       Le carte in vendita arrivano da Cardmarket con il pulsante <b>Card Scanner → CM</b>: dopo "Mettere in vendita le carte" premi il pulsante verde dello script.</div>`;
     return;
   }
+  if (selSet !== selected) { selSet = selected; selMode = false; sel.clear(); }
   const bySet = listingsBySet();
   const mine = bySet[selected] || [];
   const sbList = Object.entries(state.standby || {}).filter(([, x]) => x.s === selected);
@@ -475,8 +484,13 @@ async function renderSet() {
     <div class="row"><input type="search" id="qCard" placeholder="Cerca carta…">
     <select id="fShow"><option value="all">Mostra tutte le carte</option><option value="yes">Solo carte in vendita</option><option value="sb">Solo carte in Standby</option><option value="var">Solo con variazione di prezzo</option><option value="rev">Solo Reverse in vendita</option><option value="no">Solo carte che non ho</option></select>
     ${vars.length ? `<button class="pri" id="bPdf">📄 PDF revisione prezzi (${vars.length})</button><button id="bConf">✔ Conferma prezzi</button>` : ''}
-    ${sbQ ? `<button id="bSbDel" title="Toglie tutte le carte in Standby di questo set">🗑 Svuota Standby</button>` : ''}
-    ${sbQ ? `<button class="pri" id="bOpenCM" title="Scegli il prezzo e prepara le carte in Standby per lo script Card Scanner">Apri su Cardmarket ↗ (${sbQ} in Standby)</button>` : cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="_blank"><button>Apri su Cardmarket ↗</button></a>` : ''}</div></div><div class="grid">`;
+    ${copies || sbQ ? `<button id="bSel" class="${selMode ? 'pri' : ''}" title="Seleziona più carte per toglierle dalla vendita, riportarle in Standby o toglierle dallo Standby">☑ Seleziona carte</button>` : ''}
+    ${sbQ ? `<button class="pri" id="bOpenCM" title="Scegli il prezzo e prepara le carte in Standby per lo script Card Scanner">Apri su Cardmarket ↗ (${sbQ} in Standby)</button>` : cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="_blank"><button>Apri su Cardmarket ↗</button></a>` : ''}</div></div>
+    ${selMode ? `<div class="selbar"><b id="selN">0 selezionate</b>
+      <button id="sAll">Seleziona tutte quelle visibili</button><button id="sNone">Nessuna</button>
+      <span style="flex:1"></span>
+      <button id="sDel" class="danger">🗑 Togli dalla vendita</button><button id="sToSb">↩ Riporta in Standby</button><button id="sDelSb">🗑 Togli dallo Standby</button>
+      <button id="sDone">Fine</button></div>` : ''}<div class="grid">`;
   for (const c of cards) {
     const n0 = norm(c.localId);
     const ls = byNum[n0] || [], sb = sbByNum[n0] || [];
@@ -491,7 +505,7 @@ async function renderSet() {
     const rar = c.rarity ?? rc[n0] ?? rarIt(cm?.r) ?? '';
     const isExtra = official && /^\d+$/.test(c.localId) && +c.localId > official;
     const cls = ls.length ? 'yes' : sq ? 'sb' : 'no';
-    h += `<div class="card ${cls}${r ? ' r' : ''}${sq ? ' hassb' : ''}${vv.length ? ' vr' : ''}" data-n="${esc(n0)}" data-s="${esc(`${c.name} ${c.localId} ${n0} ${rar} ${cm?.n || ''}`.toLowerCase())}">
+    h += `<div class="card ${cls}${r ? ' r' : ''}${sq ? ' hassb' : ''}${vv.length ? ' vr' : ''}${selMode && sel.has(n0) ? ' sel' : ''}" data-n="${esc(n0)}" data-s="${esc(`${c.name} ${c.localId} ${n0} ${rar} ${cm?.n || ''}`.toLowerCase())}">
       <div class="im"><span>${esc(c.localId)}</span>${imgTag(imgSrcs(c.image, cm, c.localId), true)}</div>
       ${ls.length || sq || vv.length ? `<div class="badges">${vv.length ? `<span class="bv" title="variazione del prezzo di mercato">⚠ ${vv.map(v => (v.d > 0 ? '▲' : '▼') + eur(Math.abs(v.d))).join(' ')}</span>` : ''}${n ? `<span class="bn">×${n}</span>` : ''}${r ? `<span class="br">R ×${r}</span>` : ''}${sqN ? `<span class="bs" title="Normali in Standby">SB N ×${sqN}</span>` : ''}${sqR ? `<span class="bs bsr" title="Reverse in Standby">SB R ×${sqR}</span>` : ''}</div>` : ''}
       <div class="info"><b>${esc(c.localId)}${official ? '/' + official : ''}</b> ${esc(c.name)}${isExtra ? '<span class="fs">FS</span>' : ''}
@@ -505,10 +519,83 @@ async function renderSet() {
   if ($('bPdf')) $('bPdf').onclick = () => pdfVariations(vars, setName);
   if ($('bOpenCM')) $('bOpenCM').onclick = () => openOnCardmarket(selected, setName, cmCat);
   if ($('bConf')) $('bConf').onclick = () => varDialog(vars, `Conferma prezzi · ${setName}`);
-  if ($('bSbDel')) $('bSbDel').onclick = () => { if (confirm(`Togliere dallo Standby le ${sbQ} copie di ${setName}?`)) { sbList.forEach(([k]) => { delete state.standby[k]; delete (state.sbMarket || {})[k]; }); save(); refresh(); } };
+  if ($('bSel')) $('bSel').onclick = () => { selMode = !selMode; sel.clear(); renderSet(); };
+  if (selMode) {
+    const upd = () => { $('selN').textContent = `${sel.size} carte selezionate`; document.querySelectorAll('.card').forEach(el => el.classList.toggle('sel', sel.has(el.dataset.n))); };
+    $('sAll').onclick = () => { document.querySelectorAll('.card:not(.hide)').forEach(el => { if (!el.classList.contains('no')) sel.add(el.dataset.n); }); upd(); };
+    $('sNone').onclick = () => { sel.clear(); upd(); };
+    $('sDone').onclick = () => { selMode = false; sel.clear(); renderSet(); };
+    $('sDel').onclick = () => bulkAction('del', setId || selected, setName);
+    $('sToSb').onclick = () => bulkAction('toSb', setId || selected, setName);
+    $('sDelSb').onclick = () => bulkAction('delSb', setId || selected, setName);
+    upd();
+  }
   applyCardFilter();
   if (setId) loadRarities(setId, cards.filter(c => c.id));
 }
+// ---------- azioni su più carte del set + annulla ----------
+let undoSnap = null;
+function snapshot(label) {
+  undoSnap = { label, d: JSON.stringify({ listings: state.listings, standby: state.standby || {}, market: state.market || {}, sbMarket: state.sbMarket || {} }) };
+}
+function showUndo(msg) {
+  document.querySelectorAll('.undobar').forEach(x => x.remove());
+  const b = document.createElement('div');
+  b.className = 'undobar';
+  b.innerHTML = `<span>${esc(msg)}</span><button>↶ Annulla</button>`;
+  b.querySelector('button').onclick = () => {
+    if (!undoSnap) return;
+    Object.assign(state, JSON.parse(undoSnap.d));
+    undoSnap = null; save(); refresh(); b.remove(); toast('Annullato: tutto come prima');
+  };
+  document.body.appendChild(b);
+  setTimeout(() => b.remove(), 60000);
+}
+function bulkAction(kind, sid, setName) {
+  if (!sel.size) { alert('Seleziona prima le carte (tocca le carte, oppure "Seleziona tutte quelle visibili").'); return; }
+  const inSet = ([, l]) => sel.has(norm(l.u));
+  const ls = (listingsBySet()[selected] || []).filter(inSet);
+  const sb = Object.entries(state.standby || {}).filter(([, x]) => x.s === selected).filter(inSet);
+  const src = kind === 'delSb' ? sb : ls;
+  const what = { del: 'Togli dalla vendita', toSb: 'Riporta in Standby', delSb: 'Togli dallo Standby' }[kind];
+  if (!src.length) { alert(kind === 'delSb' ? 'Le carte selezionate non hanno copie in Standby.' : 'Le carte selezionate non hanno copie in vendita.'); return; }
+  const count = v => src.filter(([, x]) => v === 'all' || (v === 'R') === !!x.rev).reduce((a, [, x]) => a + x.q, 0);
+  openDlg(`<h3>${what} · ${esc(setName)}</h3>
+    <p>${sel.size} carte selezionate. Quali varianti?</p>
+    <p class="row"><label><input type="radio" name="bv" value="all" checked> Normali e Reverse (${count('all')} copie)</label>
+      <label><input type="radio" name="bv" value="N"> Solo Normali (${count('N')})</label>
+      <label><input type="radio" name="bv" value="R"> Solo Reverse (${count('R')})</label></p>
+    <p class="small">${kind === 'del' ? 'Le copie spariscono dal magazzino vendite del gestionale (non vengono contate come vendute). Su Cardmarket toglile tu.'
+      : kind === 'toSb' ? 'Le copie tornano in Standby, pronte per essere ricaricate su Cardmarket con "Apri su Cardmarket". Su Cardmarket toglile tu.'
+      : 'Le copie spariscono dallo Standby.'} Subito dopo puoi premere <b>↶ Annulla</b>.</p>
+    <p class="row" style="justify-content:flex-end"><button id="dClose">Annulla</button><button class="pri danger" id="bGo">${what}</button></p>`, () => {
+    $('dClose').onclick = closeDlg;
+    $('bGo').onclick = () => {
+      const v = document.querySelector('input[name="bv"]:checked').value;
+      const pick = src.filter(([, x]) => v === 'all' || (v === 'R') === !!x.rev);
+      if (!pick.length) { alert('Nessuna copia con questa variante.'); return; }
+      snapshot(what);
+      let n = 0;
+      pick.forEach(([k, x]) => {
+        n += x.q;
+        if (kind === 'delSb') { delete state.standby[k]; delete (state.sbMarket || {})[k]; return; }
+        if (kind === 'toSb') {
+          state.standby = state.standby || {};
+          const sk = sbKey(sid, x.u, x.rev, x.lang || 'it');
+          const X = state.standby[sk] || (state.standby[sk] = { s: sid, sn: setName, u: x.u, rev: !!x.rev, lang: x.lang || 'it', q: 0, n: info(x).name || '', r: info(x).rar || '', com: x.com || '', date: today(), file: 'dal magazzino vendite' });
+          X.q += x.q;
+        }
+        delete state.listings[k]; delete (state.market || {})[k];
+      });
+      save(); closeDlg();
+      sel.clear(); selMode = false;
+      refresh();
+      showUndo(`${what}: ${n} copie di ${setName}`);
+      if (kind === 'toSb') updatePrices(false);
+    };
+  });
+}
+
 function applyCardFilter() {
   const t = filterText.trim().toLowerCase();
   document.querySelectorAll('.card').forEach(el => {
@@ -525,6 +612,14 @@ function applyCardFilter() {
 $('main').addEventListener('click', e => {
   const el = e.target.closest('.card');
   if (!el || !current) return;
+  if (selMode) {
+    if (el.classList.contains('no')) return;            // carta che non ho: niente da selezionare
+    const n = el.dataset.n;
+    if (sel.has(n)) sel.delete(n); else sel.add(n);
+    el.classList.toggle('sel', sel.has(n));
+    if ($('selN')) $('selN').textContent = `${sel.size} carte selezionate`;
+    return;
+  }
   const n0 = el.dataset.n;
   const c = current.cards.find(x => norm(x.localId) === n0);
   const cm = current.cmByNum[n0];

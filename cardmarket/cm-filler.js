@@ -73,16 +73,13 @@
       <button id="csClose" style="background:none;border:0;color:#e8eaed;font-size:18px;cursor:pointer">✕</button>
     </div>
     <div id="csJob" style="display:none;margin-bottom:8px;padding:8px;border-radius:8px;background:#12324a;font-size:12.5px"></div>
-    <div style="margin-bottom:6px">📄 <input type="file" id="csFile" accept=".txt,.html,.htm,text/*" style="font-size:12px;width:85%"></div>
-    <textarea id="csInput" placeholder="…oppure incolla qui la lista dell'app"
-      style="width:100%;height:110px;box-sizing:border-box;${inp};font:12px monospace"></textarea>
+    <!-- la lista e il prezzo arrivano dal gestionale ("Apri su Cardmarket"): qui non si scelgono più -->
+    <div style="display:none"><input type="file" id="csFile"><input type="checkbox" id="csPrice" checked>
+      <select id="csBase"><option value="low">Da</option><option value="trend">Tendenza</option></select>
+      <select id="csSign"><option value="1">+</option><option value="-1">−</option></select><input id="csPlus" type="number"></div>
+    <textarea id="csInput" readonly style="display:none;width:100%;height:110px;box-sizing:border-box;${inp};font:12px monospace"></textarea>
     <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin:8px 0">
       <span>Commento</span><input id="csComment" style="${inp}" placeholder="es. Collezione privata">
-      <span>Prezzo</span><span><input type="checkbox" id="csPrice" checked>
-        <select id="csBase" style="${inp}"><option value="low">"Da" (prezzo minimo)</option><option value="trend">Tendenza</option></select>
-        <select id="csSign" style="${inp}"><option value="1">+</option><option value="-1">−</option></select>
-        <input id="csPlus" type="number" min="0" step="1" style="${inp};width:60px"> cent.</span>
-      <span></span><span style="font-size:11.5px;color:#9aa3ad">es. 150 cent. = 1,50 €. Prezzo minimo 0,02 €.</span>
     </div>
     <div id="csProg" style="margin:0 0 8px;padding:8px;border-radius:8px;background:#0d1014;font-size:12.5px;display:none;max-height:38vh;overflow:auto"></div>
     <button id="csGo" style="width:100%;padding:10px;border:0;border-radius:8px;background:#ffcb05;color:#111;font-weight:700;cursor:pointer">Compila la pagina</button>
@@ -342,7 +339,9 @@
   const hashStr = t => { let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return 'l' + (h >>> 0).toString(36); };
   // con l'elenco del gestionale l'avanzamento è legato a quell'elenco (ogni "Apri su Cardmarket" riparte da zero:
   // le carte in Standby nel gestionale sono per definizione ancora da caricare); altrimenti al testo della lista
-  const listId = () => { const aj = activeJob(); return aj ? 'job' + hashStr(String(aj.at)) : hashStr($('csInput').value.replace(/\s+/g, ' ').trim()); };
+  // ogni elenco del gestionale ha un nome unico (es. DLR-Dominio_Delta_20261115-030612) scritto nella lista:
+  // un elenco nuovo è sempre una lista nuova, con l'avanzamento da zero
+  const listId = () => hashStr($('csInput').value.replace(/\s+/g, ' ').trim());
   const vkey = (num, rev) => norm(num) + '|' + (rev ? 'R' : 'N');
   const doneGet = () => { try { return JSON.parse(store.get('done_' + listId(), '{}')); } catch (e) { return {}; } };
   const doneSet = o => store.set('done_' + listId(), JSON.stringify(o));
@@ -434,7 +433,7 @@
   form.addEventListener('input', () => { if (!$('csGest').disabled) showGest(); });
   // ---------- elenco dal gestionale ----------
   function jobText(j) {
-    return ['CARDSCANNER 2', `SET ${j.set} | ${j.lang || 'it'}${j.sid ? ' | ' + j.sid : ''}`, j.com ? 'COMMENTO ' + j.com : '',
+    return ['CARDSCANNER 2', '# ELENCO ' + (j.name || j.at), `SET ${j.set} | ${j.lang || 'it'}${j.sid ? ' | ' + j.sid : ''}`, j.com ? 'COMMENTO ' + j.com : '',
       ...j.items.map(it => `${it.u} | x${it.q} | ${it.rev ? 'R' : 'N'} | ${it.n || ''} | ${it.r || ''}`)].filter(Boolean).join('\n');
   }
   const simpN = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -446,7 +445,16 @@
   }
   function showJob() {
     const j = jobGet(), box = $('csJob');
-    if (!j || j.done) { box.style.display = 'none'; return; }
+    if (!j) {
+      box.style.display = 'block';
+      box.innerHTML = 'Nessun elenco dal gestionale. Nel gestionale apri il set, premi <b>Apri su Cardmarket</b> e scegli il prezzo: poi torna qui e premi di nuovo il pulsante.';
+      return;
+    }
+    if (j.done) {
+      box.style.display = 'block';
+      box.innerHTML = `✔ Elenco <b>${esc(j.name || j.set)}</b> tutto inviato al gestionale. Per caricare altre carte premi di nuovo <b>Apri su Cardmarket</b> nel gestionale.`;
+      return;
+    }
     const copies = j.items.reduce((a, it) => a + it.q, 0);
     const eurS = v => Math.abs(v / 100).toFixed(2).replace('.', ',') + ' €';
     const rule = `${BASE_NAME[j.base] || j.base}${j.plus ? ` ${j.plus > 0 ? '+' : '−'} ${eurS(j.plus)}` : ''}`;
@@ -470,7 +478,7 @@
     $('csPlus').value = String(Math.abs(j.plus || 0)); store.set('plus', $('csPlus').value);
     $('csPrice').checked = true;
     const nM = j.items.filter(it => it.mp != null).length, nMiss = j.items.filter(it => it.mp == null && it.lo == null && it.t == null).length;
-    box.innerHTML = `📋 <b>Elenco dal gestionale</b>: ${esc(j.set)} · ${j.items.length} righe, ${copies} copie · prezzo <b>${rule}</b>, calcolato a parte per Normali e Reverse` +
+    box.innerHTML = `📋 <b>${esc(j.name || 'Elenco dal gestionale')}</b><br>${esc(j.set)} · ${j.items.length} righe, ${copies} copie · prezzo <b>${rule}</b>, calcolato a parte per Normali e Reverse` +
       (nM ? ` · ${nM} prezzi scritti da te` : '') + (nMiss ? ` · <span style="color:#ff6b6b">${nMiss} senza prezzo di mercato</span>` : '') +
       `<div style="color:#9aa3ad;margin-top:3px">Preparato il ${new Date(j.at).toLocaleString('it-IT')}. Premi "Compila la pagina".</div>`;
   }

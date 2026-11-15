@@ -22,11 +22,10 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <li>Premi <b>Compila la pagina</b> e controlla. Le righe con il <b>bordo rosso</b> non hanno un prezzo (per esempio una Reverse senza prezzo Reverse): scrivilo tu. Lo script non usa mai il prezzo della versione normale per una Reverse.</li>
 <li>Metti in vendita su Cardmarket tu stesso, poi premi il pulsante verde <b>📤 Invia al gestionale</b>: le carte passano da Standby a In vendita.</li>
 <li>Se il set ha più pagine: vai alla pagina successiva, premi di nuovo il pulsante (l'elenco resta caricato) e ripeti.</li></ol>
-<p>Puoi ancora caricare il file .txt direttamente nello script (📄): in quel caso i prezzi delle Normali li prende dalla pagina, e le Reverse restano vuote se non trova il loro prezzo.</p>
 <p>Lo script non invia nulla a Cardmarket e non legge password.</p>
 <h2>Prezzo</h2>
-<p>Nel riquadro scegli la base: <b>"Da" (prezzo minimo)</b> oppure <b>Tendenza</b>, poi <b>+</b> o <b>−</b> e quanti centesimi (es. 150 = 1,50 €). Il prezzo non scende mai sotto 0,02 €.
-I valori li legge direttamente dalla pagina "Inserisci carte bulk", senza aprire altre pagine di Cardmarket. Per le Reverse prova a usare la Price Guide di Cardmarket; se non riesce usa i valori della versione normale e colora la riga di arancione.</p>
+<p>Il prezzo si sceglie solo nel gestionale ("Apri su Cardmarket": "Da" o Tendenza ± centesimi, calcolato a parte per Normali e Reverse). Ogni volta che premi "Apri su Cardmarket" l'elenco ha un nome nuovo (es. <code>DLR-Dominio_Delta_20261115-030612</code>), così lo script lo tratta sempre come una lista nuova. Il prezzo non scende mai sotto 0,02 €; le righe senza prezzo hanno il bordo rosso.</p>
+<p>Dopo "Invia al gestionale" i dati tornano nella pagina del gestionale già aperta (se si apre una scheda nuova, passa i dati a quella già aperta e si chiude da sola).</p>
 <h2>Revisione prezzi</h2>
 <p>Si fa nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a>: i prezzi di mercato si aggiornano da soli e le carte con una variazione (anche di 0,01 €) vengono segnalate nel set, con il PDF della revisione e la conferma dei nuovi prezzi.</p>
 <h2>In alternativa</h2>

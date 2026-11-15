@@ -1334,8 +1334,11 @@ async function openOnCardmarket(setId, setName, cmCat) {
       const b = $('upBase').value, plusC = (+$('upSign').value || 1) * Math.abs(parseInt($('upPlus').value || '0', 10) || 0);
       cfg.base = b; cfg.plus = plusC; save();
       const lang = list[0][1].lang || 'it';
+      const d = new Date(), z = n => String(n).padStart(2, '0');
+      const code = (Object.values(cmCat?.cards || {}).find(c => c.c)?.c || setId).toUpperCase();
+      const name = `${code}-${String(setName).trim().replace(/\s+/g, '_')}_${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
       const job = {
-        v: 1, at: today(), set: cmCat?.name || setName, sid: setId, cm: cmCat?.id || '', lang, com: list.find(([, x]) => x.com)?.[1].com || '',
+        v: 1, at: today(), name, set: cmCat?.name || setName, sid: setId, cm: cmCat?.id || '', lang, com: list.find(([, x]) => x.com)?.[1].com || '',
         base: b, plus: plusC,
         items: list.map(([k, x]) => Object.assign({ u: x.u, rev: !!x.rev, q: x.q, n: x.n || '', r: x.r || '' }, jobVals(k), over[k] != null ? { mp: over[k] } : {}))
       };
@@ -1344,7 +1347,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
       const win = window.open(cmCat ? CMBULK + encodeURIComponent(cmCat.id) : 'https://www.cardmarket.com/it/Pokemon', enc);
       if (!win) { alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.'); return; }
       closeDlg();
-      toast(`Elenco di ${setName} pronto per lo script Card Scanner`);
+      toast(`Elenco ${name} pronto per lo script Card Scanner`);
     };
   });
 }
@@ -1608,7 +1611,46 @@ document.addEventListener('drop', async e => {
 $('fPg').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) pgFile(f); };
 window.addEventListener('hashchange', () => { const name = importFromHash(); if (name) selected = tcgIdFor(name) || selected; refresh(); });
 
+// ---------- una sola pagina del gestionale ----------
+// Lo script di Cardmarket rimanda i dati alla scheda chiamata "gestionaleCarte". Se però si apre una scheda nuova
+// e un'altra pagina del gestionale è già aperta, i dati vengono passati a quella e la scheda nuova si chiude.
+try { window.name = 'gestionaleCarte'; } catch (e) {}
+const BC = 'BroadcastChannel' in window ? new BroadcastChannel('gestionaleCarte') : null;
+const myId = Math.random().toString(36).slice(2);
+let secondary = false;
+if (BC) BC.onmessage = e => {
+  const d = e.data || {};
+  if (d.type === 'ping' && d.from !== myId && !secondary) BC.postMessage({ type: 'pong', from: myId, to: d.from });
+  if (d.type === 'data' && d.to === myId && d.hash) {
+    // dati arrivati da Cardmarket tramite una scheda nuova: li prendo qui (stessa elaborazione del cambio di indirizzo)
+    state = load();
+    location.hash = d.hash;
+    try { window.focus(); } catch (er) {}
+  }
+};
+function otherTab() {
+  if (!BC) return Promise.resolve(null);
+  return new Promise(res => {
+    const t = setTimeout(() => { BC.removeEventListener('message', h); res(null); }, 600);
+    const h = e => { if (e.data && e.data.type === 'pong' && e.data.to === myId) { clearTimeout(t); BC.removeEventListener('message', h); res(e.data.from); } };
+    BC.addEventListener('message', h);
+    BC.postMessage({ type: 'ping', from: myId });
+  });
+}
+
 (async () => {
+  const other = await otherTab();
+  if (other) {
+    secondary = true;
+    const hasData = /^#cm2=/.test(location.hash);
+    if (hasData) BC.postMessage({ type: 'data', to: other, hash: location.hash });
+    history.replaceState(null, '', location.pathname);
+    document.body.innerHTML = `<div class="empty" style="margin:80px auto;max-width:560px;font-size:16px">
+      <b>Il gestionale è già aperto in un'altra scheda.</b><br>${hasData ? 'Le carte da Cardmarket sono state inviate lì ✔<br>' : ''}
+      Usa quella scheda: questa si chiude da sola (se non si chiude, chiudila tu).</div>`;
+    setTimeout(() => { try { window.close(); } catch (e) {} }, 1500);
+    return;
+  }
   const arrived = importFromHash();
   bkInit();
   await loadSets();

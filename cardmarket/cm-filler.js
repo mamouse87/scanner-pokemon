@@ -340,7 +340,9 @@
   }
   // ---------- avanzamento della lista (anche tra pagine diverse del set) ----------
   const hashStr = t => { let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return 'l' + (h >>> 0).toString(36); };
-  const listId = () => hashStr($('csInput').value.replace(/\s+/g, ' ').trim());
+  // con l'elenco del gestionale l'avanzamento è legato a quell'elenco (ogni "Apri su Cardmarket" riparte da zero:
+  // le carte in Standby nel gestionale sono per definizione ancora da caricare); altrimenti al testo della lista
+  const listId = () => { const aj = activeJob(); return aj ? 'job' + hashStr(String(aj.at)) : hashStr($('csInput').value.replace(/\s+/g, ' ').trim()); };
   const vkey = (num, rev) => norm(num) + '|' + (rev ? 'R' : 'N');
   const doneGet = () => { try { return JSON.parse(store.get('done_' + listId(), '{}')); } catch (e) { return {}; } };
   const doneSet = o => store.set('done_' + listId(), JSON.stringify(o));
@@ -521,7 +523,8 @@
       if (it.rev) g.rev += it.qty; else g.normal += it.qty;
       byNum.set(k, g);
     }
-    if (skipped) log(`${skipped} copie della lista erano già state inviate: non le compilo di nuovo.`, '#9aa3ad');
+    if (skipped) log(`${skipped} copie della lista erano già state inviate al gestionale: non le compilo di nuovo.` +
+      (!byNum.size ? ' Se non è vero, premi "azzera avanzamento" sotto la lista e poi di nuovo "Compila la pagina".' : ''), byNum.size ? '#9aa3ad' : '#ff9f43');
     if (missing.length) log('Non in questa pagina (altra pagina del set o set sbagliato): ' + missing.join(', '), '#ff9f43');
     if (byNum.size > 100) log('Attenzione: più di 100 carte diverse, Cardmarket potrebbe non inserirle tutte in un solo invio.', '#ff9f43');
 

@@ -578,6 +578,7 @@
 
     // indirizzo della pagina di ogni carta: se il gestionale non lo conosce lo cerco nella pagina "Inserisci carte bulk" del set
     const hrefs = S.json('href', {});
+    items.forEach(it => { if (it.h) hrefs[it.p] = it.h; }); // indirizzi già noti al gestionale
     const bulkTrend = {};
     const numKey = n => { const x = String(n || '').toUpperCase().replace(/^[A-Z]*?(?=\d)/, ''); return /^\d+$/.test(x) ? String(parseInt(x, 10)) : x; };
     // 1° modo: l'elenco del set in modalità lista (Prodotti → Singole → espansione), una pagina alla volta

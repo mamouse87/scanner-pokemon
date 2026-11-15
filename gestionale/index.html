@@ -49,7 +49,9 @@ main{flex:1;overflow:auto;padding:16px 22px 60px}
 .fs{display:inline-block;font-size:10px;font-weight:700;color:#111;background:var(--acc);border-radius:4px;padding:0 4px;margin-left:4px}
 .badges{position:absolute;top:11px;right:11px;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
 .badges span{font-weight:700;font-size:12px;border-radius:99px;padding:2px 8px;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.bn{background:var(--ok)}.br{background:var(--rev)}.bs{background:#7c8591}.bs.bsr{background:#8a6aa0}.bv{background:#e8590c}
+.bn{background:var(--ok)}.br{background:var(--rev)}.cd{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.03em;background:var(--line);color:var(--fg);border-radius:4px;padding:0 4px;vertical-align:1px}
+.cd.big{font-size:13px;padding:1px 7px;cursor:pointer;vertical-align:3px}
+.bs{background:#7c8591}.bs.bsr{background:#8a6aa0}.bv{background:#e8590c}
 .card.sb{outline:3px dashed #7c8591}
 .card.sb .im{filter:none;opacity:1}
 .card.vr{box-shadow:0 0 0 3px #e8590c,0 1px 4px rgba(0,0,0,.12)}
@@ -234,6 +236,39 @@ async function loadSets() {
     });
   });
 }
+// ---------- sigla del set (es. DLR, ASC): scritta a mano > elenco di Cardmarket > TCGdex ----------
+function tcgCached(path) {
+  if (mem[path]) return mem[path];
+  try { const c = JSON.parse(localStorage.getItem('tcg:' + path)); return c ? c.d : null; } catch (e) { return null; }
+}
+function siglaOf(setId, setName) {
+  if (setId && state.codes?.[setId]) return state.codes[setId];
+  const name = setName || tcgSets.find(x => x.id === setId)?.name || '';
+  const E = name && cmCatalogFor(name);
+  const c = E && Object.values(E.cards || {}).find(x => x.c)?.c;
+  if (c) return c.toUpperCase();
+  if (!setId || String(setId).startsWith('cm:')) return '';
+  for (const p of ['/sets/' + setId, '@en/sets/' + setId]) {
+    const S = tcgCached(p), a = S && (S.abbreviation || S.abbreviations);
+    const v = a && (typeof a === 'string' ? a : a.official || a.normal);
+    if (v) return String(v).toUpperCase();
+  }
+  return '';
+}
+const cardCode = (setId, setName, u) => { const sg = siglaOf(setId, setName); const n = /^\d+$/.test(u || '') ? String(parseInt(u, 10)).padStart(3, '0') : (u || ''); return sg + n; };
+/** scarica in sottofondo i dettagli dei miei set, per avere la sigla nella lista a sinistra */
+async function loadMyCodes() {
+  const ids = new Set([...Object.keys(listingsBySet()), ...Object.values(state.standby || {}).map(x => x.s)].filter(id => id && !String(id).startsWith('cm:')));
+  let changed = false;
+  for (const id of ids) {
+    if (siglaOf(id)) continue;
+    await tcg('/sets/' + encodeURIComponent(id), 24 * 7);
+    if (!siglaOf(id)) await tcg('@en/sets/' + encodeURIComponent(id), 24 * 7);
+    if (siglaOf(id)) changed = true;
+  }
+  if (changed) renderSets();
+}
+
 /** set TCGdex corrispondente a un'espansione di Cardmarket (stesso nome italiano) */
 function tcgIdFor(expName) {
   const n = simp(expName);
@@ -340,7 +375,7 @@ function renderSets() {
   Object.keys(bySet).filter(id => id.startsWith('cm:')).forEach(id => all.push({ id, name: state.cm[id.slice(3)]?.name || bySet[id][0][1].expName || id }));
   const items = all.filter(s => (!q || simp(s.name).includes(q)) && (!only || cnt(s.id)));
   const mine = items.filter(s => cnt(s.id)), rest = items.filter(s => !cnt(s.id));
-  const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}">${s.symbol ? `<img src="${esc(s.symbol)}.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<span style="width:22px"></span>'}<span class="nm">${esc(s.name)}</span>${vBy[s.id] ? `<span class="n v" title="${vBy[s.id]} carte con variazione di prezzo">⚠ ${vBy[s.id]}</span>` : ''}${sbBy[s.id] ? `<span class="n sb" title="copie in Standby (non ancora su Cardmarket)">SB ${sbBy[s.id]}</span>` : ''}${cnt0(s.id) ? `<span class="n" title="copie in vendita">${cnt0(s.id)}</span>` : ''}</a>`;
+  const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}">${s.symbol ? `<img src="${esc(s.symbol)}.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<span style="width:22px"></span>'}<span class="nm">${(() => { const sg = siglaOf(s.id, s.name); return sg ? `<span class="cd">${esc(sg)}</span> ` : ''; })()}${esc(s.name)}</span>${vBy[s.id] ? `<span class="n v" title="${vBy[s.id]} carte con variazione di prezzo">⚠ ${vBy[s.id]}</span>` : ''}${sbBy[s.id] ? `<span class="n sb" title="copie in Standby (non ancora su Cardmarket)">SB ${sbBy[s.id]}</span>` : ''}${cnt0(s.id) ? `<span class="n" title="copie in vendita">${cnt0(s.id)}</span>` : ''}</a>`;
   $('sets').innerHTML = `<a href="#" data-id="__dash" class="dash ${selected === '__dash' ? 'sel' : ''}"><span style="width:22px;text-align:center">📊</span><span class="nm">Statistiche magazzino</span></a>` +
     `<a href="#" data-id="__sales" class="dash ${selected === '__sales' ? 'sel' : ''}"><span style="width:22px;text-align:center">📈</span><span class="nm">Vendite</span>${state.sold.length ? `<span class="n" style="background:var(--acc);color:#111">${state.sold.reduce((a, x) => a + x.q, 0)}</span>` : ''}</a>` +
     ((mine.length ? `<div class="grp">I tuoi set (in vendita / Standby)</div>${mine.map(link).join('')}` : '') +
@@ -433,7 +468,7 @@ async function renderSet() {
   if (filter === 'sb' && !sbList.length) filter = 'all';
   const extra = official && cards.length > official ? cards.length - official : 0;
   let h = `<div class="sethead"><div class="row" style="gap:14px">${logo ? `<img class="logo" src="${esc(logo)}.png" alt="" onerror="if(!this.dataset.e){this.dataset.e=1;this.src=this.src.replace(/(assets\\.tcgdex\\.net\\/)[a-z-]+\\//,'$1en/')}else this.remove()">` : ''}
-    <div><h2>${esc(setName)}</h2>
+    <div><h2>${esc(setName)} <span class="cd big" id="setCode" title="Sigla del set: clic per cambiarla">${esc(siglaOf(setId || selected, setName) || 'sigla?')}</span></h2>
     <div class="sub">${cards.length} carte${extra ? ` (${official} + ${extra} fuoriserie)` : ''} · in vendita ${Object.keys(byNum).length} diverse, ${copies} copie · valore ${eur(value)}</div>
     ${sbQ ? `<div class="sub">⏸ Standby (non ancora su Cardmarket): <b>${sbQ} copie</b> · stima con Da ${eur(sbEst('low'))} · con Tendenza ${eur(sbEst('trend'))}</div>` : ''}
     ${vars.length ? `<div class="sub" style="color:#e8590c;font-weight:700">⚠ ${vars.length} carte in vendita con variazione del prezzo di mercato</div>` : ''}</div></div>
@@ -468,6 +503,13 @@ async function renderSet() {
   $('qCard').oninput = () => { filterText = $('qCard').value; applyCardFilter(); };
   $('fShow').onchange = () => { filter = $('fShow').value; applyCardFilter(); };
   if ($('bPdf')) $('bPdf').onclick = () => pdfVariations(vars, setName);
+  $('setCode').onclick = () => {
+    const v = prompt(`Sigla del set "${setName}" (come su Cardmarket, es. DLR). Lascia vuoto per quella automatica.`, siglaOf(setId || selected, setName));
+    if (v == null) return;
+    state.codes = state.codes || {};
+    if (v.trim()) state.codes[setId || selected] = v.trim().toUpperCase(); else delete state.codes[setId || selected];
+    save(); refresh();
+  };
   if ($('bOpenCM')) $('bOpenCM').onclick = () => openOnCardmarket(selected, setName, cmCat);
   if ($('bConf')) $('bConf').onclick = () => varDialog(vars, `Conferma prezzi · ${setName}`);
   if ($('bSbDel')) $('bSbDel').onclick = () => { if (confirm(`Togliere dallo Standby le ${sbQ} copie di ${setName}?`)) { sbList.forEach(([k]) => { delete state.standby[k]; delete (state.sbMarket || {})[k]; }); save(); refresh(); } };
@@ -1120,7 +1162,7 @@ async function updatePrices(force) {
   ];
   if (!jobs.length) return;
   upd = (async () => {
-    const prog = { done: 0, tot: jobs.length };
+    const prog = { done: 0, tot: jobs.length, copies: jobs.reduce((a, j) => a + (j.l.q || 0), 0) };
     showProg(prog);
     await pgAuto();
     state.market = state.market || {}; state.sbMarket = state.sbMarket || {};
@@ -1141,7 +1183,7 @@ async function updatePrices(force) {
           if (varOf(k, l)) nNew++;
         }
         prog.done++;
-        if (prog.done % 10 === 0) showProg(prog);
+        showProg(prog);
       }
     };
     await Promise.all([1, 2, 3, 4, 5, 6].map(worker));
@@ -1149,7 +1191,7 @@ async function updatePrices(force) {
     save();
     showProg(null);
     refresh();
-    return nNew;
+    return { nNew, tot: jobs.length, copies: prog.copies };
   })();
   try { return await upd; } finally { upd = null; }
 }
@@ -1157,8 +1199,9 @@ function showProg(p) {
   const b = $('btnUpd');
   if (!b) return;
   b.disabled = !!p;
-  b.textContent = p ? `🔄 Aggiorno… ${p.done}/${p.tot}` : '🔄 Aggiorna prezzi';
-  b.title = state.revAt ? `Ultimo aggiornamento: ${fmtDT(state.revAt)}` : '';
+  b.textContent = p ? `🔄 Aggiorno ${p.done}/${p.tot} carte…` : '🔄 Aggiorna prezzi';
+  if (p) b.title = `${p.tot} carte diverse (in vendita + Standby, Normali e Reverse contate a parte) = ${p.copies} copie: le copie uguali hanno lo stesso prezzo`;
+  else b.title = state.revAt ? `Ultimo aggiornamento: ${fmtDT(state.revAt)}` : '';
 }
 
 // --- conferma delle variazioni ---
@@ -1219,7 +1262,7 @@ const eurP = v => v == null ? '' : Number(v).toFixed(2).replace('.', ',') + ' �
 function pdfSetCode(rows, setName) {
   for (const { l } of rows) { const c = state.cm[l.exp]?.cards?.[l.p]?.c; if (c) return c.toUpperCase(); }
   const t = tcgSets.find(x => simp(x.name) === simp(setName));
-  return (t ? t.id : 'SET').toUpperCase();
+  return siglaOf(t ? t.id : '', setName) || (t ? t.id : 'SET').toUpperCase();
 }
 async function pdfVariations(rows, setName) {
   if (!rows.length) { alert('Nessuna variazione di prezzo in questo set.'); return; }
@@ -1283,6 +1326,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
     .sort((a, b) => (parseInt(a[1].u) || 0) - (parseInt(b[1].u) || 0) || String(a[1].u).localeCompare(String(b[1].u)) || a[1].rev - b[1].rev);
   if (!list.length) { if (cmCat) window.open(CMBULK + encodeURIComponent(cmCat.id), '_blank'); else window.open('https://www.cardmarket.com/it/Pokemon', '_blank'); return; }
   // prezzi di mercato freschi prima di decidere
+  if (!siglaOf(setId, setName)) { await tcg('/sets/' + encodeURIComponent(setId), 24 * 7); await tcg('@en/sets/' + encodeURIComponent(setId), 24 * 7); }
   if (list.some(([k]) => { const M = sbmOf(k); return !M || Date.now() - new Date(M.at) > AUTO_H * 3600e3; })) {
     openDlg('<h3>Apri su Cardmarket</h3><p>Aggiorno i prezzi di mercato delle carte in Standby…</p>');
     await updatePrices(false);
@@ -1300,7 +1344,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
     $('upBody').innerHTML = list.map(([k, x]) => {
       const v = jobVals(k), M = sbmOf(k), r = priceOf(k, b, plus);
       if (r.p == null) miss++; else tot += r.p * x.q;
-      return `<tr data-k="${esc(k)}" style="${r.p == null ? 'background:rgba(229,72,77,.12)' : ''}"><td><b>${esc(x.u)}</b> ${esc(x.n)}</td>
+      return `<tr data-k="${esc(k)}" style="${r.p == null ? 'background:rgba(229,72,77,.12)' : ''}"><td><b>${esc(cardCode(setId, setName, x.u))}</b> ${esc(x.n)}</td>
         <td>${x.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale'}</td><td class="n">${x.q}</td>
         <td class="n">${eur(v.lo) || '—'}</td><td class="n">${eur(v.t) || '—'}</td>
         <td class="n"><input type="number" min="0.02" step="0.01" class="upP" value="${r.p != null ? r.p.toFixed(2) : ''}" placeholder="scrivilo" style="${r.m ? 'border-color:var(--acc);font-weight:700' : ''}">
@@ -1321,8 +1365,8 @@ async function openOnCardmarket(setId, setName, cmCat) {
       <select id="upSign"><option value="1">+</option><option value="-1">−</option></select>
       <input type="number" id="upPlus" min="0" step="1" style="width:70px"> cent.</label><span class="small" id="upInfo"></span></div>
     <div style="max-height:46vh;overflow:auto"><table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n">Prezzo</th></tr></thead><tbody id="upBody"></tbody></table></div>
-    <ol class="small" style="line-height:1.7"><li>Premi <b>Apri Cardmarket</b>: si apre una scheda di Cardmarket${cmCat ? ' sulla pagina "Inserisci carte bulk" del set' : ''}.</li>
-    <li>Premi il pulsante <b>Card Scanner</b> nei preferiti${cmCat ? '' : ': ti porta alla pagina "Inserisci carte bulk" del set; lì premilo di nuovo'}. L'elenco e i prezzi sono già caricati.</li>
+    <ol class="small" style="line-height:1.7"><li>Premi <b>Apri Cardmarket</b>: si apre la pagina <b>Inserisci carte bulk</b> di Cardmarket.</li>
+    <li>Scegli il set <b>${esc(setName)}</b> in "Edizione", poi premi il pulsante <b>Card Scanner</b> nei preferiti: l'elenco e i prezzi sono già caricati. (Se il set nella pagina non è quello giusto, lo script ti propone "Vai a ${esc(setName)}".)</li>
     <li>Premi <b>Compila la pagina</b>, controlla, metti in vendita su Cardmarket e premi <b>📤 Invia al gestionale</b>.</li></ol>
     <p class="small">Se lo script non trova l'elenco (per esempio se usi una scheda di Cardmarket già aperta), nel riquadro dello script clicca "Incolla elenco dal gestionale": l'elenco è anche negli appunti.</p>
     <p class="row" style="justify-content:flex-end"><button id="dClose">Annulla</button><button class="pri" id="upGo">Apri Cardmarket ↗</button></p>`, () => {
@@ -1335,7 +1379,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
       cfg.base = b; cfg.plus = plusC; save();
       const lang = list[0][1].lang || 'it';
       const d = new Date(), z = n => String(n).padStart(2, '0');
-      const code = (Object.values(cmCat?.cards || {}).find(c => c.c)?.c || setId).toUpperCase();
+      const code = siglaOf(setId, setName) || String(setId).toUpperCase();
       const name = `${code}-${String(setName).trim().replace(/\s+/g, '_')}_${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
       const job = {
         v: 1, at: today(), name, set: cmCat?.name || setName, sid: setId, cm: cmCat?.id || '', lang, com: list.find(([, x]) => x.com)?.[1].com || '',
@@ -1344,7 +1388,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
       };
       const enc = 'csjob=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
       try { navigator.clipboard.writeText(enc); } catch (e) {}
-      const win = window.open(cmCat ? CMBULK + encodeURIComponent(cmCat.id) : 'https://www.cardmarket.com/it/Pokemon', enc);
+      const win = window.open('https://www.cardmarket.com/it/Pokemon/Stock/ListingMethods/BulkListing', enc);
       if (!win) { alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.'); return; }
       closeDlg();
       toast(`Elenco ${name} pronto per lo script Card Scanner`);
@@ -1565,7 +1609,10 @@ $('fSale').onchange = e => { importSales([...e.target.files]); e.target.value = 
 $('btnSold').onclick = () => { selected = '__sales'; renderSets(); renderSet(); };
 $('btnCat').onclick = () => $('fCat').click();
 $('fCat').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) importCatalog(fs); };
-$('btnUpd').onclick = async () => { const n = await updatePrices(true); toast(n ? `Prezzi aggiornati: ${n} carte con variazione` : 'Prezzi aggiornati: nessuna variazione'); };
+$('btnUpd').onclick = async () => {
+  const r = await updatePrices(true);
+  if (r) toast(`Prezzi aggiornati: ${r.tot} carte diverse (${r.copies} copie, in vendita e in Standby) · ${r.nNew ? r.nNew + ' con variazione' : 'nessuna variazione'}`);
+};
 $('btnBk').onclick = bkDialog;
 $('btnMore').onclick = () => {
   const all = Object.values(state.cm).flatMap(e => Object.values(e.cards));
@@ -1658,6 +1705,7 @@ function otherTab() {
   selected = (arrived && tcgIdFor(arrived)) || Object.keys(bySet).sort((a, b) => bySet[b].length - bySet[a].length)[0] || (tcgSets[0] && tcgSets[0].id) || null;
   refresh();
   updatePrices(false); // aggiorna da solo i prezzi più vecchi di 12 ore
+  loadMyCodes();
   setInterval(() => updatePrices(false), 3600e3); // e ricontrolla ogni ora se la pagina resta aperta
 })();
 </script>

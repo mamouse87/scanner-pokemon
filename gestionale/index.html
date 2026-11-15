@@ -74,7 +74,6 @@ aside input[type=search]{width:100%}
 #sets a{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 14px;margin:1px 8px;color:var(--fg);text-decoration:none;border-radius:8px}
 #sets a:hover{background:#f1f4f9}
 #sets a.sel{background:#e8eef9;color:var(--navy);font-weight:700;box-shadow:inset 3px 0 0 var(--navy)}
-#sets a img{width:22px;height:22px;object-fit:contain;flex-shrink:0}
 #sets a .nm{flex:1}
 #sets a .n{background:#e3f3ea;color:var(--ok);border-radius:99px;padding:0 6px;font-size:11.5px;font-weight:700;height:19px;line-height:19px;white-space:nowrap}
 #sets a .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -82,9 +81,7 @@ aside input[type=search]{width:100%}
 .mk6{display:grid;grid-template-columns:repeat(3,auto);gap:2px 12px;margin-bottom:4px}
 .mk6 span{display:flex;flex-direction:column;line-height:1.2}.mk6 i{font-style:normal;font-size:11px;color:var(--mut)}.mk6 b{font-size:13px}
 .mkc{margin:4px 0;padding:4px 8px;background:#e3f3ea;border-radius:6px;color:var(--ok)}.mkc .small{color:var(--mut)}
-#sets a .nw{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
-#sets a .sub{font-size:12px;font-weight:400;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#sets a .sub .g{color:var(--ok);font-weight:700}#sets a .sub .s{color:var(--sbc);font-weight:700}#sets a .sub .o{color:var(--var);font-weight:700}
+#sets a .n.sb{background:#e9edf3;color:var(--sbc)}#sets a .n.v{background:#fdebdc;color:var(--var)}
 #sets a.dash{font-weight:600}
 main{flex:1;overflow:auto;padding:22px 28px 70px}
 .sethead{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
@@ -471,8 +468,7 @@ function renderSets() {
   Object.keys(bySet).filter(id => id.startsWith('cm:')).forEach(id => all.push({ id, name: state.cm[id.slice(3)]?.name || bySet[id][0][1].expName || id }));
   const items = all.filter(s => (!q || simp(s.name).includes(q)) && (!only || cnt(s.id)));
   const mine = items.filter(s => cnt(s.id)), rest = items.filter(s => !cnt(s.id));
-  const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}">${s.symbol ? `<img src="${esc(s.symbol)}.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<span style="width:22px"></span>'}${(() => { const sub = [cnt0(s.id) ? `<span class="g">${cnt0(s.id)}</span> in vendita` : '', sbBy[s.id] ? `<span class="s">${sbBy[s.id]}</span> in Standby` : '', vBy[s.id] ? `<span class="o">${vBy[s.id]} ${vBy[s.id] === 1 ? 'variazione' : 'variazioni'}</span>` : ''].filter(Boolean);
-    return `<span class="nw"><span class="nm">${esc(s.name)}</span>${sub.length ? `<span class="sub">${sub.join(' · ')}</span>` : ''}</span>`; })()}</a>`;
+  const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}"><span class="nm">${esc(s.name)}</span>${vBy[s.id] ? `<span class="n v" title="${vBy[s.id]} carte con variazione di prezzo">⚠ ${vBy[s.id]}</span>` : ''}${sbBy[s.id] ? `<span class="n sb" title="copie in Standby (non ancora su Cardmarket)">SB ${sbBy[s.id]}</span>` : ''}${cnt0(s.id) ? `<span class="n" title="copie in vendita">${cnt0(s.id)}</span>` : ''}</a>`;
   renderTabs();
   $('sets').innerHTML = ((mine.length ? `<div class="grp">I tuoi set (in vendita / Standby)</div>${mine.map(link).join('')}` : '') +
     (rest.length ? `<div class="grp">${mine.length ? 'Tutti gli altri set' : 'Tutti i set'} · dal più recente (${rest.length})</div>${rest.map(link).join('')}` : '')) ||

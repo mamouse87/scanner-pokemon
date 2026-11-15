@@ -133,6 +133,7 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
       <button id="btnSold">📈 Vendite</button>
       <button id="btnCat" title="Carica il file .txt dell'app: le carte vanno in Standby">📥 Carica catalogo (.txt)</button>
       <button id="btnUpd">🔄 Aggiorna prezzi</button>
+      <button id="btnEditCM" title="Cambia i prezzi delle carte in vendita su Cardmarket, per tutti i set o uno solo">✏️ Cambia prezzi su Cardmarket</button>
       <button id="btnBk" title="Backup automatico">💾 Backup…</button>
       <button id="btnMore">⚙ Altro</button>
     </div>
@@ -489,6 +490,7 @@ async function renderSet() {
     <div class="row"><input type="search" id="qCard" placeholder="Cerca carta…">
     <select id="fShow"><option value="all">Mostra tutte le carte</option><option value="yes">Solo carte in vendita</option><option value="sb">Solo carte in Standby</option><option value="var">Solo con variazione di prezzo</option><option value="rev">Solo Reverse in vendita</option><option value="no">Solo carte che non ho</option></select>
     ${vars.length ? `<button class="pri" id="bPdf">📄 PDF revisione prezzi (${vars.length})</button><button id="bConf">✔ Conferma prezzi</button>` : ''}
+    ${copies ? `<button id="bEditCM" title="Cambia i prezzi delle carte in vendita su Cardmarket (es. da Tendenza a prezzo minimo)">✏️ Cambia prezzi su Cardmarket</button>` : ''}
     ${copies || sbQ ? `<button id="bSel" class="${selMode ? 'pri' : ''}" title="Seleziona più carte per toglierle dalla vendita, riportarle in Standby o toglierle dallo Standby">☑ Seleziona carte</button>` : ''}
     ${sbQ ? `<button class="pri" id="bOpenCM" title="Scegli il prezzo e prepara le carte in Standby per lo script Card Scanner">Apri su Cardmarket ↗ (${sbQ} in Standby)</button>` : cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="_blank"><button>Apri su Cardmarket ↗</button></a>` : ''}</div></div>
     ${selMode ? `<div class="selbar"><b id="selN">0 selezionate</b>
@@ -524,6 +526,7 @@ async function renderSet() {
   if ($('bPdf')) $('bPdf').onclick = () => pdfVariations(vars, setName);
   if ($('bOpenCM')) $('bOpenCM').onclick = () => openOnCardmarket(selected, setName, cmCat);
   if ($('bConf')) $('bConf').onclick = () => varDialog(vars, `Conferma prezzi · ${setName}`);
+  if ($('bEditCM')) $('bEditCM').onclick = () => openPriceEdit(mine[0]?.[1].expName || state.cm[mine[0]?.[1].exp]?.name || '');
   if ($('bSel')) $('bSel').onclick = () => { selMode = !selMode; sel.clear(); renderSet(); };
   if (selMode) {
     const upd = () => { $('selN').textContent = `${sel.size} carte selezionate`; document.querySelectorAll('.card').forEach(el => el.classList.toggle('sel', sel.has(el.dataset.n))); };
@@ -1382,8 +1385,9 @@ function varDialog(rows, title) {
       <td class="n"><input type="number" min="0.02" step="0.01" class="vP" value="${v.sugg.toFixed(2)}"></td>
       <td style="white-space:nowrap"><button class="sm pri" data-ok="1">✔ Prezzo cambiato</button> <button class="sm" data-keep="1">Tengo il mio</button></td></tr>`; }).join('')}
     </tbody></table>
-    <p class="row" style="justify-content:space-between;margin-top:12px"><button id="vAll">✔ Ho messo il consigliato a tutte</button><button id="dClose">Chiudi</button></p>`, () => {
+    <p class="row" style="justify-content:space-between;margin-top:12px"><span><button id="vAll">✔ Ho messo il consigliato a tutte</button> <button id="vScript" title="Lo script Card Scanner scrive i nuovi prezzi su Cardmarket">✏️ Cambiali con lo script</button></span><button id="dClose">Chiudi</button></p>`, () => {
     $('dClose').onclick = closeDlg;
+    $('vScript').onclick = () => { const L0 = rows[0]?.l; openPriceEdit(rows.every(r => (r.l.expName || '') === (L0?.expName || '')) ? (L0?.expName || state.cm[L0?.exp]?.name || '') : ''); };
     const done = tr => { tr.style.opacity = '.35'; tr.querySelectorAll('button,input').forEach(x => x.disabled = true); save(); refresh(); };
     $('dlgBody').querySelectorAll('[data-ok]').forEach(b => b.onclick = () => {
       const tr = b.closest('tr'), p = parseFloat(tr.querySelector('.vP').value);
@@ -1545,6 +1549,126 @@ async function openOnCardmarket(setId, setName, cmCat) {
       toast(`Elenco ${name} pronto per lo script Card Scanner`);
     };
   });
+}
+
+// ---------- "Cambia prezzi su Cardmarket": nuovi prezzi calcolati qui, applicati dallo script sulla pagina "Le mie offerte" ----------
+const OFFERS_URL = 'https://www.cardmarket.com/it/Pokemon/Stock/Offers/Singles';
+function editCfg() { return state.editCfg || (state.editCfg = { base: 'low', plus: 0 }); }
+async function openPriceEdit(scopeSet) {
+  // prezzi di mercato freschi prima di decidere
+  if (Object.keys(state.listings).some(k => { const M = mOf(k); return !M || Date.now() - new Date(M.at) > AUTO_H * 3600e3; })) {
+    openDlg('<h3>Cambia prezzi su Cardmarket</h3><p>Aggiorno i prezzi di mercato…</p>');
+    await updatePrices(false);
+  }
+  const cfg = editCfg(), over = {};
+  let scope = scopeSet || '';
+  const setOf = l => l.expName || state.cm[l.exp]?.name || '?';
+  const sets = [...new Set(Object.values(state.listings).map(setOf))].sort((a, b) => a.localeCompare(b));
+  const rowsOf = () => Object.entries(state.listings).filter(([, l]) => !scope || setOf(l) === scope)
+    .sort((a, b) => setOf(a[1]).localeCompare(setOf(b[1])) || (parseInt(a[1].u) || 0) - (parseInt(b[1].u) || 0) || a[1].rev - b[1].rev);
+  const calc = (k, l, b, plus) => {
+    if (over[k] != null) return { p: over[k], m: 1 };
+    const M = mOf(k);
+    if (!M || (l.rev && !M.rv)) return { p: null, why: l.rev && M ? 'manca il prezzo Reverse' : 'manca il prezzo' };
+    const v = b === 'trend' ? M.t : M.lo, o = b === 'trend' ? M.lo : M.t;
+    const x = v ?? o;
+    return x == null ? { p: null, why: 'manca il prezzo' } : { p: r2(Math.max(0.02, x + plus)), ref: x, used: v != null ? b : (b === 'trend' ? 'low' : 'trend') };
+  };
+  let cur = [];
+  const draw = () => {
+    scope = $('peSet').value;
+    const b = $('peBase').value, plus = (+$('peSign').value || 1) * Math.abs(parseInt($('pePlus').value || '0', 10) || 0) / 100;
+    const onlyCh = $('peOnly').checked;
+    cur = rowsOf().map(([k, l]) => ({ k, l, c: calc(k, l, b, plus) }));
+    const ch = cur.filter(r => r.c.p != null && r2(r.c.p) !== r2(l0(r.l.price)));
+    function l0(v) { return v == null ? -1 : v; }
+    const show = onlyCh ? ch.concat(cur.filter(r => r.c.p == null)) : cur;
+    $('peInfo').innerHTML = `<b>${ch.length}</b> offerte da cambiare su ${cur.length}` + (cur.some(r => r.c.p == null) ? ` · <span style="color:#e5484d">${cur.filter(r => r.c.p == null).length} senza prezzo di mercato (restano come sono)</span>` : '');
+    $('peBody').innerHTML = show.map(({ k, l, c }) => {
+      const M = mOf(k) || {}, same = c.p != null && r2(c.p) === r2(l.price ?? -1);
+      const code = state.cm[l.exp]?.cards?.[l.p]?.c || '';
+      return `<tr data-k="${esc(k)}" style="${c.p == null ? 'background:rgba(229,72,77,.10)' : same ? 'opacity:.55' : ''}">
+        <td><b>${esc(code)}${esc(l.u)}</b> ${esc(info(l).name)}<small>${esc(setOf(l))}</small></td>
+        <td>${l.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale'}</td><td class="n">${l.q}</td>
+        <td class="n">${eur(l.price)}</td><td class="n">${l.rev && !M.rv ? '—' : eur(M.lo) || '—'}</td><td class="n">${l.rev && !M.rv ? '—' : eur(M.t) || '—'}</td>
+        <td class="n"><input type="number" min="0.02" step="0.01" class="peP" value="${c.p != null ? c.p.toFixed(2) : ''}" placeholder="—" style="${c.m ? 'border-color:var(--acc);font-weight:700' : ''}">
+          <small>${c.m ? 'scritto da te' : c.p == null ? c.why : same ? 'già così' : c.used !== b ? `da ${BASEN[c.used]}` : ''}</small></td></tr>`;
+    }).join('') || '<tr><td colspan="7" class="small">Nessuna offerta da cambiare con questa regola.</td></tr>';
+    $('peBody').querySelectorAll('.peP').forEach(inp => inp.onchange = () => {
+      const k = inp.closest('tr').dataset.k, v = parseFloat(String(inp.value).replace(',', '.'));
+      if (isNaN(v) || v <= 0) delete over[k]; else over[k] = r2(v);
+      draw();
+    });
+    $('peGo').disabled = !ch.length;
+    $('peGo').textContent = ch.length ? `Apri le mie offerte su Cardmarket ↗ (${ch.length})` : 'Niente da cambiare';
+  };
+  openDlg(`<h3>Cambia prezzi su Cardmarket</h3>
+    <p class="small">Scegli il nuovo prezzo: il gestionale calcola quello di ogni offerta (Normali e Reverse separate) e lo script Card Scanner lo scrive su Cardmarket, nella pagina delle tue offerte.</p>
+    <div class="filters"><select id="peSet"><option value="">Tutti i set</option>${sets.map(x => `<option ${x === scope ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
+      <label>Nuovo prezzo = <select id="peBase"><option value="low">"Da" (prezzo minimo)</option><option value="trend">Tendenza</option></select>
+      <select id="peSign"><option value="1">+</option><option value="-1">−</option></select>
+      <input type="number" id="pePlus" min="0" step="1" style="width:70px"> cent.</label>
+      <label><input type="checkbox" id="peOnly" checked> solo quelle da cambiare</label></div>
+    <p class="small" id="peInfo"></p>
+    <div style="max-height:44vh;overflow:auto"><table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Prezzo ora</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n">Nuovo prezzo</th></tr></thead><tbody id="peBody"></tbody></table></div>
+    <ol class="small" style="line-height:1.7"><li>Premi il pulsante qui sotto: si apre la pagina delle tue offerte su Cardmarket.</li>
+      <li>Premi il pulsante <b>Card Scanner</b>: legge tutte le pagine delle tue offerte e trova quelle da cambiare.</li>
+      <li>Premi <b>▶ Inizia</b>: apre una carta alla volta e scrive il prezzo; tu controlli e premi <b>MODIFICA ARTICOLO</b> (oppure scegli la conferma automatica).</li>
+      <li>Alla fine premi <b>📤 Invia al gestionale</b>: i nuovi prezzi entrano qui, con la nuova regola.</li></ol>
+    <p class="row" style="justify-content:flex-end"><button id="dClose">Annulla</button><button class="pri" id="peGo">Apri le mie offerte su Cardmarket ↗</button></p>`, () => {
+    $('peBase').value = cfg.base; $('peSign').value = (+cfg.plus || 0) < 0 ? '-1' : '1'; $('pePlus').value = Math.abs(+cfg.plus || 0);
+    ['peSet', 'peBase', 'peSign', 'pePlus', 'peOnly'].forEach(id => { $(id).onchange = draw; });
+    $('pePlus').oninput = draw;
+    draw();
+    $('dClose').onclick = closeDlg;
+    $('peGo').onclick = () => {
+      const b = $('peBase').value, plusC = (+$('peSign').value || 1) * Math.abs(parseInt($('pePlus').value || '0', 10) || 0);
+      cfg.base = b; cfg.plus = plusC; save();
+      const ch = cur.filter(r => r.c.p != null && r2(r.c.p) !== r2(r.l.price ?? -1));
+      // offerte che hanno già il prezzo giusto: prendono subito la nuova regola (i controlli giornalieri partono da qui)
+      cur.filter(r => r.c.p != null && !r.c.m && r2(r.c.p) === r2(r.l.price ?? -1)).forEach(({ l, c }) => { l.rb = c.used; l.ro = plusC; if (c.ref != null) { l.ref = c.ref; l.refAt = today(); } });
+      const d = new Date(), z = n => String(n).padStart(2, '0');
+      const name = `PREZZI-${scope ? SavedListsName(scope) : 'Tutti'}_${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
+      const job = { v: 1, type: 'edit', at: today(), name, base: b, plus: plusC,
+        items: ch.map(({ k, l, c }) => ({ k, code: state.cm[l.exp]?.cards?.[l.p]?.c || '', exp: setOf(l), u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q,
+          old: l.price, price: c.p, b: c.m ? (l.rb || b) : c.used, o: c.m ? (l.ro ?? 0) : plusC, ref: c.ref ?? null, m: c.m ? 1 : 0 })) };
+      const enc = 'csedit=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
+      try { navigator.clipboard.writeText(enc); } catch (e) {}
+      const win = window.open(OFFERS_URL, enc);
+      if (!win) { alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.'); return; }
+      logOp('prezzo', scope, `Preparato "${name}": ${ch.length} offerte da cambiare (${BASEN[b]}${plusC ? ` ${plusC > 0 ? '+' : '−'} ${eur(Math.abs(plusC) / 100)}` : ''})`, ch.reduce((a, r) => a + r.l.q, 0));
+      save(); closeDlg();
+      toast(`Elenco ${name} pronto: premi Card Scanner sulla pagina delle tue offerte`);
+    };
+  });
+}
+const SavedListsName = n => String(n).normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^A-Za-z0-9]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join('');
+/** ritorno dallo script: prezzi cambiati su Cardmarket */
+function importEditFromHash() {
+  const m = location.hash.match(/^#cmedit=(.+)$/);
+  if (!m) return false;
+  history.replaceState(null, '', location.pathname);
+  let d;
+  try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Dati delle modifiche non leggibili.'); return false; }
+  let n = 0, copies = 0;
+  const txt = {};
+  (d.res || []).forEach(r => {
+    const L = state.listings[r.k];
+    if (!L) return;
+    const set = L.expName || state.cm[L.exp]?.name || '';
+    (txt[set] = txt[set] || []).push(`${L.u}${L.rev ? ' R' : ''} ${eur(L.price)} → ${eur(r.price)}`);
+    L.price = r2(r.price); L.pAt = r.at || today();
+    if (r.b) L.rb = r.b;
+    if (r.o != null) L.ro = r.o;
+    // riferimento = valore di mercato di oggi con la nuova regola (così la variazione riparte da qui)
+    const cur = baseOf(mOf(r.k), L.rb || 'low');
+    if (cur != null && (!L.rev || mOf(r.k)?.rv)) { L.ref = cur; L.refAt = mOf(r.k)?.upd || today(); } else if (r.ref != null) { L.ref = r.ref; L.refAt = today(); }
+    n++; copies += L.q;
+  });
+  Object.entries(txt).forEach(([set, a]) => logOp('prezzo', set, `Prezzi cambiati su Cardmarket (script, ${d.name || ''}): ${a.join(', ')}`, null));
+  save();
+  setTimeout(() => toast(n ? `Prezzi aggiornati: ${n} offerte (${copies} copie) cambiate su Cardmarket` : 'Nessun prezzo da aggiornare'), 300);
+  return true;
 }
 
 // ---------- storico prezzi (per il grafico degli ultimi 10 giorni) ----------
@@ -1784,6 +1908,7 @@ $('btnSale').onclick = () => $('fSale').click();
 $('fSale').onchange = e => { importSales([...e.target.files]); e.target.value = ''; };
 $('btnSold').onclick = () => { selected = '__sales'; renderSets(); renderSet(); };
 $('btnCat').onclick = () => $('fCat').click();
+$('btnEditCM').onclick = () => openPriceEdit('');
 $('fCat').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) importCatalog(fs); };
 $('btnUpd').onclick = async () => {
   const r = await updatePrices(true);
@@ -1833,7 +1958,7 @@ document.addEventListener('drop', async e => {
   if (rest.length) importSales(rest);
 });
 $('fPg').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) pgFile(f); };
-window.addEventListener('hashchange', () => { const name = importFromHash(); if (name) selected = tcgIdFor(name) || selected; refresh(); });
+window.addEventListener('hashchange', () => { if (importEditFromHash()) { refresh(); return; } const name = importFromHash(); if (name) selected = tcgIdFor(name) || selected; refresh(); });
 
 // ---------- una sola pagina del gestionale ----------
 // Lo script di Cardmarket rimanda i dati alla scheda chiamata "gestionaleCarte". Se però si apre una scheda nuova
@@ -1866,7 +1991,7 @@ function otherTab() {
   const other = await otherTab();
   if (other) {
     secondary = true;
-    const hasData = /^#cm2=/.test(location.hash);
+    const hasData = /^#(cm2|cmedit)=/.test(location.hash);
     if (hasData) BC.postMessage({ type: 'data', to: other, hash: location.hash });
     history.replaceState(null, '', location.pathname);
     document.body.innerHTML = `<div class="empty" style="margin:80px auto;max-width:560px;font-size:16px">
@@ -1875,6 +2000,7 @@ function otherTab() {
     setTimeout(() => { try { window.close(); } catch (e) {} }, 1500);
     return;
   }
+  const edited = importEditFromHash();
   const arrived = importFromHash();
   bkInit();
   await loadSets();

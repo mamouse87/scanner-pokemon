@@ -8,6 +8,17 @@
   // arriva nel nome della scheda (window.name = "csjob=…") e resta salvato in cardmarket.com finché non è tutto inviato
   const JKEY = 'cs_job';
   const jobGet = () => { try { return JSON.parse(localStorage.getItem(JKEY)) || null; } catch (e) { return null; } };
+  /** elenco del gestionale: csjob= (carte da mettere in vendita) o csedit= (prezzi da cambiare) */
+  function intakeAny(txt) {
+    const m = String(txt || '').trim().match(/^csedit=(.+)$/);
+    if (!m) return intake(txt);
+    try {
+      const j = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));
+      if (!j || !Array.isArray(j.items)) return false;
+      localStorage.setItem('cs_edit', JSON.stringify(j));
+      return true;
+    } catch (e) { return false; }
+  }
   function intake(txt) {
     const m = String(txt || '').trim().match(/^csjob=(.+)$/);
     if (!m) return false;
@@ -18,10 +29,288 @@
       return true;
     } catch (e) { return false; }
   }
-  if (intake(window.name)) {
+  if (intakeAny(window.name)) {
+    const wasEdit = /^csedit=/.test(window.name);
     try { window.name = ''; } catch (e) {}
-    if (window.__csPanel) { window.__csPanel.remove(); window.__csPanel = null; } // elenco nuovo: rifaccio il pannello
+    if (!wasEdit && window.__csPanel) { window.__csPanel.remove(); window.__csPanel = null; } // elenco nuovo: rifaccio il pannello
+    if (wasEdit && window.__csOffers) { window.__csOffers.remove(); window.__csOffers = null; }
   }
+  // ================= LE MIE OFFERTE: cambio prezzi =================
+  // Sulla pagina "Le mie offerte" (Stock/Offers/Singles) lo script legge tutte le pagine delle offerte
+  // (Reverse Sì e No separati, con il filtro di Cardmarket), le abbina all'elenco preparato dal gestionale
+  // ("Cambia prezzi su Cardmarket") e apre una carta alla volta il riquadro "Modifica", scrivendo il nuovo prezzo.
+  // "MODIFICA ARTICOLO" lo premi tu, a meno di scegliere la conferma automatica (lenta).
+  function offersMode() {
+    if (window.__csOffers) { window.__csOffers.style.display = 'block'; return; }
+    const EKEY = 'cs_edit', DKEY = 'cs_edit_done', OKEY = 'cs_offers';
+    const GEST = 'https://mamouse87.github.io/scanner-pokemon/gestionale/';
+    const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+    const escH = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const eur = v => v == null ? '—' : Number(v).toFixed(2).replace('.', ',') + ' €';
+    const nrm = n => { n = String(n || '').trim().toUpperCase(); return /^\d+$/.test(n) ? String(parseInt(n, 10)) : n; };
+    const smp = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const LANGS = { Italiano: 'it', Inglese: 'en', English: 'en', Francese: 'fr', Tedesco: 'de', Spagnolo: 'es', Portoghese: 'pt', Giapponese: 'ja', Coreano: 'ko', 'Cinese semplificato': 'zh', 'Cinese tradizionale': 'zt' };
+    let job = ls.get(EKEY, null);
+    let done = ls.get(DKEY, {});
+    if (job && done.__job !== job.name) { done = { __job: job.name }; ls.set(DKEY, done); }
+    let offers = ls.get(OKEY, null);           // {at, list:[…]} ultima lettura delle offerte
+    let running = false, stopReq = false;
+
+    const P = document.createElement('div');
+    window.__csOffers = P;
+    P.style.cssText = 'position:fixed;top:12px;right:12px;width:480px;max-height:92vh;overflow:auto;z-index:99999;background:#14181d;color:#e8eaed;' +
+      'font:13px/1.45 system-ui,sans-serif;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.5);padding:14px';
+    document.body.appendChild(P);
+    const $o = id => P.querySelector('#' + id);
+    const btn = 'border:0;border-radius:8px;padding:7px 12px;font-weight:700;cursor:pointer';
+
+    function render() {
+      const items = job ? job.items : [];
+      const m = matchAll();
+      const nOk = m.filter(x => x.st === 'ok' || x.st === 'same').length;
+      P.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <b style="color:#ffcb05">Card Scanner → cambio prezzi</b><a href="#" id="oX" style="color:#9aa3ad;font-size:18px;text-decoration:none">✕</a></div>
+        ${job ? `<div style="background:#12324a;border-radius:8px;padding:8px;margin-bottom:8px">📋 <b>${escH(job.name)}</b><br>${items.length} offerte da cambiare · nuovo prezzo <b>${job.base === 'trend' ? 'Tendenza' : '"Da"'}${job.plus ? ` ${job.plus > 0 ? '+' : '−'} ${eur(Math.abs(job.plus) / 100)}` : ''}</b> (calcolato dal gestionale per Normali e Reverse)</div>`
+          : `<div style="background:#3a2a12;border-radius:8px;padding:8px;margin-bottom:8px">Nessun elenco dal gestionale. Nel gestionale premi <b>✏️ Cambia prezzi su Cardmarket</b>, poi torna qui e premi di nuovo il pulsante. <a href="#" id="oClip" style="color:#ffcb05">Incolla elenco dal gestionale</a></div>`}
+        <div style="margin-bottom:8px">${offers ? `Offerte lette: <b>${offers.list.length}</b> (${new Date(offers.at).toLocaleString('it-IT')})` : 'Offerte non ancora lette.'}
+          <button id="oRead" style="${btn};background:#2a313b;color:#e8eaed;margin-left:6px">🔎 ${offers ? 'Rileggi' : 'Leggi'} le mie offerte</button></div>
+        <div id="oProg" style="color:#9aa3ad;margin-bottom:6px"></div>
+        ${job && offers ? `<div style="margin-bottom:8px">Trovate <b>${m.filter(x => x.o).length}</b> su ${items.length} · fatte <b style="color:#3ecf6e">${nOk}</b>${m.filter(x => !x.o).length ? ` · <span style="color:#ff6b6b">${m.filter(x => !x.o).length} non trovate</span>` : ''}</div>
+          <label style="display:block;margin-bottom:8px"><input type="checkbox" id="oAuto" ${ls.get('cs_edit_auto', false) ? 'checked' : ''}> Conferma automatica (preme lui "MODIFICA ARTICOLO", una carta ogni 3 secondi)</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+            <button id="oGo" style="${btn};background:#ffcb05;color:#111">${running ? '⏸ Pausa' : '▶ Inizia'}</button>
+            <button id="oVer" style="${btn};background:#2a313b;color:#e8eaed">🔁 Verifica</button>
+            <button id="oSend" style="${btn};background:#3ecf6e;color:#111">📤 Invia al gestionale (${nOk})</button></div>
+          <div style="max-height:40vh;overflow:auto;background:#0d1014;border-radius:8px;padding:6px">${m.map(x => `<div style="display:flex;gap:6px;padding:2px 0;${x.st === 'ok' || x.st === 'same' ? 'opacity:.6' : ''}">
+            <span style="width:84px;color:#9aa3ad">${escH((x.it.code || '') + ' ' + x.it.u)}${x.it.rev ? ' <b style="color:#cc5de8">R</b>' : ''}</span>
+            <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escH(x.it.n || '')}</span>
+            <span>${eur(x.o ? x.o.price : x.it.old)} → <b>${eur(x.it.price)}</b></span>
+            <span style="width:96px;text-align:right;${x.st === 'ok' || x.st === 'same' ? 'color:#3ecf6e' : x.st === 'skip' ? 'color:#ff9f43' : !x.o ? 'color:#ff6b6b' : 'color:#9aa3ad'}">${!x.o ? 'non trovata' : x.st === 'ok' ? '✓ fatto' + (x.ver ? ' ✓' : '') : x.st === 'same' ? '✓ già così' : x.st === 'skip' ? 'saltata' : x.st === 'err' ? '⚠ errore' : 'da fare'}</span></div>`).join('')}</div>` : ''}`;
+      $o('oX').onclick = e => { e.preventDefault(); P.style.display = 'none'; };
+      if ($o('oClip')) $o('oClip').onclick = async e => {
+        e.preventDefault();
+        let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
+        if (intakeAny(t)) { job = ls.get(EKEY, null); done = { __job: job.name }; ls.set(DKEY, done); render(); } else alert('Negli appunti non c\'è un elenco di prezzi del gestionale.');
+      };
+      $o('oRead').onclick = () => readAll();
+      if ($o('oGo')) $o('oGo').onclick = () => { if (running) { stopReq = true; prog('Mi fermo dopo questa carta…'); } else run(); };
+      if ($o('oAuto')) $o('oAuto').onchange = () => ls.set('cs_edit_auto', $o('oAuto').checked);
+      if ($o('oVer')) $o('oVer').onclick = () => verify();
+      if ($o('oSend')) $o('oSend').onclick = () => send();
+    }
+    const prog = t => { const e = $o('oProg'); if (e) e.textContent = t; };
+
+    // ---- lettura di tutte le pagine delle offerte ----
+    function parseRows(doc, rev) {
+      return [...doc.querySelectorAll('[id^="stockRow"]')].map(row => {
+        const id = row.id.replace('stockRow', '');
+        const a = row.querySelector('.col-seller a');
+        const name = (a ? a.textContent : '').replace(/\s+/g, ' ').trim();
+        const mm = name.match(/^(.*?)\s*\(([A-Z0-9]+)\s+([A-Z]*\d+[a-z]?)\)\s*$/i);
+        const expEl = row.querySelector('.expansion-symbol');
+        const exp = expEl ? (expEl.getAttribute('aria-label') || expEl.getAttribute('data-bs-original-title') || expEl.getAttribute('title') || '') : '';
+        let lang = '';
+        row.querySelectorAll('.product-attributes [aria-label], .product-attributes [data-bs-original-title]').forEach(e => { const l = e.getAttribute('aria-label') || e.getAttribute('data-bs-original-title'); if (LANGS[l]) lang = LANGS[l]; });
+        const pt = row.querySelector('.price-container .fw-bold') || row.querySelector('.fw-bold');
+        const price = pt ? parseFloat(pt.textContent.replace(/[^\d,.]/g, '').replace(',', '.')) : null;
+        const qt = row.querySelector('.amount-container .item-count') || row.querySelector('.item-count');
+        return { id, name: mm ? mm[1].trim() : name, code: mm ? mm[2].toUpperCase() : '', num: mm ? mm[3] : '', exp, lang: lang || 'it', rev, price, qty: qt ? +qt.textContent.trim() : null };
+      }).filter(x => x.id);
+    }
+    async function readAll() {
+      if (running) return;
+      running = true;
+      const list = [];
+      try {
+        for (const rev of ['N', 'Y']) {
+          let page = 1, pages = 1;
+          do {
+            prog(`Leggo le offerte ${rev === 'Y' ? 'Reverse' : 'normali'}: pagina ${page} di ${pages}…`);
+            const r = await fetch(`/it/Pokemon/Stock/Offers/Singles?isReverseHolo=${rev}&site=${page}`, { credentials: 'include' });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+            const rows = parseRows(doc, rev === 'Y');
+            list.push(...rows);
+            const pm = (doc.body.textContent.match(/Pagina\s+\d+\s+di\s+(\d+)/i) || [])[1];
+            pages = pm ? +pm : (rows.length ? page : page);
+            page++;
+            await sleep(700);
+          } while (page <= pages && page < 200);
+        }
+        // la stessa offerta non deve comparire due volte
+        const seen = new Set();
+        offers = { at: new Date().toISOString(), list: list.filter(o => !seen.has(o.id) && seen.add(o.id)) };
+        ls.set(OKEY, offers);
+        prog(`Lette ${offers.list.length} offerte (${offers.list.filter(o => o.rev).length} Reverse).`);
+      } catch (e) {
+        prog('Errore nella lettura delle offerte: ' + (e.message || e) + '. Riprova tra poco.');
+      }
+      running = false;
+      render();
+      prog(offers ? `Lette ${offers.list.length} offerte (${offers.list.filter(o => o.rev).length} Reverse).` : '');
+    }
+
+    // ---- abbinamento elenco ↔ offerte ----
+    function matchAll() {
+      if (!job || !offers) return (job ? job.items : []).map(it => ({ it, o: null, st: '' }));
+      const byCode = {}, byExp = {};
+      offers.list.forEach(o => {
+        const tail = `|${nrm(o.num)}|${o.rev ? 'R' : 'N'}|${o.lang}`;
+        if (o.code) (byCode[o.code + tail] = byCode[o.code + tail] || []).push(o);
+        (byExp[smp(o.exp) + tail] = byExp[smp(o.exp) + tail] || []).push(o);
+      });
+      const out = [];
+      job.items.forEach(it => {
+        const tail = `|${nrm(it.u)}|${it.rev ? 'R' : 'N'}|${it.lang || 'it'}`;
+        const os = (it.code && byCode[it.code.toUpperCase() + tail]) || byExp[smp(it.exp) + tail] || [];
+        if (!os.length) { out.push({ it, o: null, st: '' }); return; }
+        os.forEach(o => {
+          const d = done[it.k + '#' + o.id] || {};
+          const same = o.price != null && Math.abs(o.price - it.price) < 0.005;
+          out.push({ it, o, st: d.st || (same ? 'same' : ''), ver: d.ver });
+        });
+      });
+      return out;
+    }
+
+    // ---- apertura del riquadro "Modifica" di un'offerta ----
+    const modal = () => document.getElementById('modal');
+    const modalOpen = () => { const m = modal(); return !!m && (m.classList.contains('show') || getComputedStyle(m).display === 'block'); };
+    let lastInput = null;
+    async function openEdit(id) {
+      const real = document.querySelector(`#stockRow${id} a[data-modal*="EditArticleModal"]`);
+      let a = real;
+      if (!a) {
+        a = document.createElement('a');
+        a.href = '#'; a.setAttribute('role', 'button');
+        a.setAttribute('data-bs-toggle', 'modal'); a.setAttribute('data-bs-target', '#modal'); a.setAttribute('data-backdrop', 'true');
+        a.setAttribute('data-modal', `/it/Pokemon/Modal/Article_EditArticleModal?showUserOffersRow=1&table=userOffers&idArticle=${id}`);
+        a.style.display = 'none';
+        document.body.appendChild(a);
+      }
+      a.click();
+      if (!real) setTimeout(() => a.remove(), 2000);
+      // aspetto il nuovo riquadro con il campo prezzo (non quello della carta precedente)
+      for (let i = 0; i < 60; i++) {
+        await sleep(200);
+        const inp = modal() && modal().querySelector('input[name="price"]');
+        if (inp && inp !== lastInput && modalOpen()) { lastInput = inp; return inp; }
+      }
+      return null;
+    }
+    function setVal(el, v) {
+      const proto = Object.getPrototypeOf(el);
+      const d = Object.getOwnPropertyDescriptor(proto, 'value');
+      if (d && d.set) d.set.call(el, v); else el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    function submitBtn() {
+      const m = modal();
+      if (!m) return null;
+      return [...m.querySelectorAll('button, input[type="submit"]')].find(b => /modifica\s+articolo/i.test(b.textContent || b.value || '')) ||
+        m.querySelector('form [type="submit"]');
+    }
+    async function waitClosed(maxMs) {
+      for (let t = 0; t < maxMs; t += 250) { await sleep(250); if (!modalOpen()) return true; if (stopHard) return false; }
+      return false;
+    }
+    let stopHard = false;
+
+    async function run() {
+      if (!job || !offers) return;
+      running = true; stopReq = false; stopHard = false; render();
+      const auto = !!$o('oAuto')?.checked;
+      for (const x of matchAll()) {
+        if (stopReq) break;
+        if (!x.o || x.st === 'ok' || x.st === 'same') continue;
+        const key = x.it.k + '#' + x.o.id;
+        prog(`Apro ${x.it.code || ''} ${x.it.u} ${x.it.n || ''}${x.it.rev ? ' Reverse' : ''}…`);
+        const inp = await openEdit(x.o.id);
+        if (!inp) { done[key] = { st: 'err' }; ls.set(DKEY, done); prog('Il riquadro "Modifica" non si è aperto: ricarica la pagina (F5) e riprova.'); break; }
+        const m = modal();
+        // controllo: il riquadro è di questa carta?
+        const title = (m.querySelector('.modal-title, h1, h2, h3, h4, h5') || {}).textContent || '';
+        if (title && x.it.n && x.o.name && !smp(title).includes(smp(x.o.name).slice(0, 6))) {
+          prog(`⚠ Il riquadro aperto ("${title.trim()}") non sembra quello di ${x.o.name}: mi fermo per sicurezza.`);
+          done[key] = { st: 'err' }; ls.set(DKEY, done); break;
+        }
+        // eventuale Reverse: il riquadro deve avere la spunta Reverse coerente
+        const revBox = m.querySelector('input[name="isReverseHolo"], input[name*="everse"]');
+        if (revBox && revBox.type === 'checkbox' && revBox.checked !== !!x.it.rev) {
+          prog(`⚠ Il riquadro di ${x.o.name} non è ${x.it.rev ? 'Reverse' : 'normale'} come previsto: mi fermo per sicurezza.`);
+          done[key] = { st: 'err' }; ls.set(DKEY, done); break;
+        }
+        setVal(inp, x.it.price.toFixed(2));
+        inp.style.outline = '3px solid #ffcb05'; inp.style.background = '#fff7cc';
+        let submitted = false;
+        const sb = submitBtn();
+        const onSub = () => { submitted = true; };
+        if (sb) sb.addEventListener('click', onSub, true);
+        const form = inp.form; if (form) form.addEventListener('submit', onSub, true);
+        if (auto && sb) {
+          prog(`${x.o.name}: ${eur(x.o.price)} → ${eur(x.it.price)} · confermo…`);
+          await sleep(700);
+          sb.click();
+          const closed = await waitClosed(20000);
+          if (!closed) { done[key] = { st: 'err' }; ls.set(DKEY, done); prog(`⚠ ${x.o.name}: Cardmarket non ha chiuso il riquadro (errore?). Controlla e premi ▶ per continuare.`); break; }
+        } else {
+          prog(`👉 ${x.o.name}${x.it.rev ? ' Reverse' : ''}: ${eur(x.o.price)} → ${eur(x.it.price)} — controlla e premi "MODIFICA ARTICOLO" (o chiudi il riquadro per saltarla).`);
+          await waitClosed(30 * 60 * 1000);
+        }
+        if (sb) sb.removeEventListener('click', onSub, true);
+        done[key] = { st: submitted ? 'ok' : 'skip', at: new Date().toISOString() };
+        ls.set(DKEY, done);
+        if (submitted) x.o.price = x.it.price;
+        render();
+        await sleep(auto ? 3000 : 600);
+      }
+      ls.set(OKEY, offers);
+      running = false; render();
+      const left = matchAll().filter(x => x.o && x.st !== 'ok' && x.st !== 'same').length;
+      prog(left ? `Fermo. Mancano ${left} offerte: premi ▶ per continuare.` : 'Finito ✓ Premi "🔁 Verifica" per ricontrollare i prezzi su Cardmarket, poi "📤 Invia al gestionale".');
+    }
+
+    // ---- verifica: rilegge le offerte e controlla i prezzi ----
+    async function verify() {
+      await readAll();
+      if (!offers) return;
+      const byId = Object.fromEntries(offers.list.map(o => [o.id, o]));
+      let ok = 0, bad = 0;
+      Object.keys(done).forEach(key => {
+        if (key === '__job') return;
+        const [k, id] = key.split('#');
+        const it = job.items.find(i => i.k === k), o = byId[id];
+        if (!it || !o) return;
+        if (Math.abs(o.price - it.price) < 0.005) { done[key] = Object.assign(done[key], { st: 'ok', ver: 1 }); ok++; }
+        else if (done[key].st === 'ok') { done[key] = { st: '', ver: 0 }; bad++; }
+      });
+      ls.set(DKEY, done); render();
+      prog(`Verifica: ${ok} prezzi giusti su Cardmarket${bad ? `, ${bad} NON cambiati (di nuovo "da fare")` : ''}.`);
+    }
+
+    // ---- invio al gestionale ----
+    function send() {
+      const res = [];
+      const seen = new Set();
+      matchAll().forEach(x => {
+        if (!x.o || (x.st !== 'ok' && x.st !== 'same') || seen.has(x.it.k)) return;
+        seen.add(x.it.k);
+        res.push({ k: x.it.k, price: x.it.price, b: x.it.b, o: x.it.o, ref: x.it.ref, at: (done[x.it.k + '#' + x.o.id] || {}).at || new Date().toISOString() });
+      });
+      if (!res.length) { alert('Nessun prezzo cambiato da inviare.'); return; }
+      const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, name: job.name, res }))));
+      window.open(GEST + '#cmedit=' + encodeURIComponent(enc), 'gestionaleCarte');
+      prog(`Inviati ${res.length} prezzi al gestionale ✓`);
+    }
+
+    render();
+    if (job && !offers) readAll();
+  }
+
+  // pagina "Le mie offerte": cambio prezzi
+  if (/\/Stock\/Offers\//i.test(location.pathname)) { offersMode(); return; }
   if (window.__csPanel) { window.__csPanel.style.display = 'block'; return; }
 
   const form = document.getElementById('BulkListingForm');
@@ -36,6 +325,8 @@
         location.href = '/it/Pokemon/Stock/ListingMethods/BulkListing' + (id ? '?idExpansion=' + encodeURIComponent(id) : '');
       return;
     }
+    let ej = null; try { ej = JSON.parse(localStorage.getItem('cs_edit')); } catch (e) {}
+    if (ej && confirm(`Il gestionale ha preparato "${ej.name}" (${ej.items.length} prezzi da cambiare).\n\nVado alla pagina delle tue offerte? Quando si apre, premi di nuovo il pulsante Card Scanner.`)) { location.href = '/it/Pokemon/Stock/Offers/Singles'; return; }
     alert('Apri prima la pagina "Inserisci carte bulk" di Cardmarket per un\'espansione, poi premi di nuovo il pulsante.\n\nSe hai preparato le carte nel gestionale ("Apri su Cardmarket"), apri Cardmarket da lì.');
     return;
   }

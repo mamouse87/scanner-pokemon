@@ -15,7 +15,9 @@ class SetData(
     val id: String, val name: String, val total: Int, val cards: Map<String, CardInfo>,
     val logo: String = "", val symbol: String = "",
     /** carte oltre il numero ufficiale (fuoriserie / segrete) */
-    val extra: Int = 0
+    val extra: Int = 0,
+    /** sigla del set (es. DLR, ASC), se TCGdex la conosce */
+    val code: String = ""
 )
 
 /** Dati carte da TCGdex (gratuito, anche in italiano). Ogni risposta viene salvata: offline usa la copia. */
@@ -70,12 +72,25 @@ object CardRepo {
         return cards
     }
 
+    /** Sigla del set nei dati TCGdex: abbreviation.official / .normal oppure tcgOnline */
+    private fun abbr(o: JSONObject?): String {
+        if (o == null) return ""
+        val a = o.opt("abbreviation")
+        val v = when (a) {
+            is JSONObject -> a.optString("official", "").ifEmpty { a.optString("normal", "") }
+            is String -> a
+            else -> ""
+        }.ifEmpty { o.optString("tcgOnline", "") }
+        return v.trim().uppercase()
+    }
+
     fun set(ctx: Context, lang: String, id: String): SetData {
         val enc = URLEncoder.encode(id, "UTF-8")
         val o = JSONObject(get(ctx, "/$lang/sets/$enc", "set_${lang}_$id.json"))
         val cards = parseCards(o)
         var logo = o.optString("logo", "")
         var total = o.optJSONObject("cardCount")?.optInt("official", 0) ?: 0
+        var code = abbr(o)
         // Per i set nuovi TCGdex in italiano spesso non ha fuoriserie e immagini: le completo dalla versione inglese
         if (lang != "en") {
             try {
@@ -87,11 +102,12 @@ object CardRepo {
                 }
                 if (logo.isEmpty()) logo = en.optString("logo", "")
                 if (total == 0) total = en.optJSONObject("cardCount")?.optInt("official", 0) ?: 0
+                if (code.isEmpty()) code = abbr(en)
             } catch (_: Exception) {
             }
         }
         val extra = if (total > 0) cards.keys.count { k -> k.toIntOrNull()?.let { it > total } ?: false } else 0
-        return SetData(o.getString("id"), o.optString("name", id), total, cards, logo, o.optString("symbol", ""), extra)
+        return SetData(o.getString("id"), o.optString("name", id), total, cards, logo, o.optString("symbol", ""), extra, code)
     }
 
     /** Rarità in italiano (TCGdex inglese tradotto, se la carta non c'è in italiano) */

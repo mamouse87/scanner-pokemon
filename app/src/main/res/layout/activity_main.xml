@@ -191,6 +191,16 @@
                 android:layout_margin="16dp"
                 android:text="📷 Leggi ventaglio"
                 android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnScan"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|center_horizontal"
+                android:layout_margin="16dp"
+                android:paddingHorizontal="22dp"
+                android:text="▶ Avvia scansione"
+                android:textSize="16sp" />
         </FrameLayout>
     </com.google.android.material.card.MaterialCardView>
 

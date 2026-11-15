@@ -1430,14 +1430,16 @@ const isCatalogTxt = t => /^\s*CARDSCANNER/i.test(t) || /^\s*SET\s+.+\|/im.test(
 function parseCatalog(text) {
   if (/<br|<html|<body/i.test(text)) text = new DOMParser().parseFromString(text.replace(/<br\s*\/?>/gi, '\n'), 'text/html').body.textContent;
   const sets = [];
-  let cur = null, com = '';
+  let cur = null, com = '', listId = '';
   text.replace(/ /g, ' ').split(/\r?\n/).forEach(line => {
     const l = line.trim();
+    const li = l.match(/^#\s*LISTA\s+(\S+)/i);
+    if (li) { listId = li[1]; if (cur) cur.listId = listId; return; }
     if (!l || l.startsWith('#') || /^CARDSCANNER/i.test(l)) return;
     let m = l.match(/^COMMENTO\s+(.*)$/i);
     if (m) { com = m[1].trim(); if (cur) cur.com = com; return; }
     m = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*(?:\|\s*([^|]*?))?\s*$/i);
-    if (m) { cur = { name: m[1].trim(), lang: m[2].toLowerCase(), id: (m[3] || '').trim(), com, items: [] }; sets.push(cur); return; }
+    if (m) { cur = { name: m[1].trim(), lang: m[2].toLowerCase(), id: (m[3] || '').trim(), com, listId, items: [] }; sets.push(cur); return; }
     if (!cur) return;
     m = l.match(/^([A-Z]*\d+[a-z]?)\s*\|\s*x\s*(\d+)\s*\|\s*([NR])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|]*?))?\s*$/i);
     if (m) { cur.items.push({ u: m[1], q: +m[2], rev: m[3].toUpperCase() === 'R', n: m[4] || '', r: m[5] || '' }); return; }
@@ -1455,10 +1457,31 @@ async function importCatalog(files) {
   state.standby = state.standby || {};
   let last = null;
   const msg = [];
+  state.lists = state.lists || {};
   for (const f of files) {
     const sets = parseCatalog(await f.text());
     if (!sets.length) { alert(`"${f.name}" non è un catalogo dell'app (formato CARDSCANNER).`); continue; }
+    // lista numerata dell'app (es. DLR-DominioDelta001): si AGGIUNGE allo Standby del set, una volta sola
+    const fileList = (f.name.match(/^([A-Za-z0-9.]+-[^.]*?\d{3})(?: ?\(\d+\))?\.(txt|html?)$/i) || [])[1] || '';
     for (const S of sets) {
+      const listId = S.listId || (sets.length === 1 ? fileList : '');
+      if (listId) {
+        if (state.lists[listId]) { msg.push(`${listId}: già caricata il ${fmtD(state.lists[listId].at)}, saltata`); continue; }
+        const sid = S.id && tcgSets.some(x => x.id === S.id) ? S.id : (tcgIdFor(S.name) || S.id);
+        if (!sid) { msg.push(`${listId}: set "${S.name}" non riconosciuto, saltata`); continue; }
+        const sn = tcgSets.find(x => x.id === sid)?.name || S.name;
+        let tot = 0;
+        S.items.forEach(it => {
+          const k = sbKey(sid, it.u, it.rev, S.lang);
+          const x = state.standby[k] || (state.standby[k] = { s: sid, sn, u: it.u, rev: it.rev, lang: S.lang, q: 0, n: it.n, r: it.r, com: S.com || '', date: today(), file: f.name });
+          x.q += it.q; x.file = f.name; if (S.com) x.com = S.com;
+          tot += it.q;
+        });
+        state.lists[listId] = { at: today(), set: sn, q: tot };
+        msg.push(`${listId}: +${tot} copie nello Standby di ${sn}`);
+        last = sid;
+        continue;
+      }
       const sid = S.id && tcgSets.some(x => x.id === S.id) ? S.id : (tcgIdFor(S.name) || S.id);
       if (!sid) { msg.push(`${S.name}: set non riconosciuto, saltato`); continue; }
       const sn = tcgSets.find(x => x.id === sid)?.name || S.name;

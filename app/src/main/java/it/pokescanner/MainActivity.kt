@@ -88,6 +88,10 @@ class MainActivity : AppCompatActivity() {
     private var imageCapture: ImageCapture? = null
     private var torch = false
     private var tone: ToneGenerator? = null
+    private var chime: Chime? = null
+    /** ▶/⏸: la scansione della carta singola parte solo quando la avvii */
+    @Volatile private var scanning = false
+    private var ambSince = 0L   // da quando l'app vede due numeri insieme
 
     private var sets: List<SetInfo> = emptyList()
     private var set: SetData? = null
@@ -149,6 +153,7 @@ class MainActivity : AppCompatActivity() {
 
         Inventory.load(this)
         tone = try { ToneGenerator(AudioManager.STREAM_MUSIC, 80) } catch (_: Exception) { null }
+        chime = Chime()
 
         lang = prefs.getString("lang", "it") ?: "it"
         fanMode = prefs.getBoolean("fan", false)
@@ -201,6 +206,7 @@ class MainActivity : AppCompatActivity() {
         applyMode()
 
         btnShot.setOnClickListener { shootFan() }
+        findViewById<Button>(R.id.btnScan).setOnClickListener { setScanning(!scanning) }
         btnForce.setOnClickListener {
             val p = pending ?: return@setOnClickListener
             addCard(p, "forzata", decideVariant().first)
@@ -240,6 +246,7 @@ class MainActivity : AppCompatActivity() {
         camExec.shutdown()
         recognizer.close()
         tone?.release()
+        chime?.release()
     }
 
     // ---------------- set ----------------
@@ -377,7 +384,7 @@ class MainActivity : AppCompatActivity() {
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     private fun analyze(proxy: ImageProxy) {
         val media = proxy.image
-        if (media == null || paused) { proxy.close(); return }
+        if (media == null || paused || (!fanMode && !scanning)) { proxy.close(); return }
         val rot = proxy.imageInfo.rotationDegrees
         val swap = rot == 90 || rot == 270
         val w = if (swap) proxy.height else proxy.width
@@ -385,7 +392,7 @@ class MainActivity : AppCompatActivity() {
         recognizer.process(InputImage.fromMediaImage(media, rot))
             .addOnSuccessListener { text ->
                 try {
-                    if (!paused) {
+                    if (!paused && (fanMode || scanning)) {
                         val pl = proxy.planes[0]
                         val yp = Recognizer.YPlane(pl.buffer, pl.rowStride, pl.pixelStride, proxy.width, proxy.height, rot)
                         onFrame(text, w, h, yp)
@@ -431,7 +438,7 @@ class MainActivity : AppCompatActivity() {
                 if (badN >= 4) {
                     val b = scan.bad.first()
                     status("Letto ${b.num}/${b.total}, ma il set scelto ha /${sd.total}: set o lingua giusti?", true)
-                    if (badN == 4) feedbackError()
+                    if (badN == 12) feedbackError()   // solo se continua (non per un'immagine di passaggio)
                 }
             } else badN = 0
         } else badN = 0
@@ -445,9 +452,11 @@ class MainActivity : AppCompatActivity() {
         if (top == locked) return                                   // la carta appena aggiunta è ancora lì
         if (sv >= 3 && tv < 2 * sv) {
             status("Leggo ${CardRepo.pad(top)} e ${CardRepo.pad(rank[1].first)}: tieni ferma la carta (riflesso?) o inquadrane una sola.")
-            feedbackError()
+            // nel passaggio da una carta all'altra per un attimo si vedono due numeri: errore solo se dura più di 3 s
+            if (ambSince == 0L) ambSince = now else if (now - ambSince > 3000) feedbackError()
             return
         }
+        ambSince = 0L
         val L = locked
         val ok = when {
             L == null -> tv >= 3
@@ -474,8 +483,8 @@ class MainActivity : AppCompatActivity() {
                     btnForce.text = "Aggiungi comunque ${CardRepo.pad(n)} ${card.name}"
                     btnForce.visibility = View.VISIBLE
                     status("Il numero ${CardRepo.pad(n)} corrisponde a \"${card.name}\", ma non leggo quel nome sulla carta. Inquadra anche il nome.", true)
-                    feedbackError()
                 } else if (nameFailN < 8) status("Controllo il nome…")
+                if (nameFailN == 20) feedbackError()   // nome ancora non letto dopo un bel po': errore vero
                 return
             }
         }
@@ -549,12 +558,22 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------- modalità ventaglio ----------------
 
+    private fun setScanning(on: Boolean) {
+        scanning = on
+        resetCand(); hideForce(); votes.clear(); ambSince = 0L
+        if (!on) { locked = null; overlay.clear() }
+        val b = findViewById<Button>(R.id.btnScan)
+        b.text = if (on) "⏸ Ferma scansione" else "▶ Avvia scansione"
+        status(if (on) "Scansione attiva: inquadra la carta intera, la aggiungo da sola." else "Scansione ferma: premi ▶ Avvia scansione quando sei pronto.")
+    }
+
     private fun applyMode() {
         btnShot.visibility = if (fanMode) View.VISIBLE else View.GONE
+        findViewById<Button>(R.id.btnScan).visibility = if (fanMode) View.GONE else View.VISIBLE
         cbName.isEnabled = !fanMode
         resetCand(); locked = null; hideForce(); overlay.clear()
         status(if (fanMode) "Ventaglio: sovrapponi le carte lasciando visibile la riga del numero in basso, poi premi \"Leggi ventaglio\"."
-               else "Inquadra la carta intera: la aggiungo da sola.")
+               else if (scanning) "Inquadra la carta intera: la aggiungo da sola." else "Premi ▶ Avvia scansione quando sei pronto.")
     }
 
     private fun shootFan() {
@@ -766,7 +785,8 @@ class MainActivity : AppCompatActivity() {
                 "5. Verifica nome: controlla anche il nome stampato, per evitare numeri letti male.\n\n" +
                 "Altri comandi: due dita per lo zoom, tocca l'immagine per mettere a fuoco, 🔦 luce, ↶ annulla l'ultima, " +
                 "⇄ Rev cambia l'ultima tra normale e Reverse, ✍ aggiunge a mano, ＋ aggiunge un'altra copia dell'ultima carta (tieni premuto per scegliere quante).\n\n" +
-                "SUONI: bip corto = carta nuova aggiunta · doppio bip = carta già presente nella lista (un'altra copia) · suono basso e lungo = errore di lettura (set sbagliato, nome non letto, due numeri insieme).\n\n" +
+                "▶ Avvia / ⏸ Ferma scansione: la carta singola viene letta solo a scansione avviata.\n\n" +
+                "SUONI: bip corto = carta nuova aggiunta · campanella = carta già presente nella lista (un'altra copia) · suono basso e lungo = errore di lettura che dura (set sbagliato, nome non letto, due numeri insieme).\n\n" +
                 "6. In 📋 Lista trovi tutte le carte: tocca il nome di un set per mandare il file al PC (Cardmarket e gestionale)."
             )
             .setPositiveButton("Ho capito", null).show()
@@ -778,10 +798,10 @@ class MainActivity : AppCompatActivity() {
         vibrate(longArrayOf(0, 50))
     }
 
-    /** Carta già presente nella lista (un'altra copia): doppio bip. */
+    /** Carta già presente nella lista (un'altra copia): campanella. */
     private fun feedbackPresent() {
-        try { tone?.startTone(ToneGenerator.TONE_PROP_BEEP2, 260) } catch (_: Exception) {}
-        vibrate(longArrayOf(0, 40, 90, 40))
+        chime?.play() ?: try { tone?.startTone(ToneGenerator.TONE_PROP_BEEP2, 260) } catch (_: Exception) {}
+        vibrate(longArrayOf(0, 30, 70, 30))
     }
 
     private var lastErrSound = 0L

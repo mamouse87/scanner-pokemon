@@ -321,6 +321,7 @@ function importFromHash() {
   try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Dati da Cardmarket non leggibili.'); return null; }
   mergeCatalog(d.exp);
   let n = 0, last = d.exp, fromSb = 0;
+  const addedTxt = [];
   for (const sub of d.listed || []) {
     mergeCatalog({ id: sub.exp, name: sub.name, cards: sub.cards });
     last = { id: sub.exp, name: sub.name };
@@ -338,6 +339,7 @@ function importFromHash() {
       else if (r.price != null) { L.ref = null; } // prezzo senza regola: il riferimento arriva col primo aggiornamento
       if (r.price != null) L.pAt = sub.at;
       n += r.q;
+      addedTxt.push(`${L.u || r.u}${r.rev ? ' R' : ''} ×${r.q}${r.price != null ? ' a ' + eur(r.price) : ''}`);
       // le copie caricate su Cardmarket escono dallo Standby
       // (all'avvio l'elenco dei set TCGdex può non essere ancora caricato: abbino anche per nome del set)
       const sid = tcgIdFor(sub.name), un = norm(r.u || c.u || '');
@@ -347,6 +349,7 @@ function importFromHash() {
       if (X) { const m = Math.min(X.q, r.q); X.q -= m; fromSb += m; if (X.q <= 0) { delete state.standby[sk]; delete (state.sbMarket || {})[sk]; } }
     }
   }
+  if (n) logOp('vendita', last?.name, `Messe in vendita su Cardmarket (script Card Scanner)${fromSb ? `, ${fromSb} copie tolte dallo Standby` : ''}: ` + addedTxt.join(', '), n);
   save();
   if (n) setTimeout(() => updatePrices(false), 1500);
   setTimeout(() => toast(n ? `Aggiornato: ${n} carte in vendita su Cardmarket` + (fromSb ? ` (${fromSb} tolte dallo Standby)` : '') : `Dati del set "${last?.name || ''}" aggiornati (immagini e prezzi attuali)`), 300);
@@ -382,6 +385,7 @@ function renderSets() {
   const mine = items.filter(s => cnt(s.id)), rest = items.filter(s => !cnt(s.id));
   const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}">${s.symbol ? `<img src="${esc(s.symbol)}.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<span style="width:22px"></span>'}<span class="nm">${esc(s.name)}</span>${vBy[s.id] ? `<span class="n v" title="${vBy[s.id]} carte con variazione di prezzo">⚠ ${vBy[s.id]}</span>` : ''}${sbBy[s.id] ? `<span class="n sb" title="copie in Standby (non ancora su Cardmarket)">SB ${sbBy[s.id]}</span>` : ''}${cnt0(s.id) ? `<span class="n" title="copie in vendita">${cnt0(s.id)}</span>` : ''}</a>`;
   $('sets').innerHTML = `<a href="#" data-id="__dash" class="dash ${selected === '__dash' ? 'sel' : ''}"><span style="width:22px;text-align:center">📊</span><span class="nm">Statistiche magazzino</span></a>` +
+    `<a href="#" data-id="__log" class="dash ${selected === '__log' ? 'sel' : ''}"><span style="width:22px;text-align:center">📜</span><span class="nm">Registro operazioni</span></a>` +
     `<a href="#" data-id="__sales" class="dash ${selected === '__sales' ? 'sel' : ''}"><span style="width:22px;text-align:center">📈</span><span class="nm">Vendite</span>${state.sold.length ? `<span class="n" style="background:var(--acc);color:#111">${state.sold.reduce((a, x) => a + x.q, 0)}</span>` : ''}</a>` +
     ((mine.length ? `<div class="grp">I tuoi set (in vendita / Standby)</div>${mine.map(link).join('')}` : '') +
     (rest.length ? `<div class="grp">${mine.length ? 'Tutti gli altri set' : 'Tutti i set'} · dal più recente (${rest.length})</div>${rest.map(link).join('')}` : '')) ||
@@ -429,6 +433,7 @@ async function renderSet() {
   current = null;
   if (selected === '__dash') { renderDash(); return; }
   if (selected === '__sales') { renderSales(); return; }
+  if (selected === '__log') { renderLog(); return; }
   if (!selected) {
     main.innerHTML = `<div class="empty">Scegli un set dalla lista a sinistra.<br>
       Le carte in vendita arrivano da Cardmarket con il pulsante <b>Card Scanner → CM</b>: dopo "Mettere in vendita le carte" premi il pulsante verde dello script.</div>`;
@@ -533,6 +538,37 @@ async function renderSet() {
   applyCardFilter();
   if (setId) loadRarities(setId, cards.filter(c => c.id));
 }
+// ---------- registro delle operazioni ----------
+// state.log = [{at, t: tipo, set, txt, q}] le più recenti in fondo, al massimo 3000
+const LOGT = { standby: '📥 Standby', vendita: '🛒 In vendita', venduta: '💶 Venduta', prezzo: '✏️ Prezzo', quantita: '🔢 Quantità', tolta: '🗑 Tolta', riportata: '↩ In Standby', mercato: '⚠ Mercato', dati: '💾 Dati' };
+function logOp(t, set, txt, q) {
+  const L = state.log || (state.log = []);
+  L.push({ at: new Date().toISOString(), t, set: set || '', txt, q: q ?? null });
+  if (L.length > 3000) L.splice(0, L.length - 3000);
+}
+const cardTxt = l => `${l.u} ${info(l).name || l.n || ''}${l.rev ? ' Reverse' : ''}`.trim();
+const logF = { t: '', set: '', q: '' };
+function renderLog() {
+  const all = (state.log || []).slice().reverse();
+  const sets = [...new Set(all.map(x => x.set).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const qq = simp(logF.q);
+  const list = all.filter(x => (!logF.t || x.t === logF.t) && (!logF.set || x.set === logF.set) && (!qq || simp(x.txt + ' ' + x.set).includes(qq)));
+  $('main').innerHTML = `<div class="sethead"><div><h2>📜 Registro operazioni</h2>
+    <div class="sub">Tutto quello che succede nel gestionale, con data e ora: carte in Standby, messe in vendita, vendute, tolte, prezzi e quantità cambiati, variazioni di mercato.</div></div>
+    <div class="row"><button id="lgCsv">⬇ Esporta (CSV)</button></div></div>
+    <div class="filters"><select id="lgT"><option value="">Tutte le operazioni</option>${Object.entries(LOGT).map(([k, v]) => `<option value="${k}" ${logF.t === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <select id="lgS"><option value="">Tutti i set</option>${sets.map(x => `<option ${x === logF.set ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
+      <input type="search" id="lgQ" placeholder="Cerca (carta, lista, ordine…)" value="${esc(logF.q)}"><span class="small">${list.length} operazioni</span></div>
+    ${list.length ? `<table class="rtable"><thead><tr><th>Data e ora</th><th>Operazione</th><th>Set</th><th>Dettagli</th><th class="n">Copie</th></tr></thead><tbody>
+    ${list.slice(0, 1500).map(x => `<tr><td style="white-space:nowrap">${fmtDT(x.at)}</td><td style="white-space:nowrap">${LOGT[x.t] || esc(x.t)}</td><td>${esc(x.set)}</td><td>${esc(x.txt)}</td><td class="n">${x.q ?? ''}</td></tr>`).join('')}
+    </tbody></table>${list.length > 1500 ? '<p class="small">Mostrate le 1500 più recenti: usa i filtri o esporta il CSV.</p>' : ''}` : '<p class="empty">Nessuna operazione registrata (il registro parte da ora).</p>'}`;
+  $('lgT').onchange = () => { logF.t = $('lgT').value; renderLog(); };
+  $('lgS').onchange = () => { logF.set = $('lgS').value; renderLog(); };
+  $('lgQ').oninput = () => { logF.q = $('lgQ').value; clearTimeout(renderLog.t); renderLog.t = setTimeout(() => { renderLog(); const q = $('lgQ'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 300); };
+  $('lgCsv').onclick = () => downloadCsv(`registro-operazioni-${new Date().toISOString().slice(0, 10)}.csv`,
+    [['Data e ora', 'Operazione', 'Set', 'Dettagli', 'Copie']].concat(list.map(x => [new Date(x.at).toLocaleString('it-IT'), (LOGT[x.t] || x.t).replace(/^\S+\s/, ''), x.set, x.txt, x.q ?? ''])));
+}
+
 // ---------- azioni su più carte del set + annulla ----------
 let undoSnap = null;
 function snapshot(label) {
@@ -546,6 +582,7 @@ function showUndo(msg) {
   b.querySelector('button').onclick = () => {
     if (!undoSnap) return;
     Object.assign(state, JSON.parse(undoSnap.d));
+    logOp('dati', '', `Annullata l'ultima operazione (${undoSnap.label})`);
     undoSnap = null; save(); refresh(); b.remove(); toast('Annullato: tutto come prima');
   };
   document.body.appendChild(b);
@@ -587,6 +624,7 @@ function bulkAction(kind, sid, setName) {
         }
         delete state.listings[k]; delete (state.market || {})[k];
       });
+      logOp(kind === 'toSb' ? 'riportata' : 'tolta', setName, `${what}${v === 'all' ? '' : v === 'R' ? ' (solo Reverse)' : ' (solo Normali)'}: ` + pick.map(([, x]) => `${x.u}${x.rev ? ' R' : ''} ×${x.q}`).join(', '), n);
       save(); closeDlg();
       sel.clear(); selMode = false;
       refresh();
@@ -656,19 +694,31 @@ $('main').addEventListener('click', e => {
       if (inp.dataset.f === 'sbq') {
         const k = inp.closest('tr').dataset.sb, X = state.standby[k];
         if (!X) return;
-        X.q = Math.max(0, +inp.value || 0); if (!X.q) { delete state.standby[k]; delete (state.sbMarket || {})[k]; }
+        const q0 = X.q;
+        X.q = Math.max(0, +inp.value || 0);
+        logOp('quantita', X.sn, `${X.u} ${X.n || ''}${X.rev ? ' Reverse' : ''} in Standby: ${q0} → ${X.q}`, X.q - q0);
+        if (!X.q) { delete state.standby[k]; delete (state.sbMarket || {})[k]; }
         save(); refresh(); return;
       }
       const k = inp.closest('tr').dataset.k, L = state.listings[k];
       if (!L) return;
-      if (inp.dataset.f === 'q') { L.q = Math.max(0, +inp.value || 0); if (!L.q) delete state.listings[k]; }
+      const set = L.expName || state.cm[L.exp]?.name;
+      if (inp.dataset.f === 'q') {
+        const q0 = L.q; L.q = Math.max(0, +inp.value || 0);
+        logOp('quantita', set, `${cardTxt(L)} in vendita: ${q0} → ${L.q} (a mano)`, L.q - q0);
+        if (!L.q) delete state.listings[k];
+      }
       else {
+        const p0 = L.price;
         L.price = inp.value === '' ? null : r2(+inp.value); L.pAt = today();
+        logOp('prezzo', set, `${cardTxt(L)}: prezzo ${eur(p0) || '—'} → ${eur(L.price) || '—'} (a mano)`, L.q);
         const cur = baseOf(mOf(k), L.rb || 'low'); if (cur != null) { L.ref = cur; L.refAt = mOf(k).upd || today(); }
       }
       save(); refresh();
     });
     $('dlgBody').querySelectorAll('[data-sell]').forEach(b => b.onclick = () => {
+      const L0 = state.listings[b.closest('tr').dataset.k];
+      if (L0) logOp('venduta', L0.expName || state.cm[L0.exp]?.name, `${cardTxt(L0)} ×1 a ${eur(L0.price)} (a mano)`, 1);
       sell(b.closest('tr').dataset.k, 1, 'Cardmarket', 'a mano'); save(); closeDlg(); refresh();
     });
   });
@@ -1086,6 +1136,8 @@ async function importSales(files) {
         if (!B.querySelector(`[data-i="${i}"]`).checked) return;
         const cand = r.cands[+B.querySelector(`[data-s="${i}"]`).value];
         const q = Math.max(1, +B.querySelector(`[data-q="${i}"]`).value || 1);
+        const L0 = state.listings[cand.k];
+        if (L0) logOp('venduta', L0.expName || state.cm[L0.exp]?.name, `${cardTxt(L0)} ×${q} a ${eur(L0.price)} · ${$('saleSite').value}${r.file ? ' · ' + r.file : ''}`, q);
         sell(cand.k, q, $('saleSite').value, r.file); n += q;
       });
       save(); closeDlg(); refresh(); toast(`Tolte ${n} carte vendute`);
@@ -1255,6 +1307,7 @@ async function updatePrices(force) {
     await pgAuto();
     state.market = state.market || {}; state.sbMarket = state.sbMarket || {};
     let i = 0, nNew = 0;
+    const before = new Set(variations().map(x => x.k));
     const worker = async () => {
       while (i < jobs.length) {
         const { k, l, sb } = jobs[i++];
@@ -1276,6 +1329,10 @@ async function updatePrices(force) {
     };
     await Promise.all([1, 2, 3, 4, 5, 6].map(worker));
     state.revAt = today();
+    const fresh = variations().filter(x => !before.has(x.k));
+    const bySetV = {};
+    fresh.forEach(({ l, v }) => { const sn = l.expName || state.cm[l.exp]?.name || ''; (bySetV[sn] = bySetV[sn] || []).push(`${cardTxt(l)} ${BASEN[l.rb || 'low']} ${eur(v.ref)} → ${eur(v.cur)}`); });
+    Object.entries(bySetV).forEach(([sn, a]) => logOp('mercato', sn, `Nuove variazioni del prezzo di mercato: ${a.join(', ')}`, null));
     save();
     showProg(null);
     refresh();
@@ -1299,7 +1356,11 @@ function showProg(p) {
 function confirmVar(k, newPrice) {
   const L = state.listings[k], v = varOf(k, L);
   if (!L || !v) return;
-  if (newPrice != null && !isNaN(newPrice)) { L.price = r2(newPrice); L.pAt = today(); }
+  const set = L.expName || state.cm[L.exp]?.name;
+  if (newPrice != null && !isNaN(newPrice)) {
+    logOp('prezzo', set, `${cardTxt(L)}: prezzo ${eur(L.price)} → ${eur(r2(newPrice))} (mercato ${BASEN[L.rb || 'low']} ${eur(v.ref)} → ${eur(v.cur)})`, L.q);
+    L.price = r2(newPrice); L.pAt = today();
+  } else logOp('prezzo', set, `${cardTxt(L)}: tenuto il prezzo ${eur(L.price)} (mercato ${BASEN[L.rb || 'low']} ${eur(v.ref)} → ${eur(v.cur)})`, L.q);
   L.ref = v.cur; L.refAt = v.M.upd || today();
 }
 function varDialog(rows, title) {
@@ -1600,6 +1661,7 @@ async function importCatalog(files) {
       last = sid;
     }
   }
+  msg.forEach(m => logOp('standby', (m.match(/Standby di (.+)$/) || m.match(/^([^:]+): \d+ copie in Standby/) || [])[1] || '', m));
   save();
   if (msg.length) toast(msg.join(' · '));
   if (last) { selected = last; filter = 'all'; }
@@ -1748,13 +1810,13 @@ $('btnMore').onclick = () => {
     };
     $('bRestore').onclick = () => $('fRestore').click();
     $('bPg').onclick = () => $('fPg').click();
-    $('bWipe').onclick = () => { if (confirm('Cancellare tutte le carte in vendita e le vendite? Fai prima un backup.')) { state = { cm: state.cm, listings: {}, sold: [], standby: state.standby || {} }; save(); closeDlg(); refresh(); } };
+    $('bWipe').onclick = () => { if (confirm('Cancellare tutte le carte in vendita e le vendite? Fai prima un backup.')) { state = { cm: state.cm, listings: {}, sold: [], standby: state.standby || {}, log: state.log || [] }; logOp('dati', '', 'Svuotate tutte le carte in vendita e le vendite'); save(); closeDlg(); refresh(); } };
   });
 };
 $('fRestore').onchange = async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
-  try { const s = JSON.parse(await f.text()); if (!s.listings) throw 0; if (confirm('Sostituire i dati attuali con questo backup?')) { state = Object.assign({ cm: {}, sold: [], standby: {} }, s); save(); closeDlg(); refresh(); } }
+  try { const s = JSON.parse(await f.text()); if (!s.listings) throw 0; if (confirm('Sostituire i dati attuali con questo backup?')) { const lg = state.log || []; state = Object.assign({ cm: {}, sold: [], standby: {} }, s); if (!s.log) state.log = lg; logOp('dati', '', `Ripristinato il backup "${f.name}"`); save(); closeDlg(); refresh(); } }
   catch (err) { alert('Backup non valido.'); }
 };
 document.addEventListener('dragover', e => e.preventDefault());

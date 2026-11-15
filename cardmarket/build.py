@@ -18,16 +18,16 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <h2>2. Ogni set</h2>
 <ol><li>Su Cardmarket apri <b>Inserisci carte bulk</b> dell'espansione e premi <b>📋 Card Scanner → CM</b>.</li>
 <li>Carica il file .txt dell'app: nel riquadro <b>📦 Lista</b> vedi tutte le carte (numero, nome, Reverse, quantità) e dove si trovano.</li>
-<li>Premi <b>Compila la pagina</b> e controlla.</li>
+<li>Scegli il prezzo ("Da" o Tendenza, ± centesimi), premi <b>Compila la pagina</b> e controlla.</li>
 <li>Premi il pulsante verde <b>📤 Invia al gestionale</b>: il <a href="../gestionale/" style="color:#ffcb05">gestionale</a> riceve le carte compilate con i prezzi, e nella lista dello script diventano "✔ inviata".
 <li>Metti in vendita su Cardmarket tu stesso (pulsante "Mettere in vendita le carte").</li>
 <li>Per le carte rimaste: vai alla pagina giusta, premi di nuovo il pulsante nei preferiti (la lista resta caricata) e ripeti.</li></ol>
 <p>Lo script non invia nulla a Cardmarket e non legge password.</p>
-<h2>3. Revisione prezzi</h2>
-<ol><li>Nel gestionale apri <b>💶 Revisione prezzi</b> e premi <b>🔍 Controlla su Cardmarket</b>: si apre una scheda di Cardmarket.</li>
-<li>In quella scheda premi <b>📋 Card Scanner → CM</b>: compare il riquadro <b>💶 Revisione prezzi</b>. Premi <b>▶ Avvia controllo</b>.</li>
-<li>Per ogni carta legge il <b>Da</b> (offerta più bassa nella lingua della carta, Near Mint o migliore, escluse le tue) e la <b>Tendenza di prezzo</b>. Va piano apposta (circa 1,5 secondi a carta) per non farti bloccare; puoi fermarlo e riprenderlo.</li>
-<li>Alla fine premi <b>📤 Invia prezzi al gestionale</b>: vedi quali carte ribassare o rialzare. I prezzi su Cardmarket li cambi tu.</li></ol>
+<h2>Prezzo</h2>
+<p>Nel riquadro scegli la base: <b>"Da" (prezzo minimo)</b> oppure <b>Tendenza</b>, poi <b>+</b> o <b>−</b> e quanti centesimi (es. 150 = 1,50 €). Il prezzo non scende mai sotto 0,02 €.
+I valori li legge direttamente dalla pagina "Inserisci carte bulk", senza aprire altre pagine di Cardmarket. Per le Reverse prova a usare la Price Guide di Cardmarket; se non riesce usa i valori della versione normale e colora la riga di arancione.</p>
+<h2>Revisione prezzi</h2>
+<p>Si fa nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a> (💶 Revisione prezzi): i prezzi di Cardmarket si aggiornano da soli, non serve più questo pulsante.</p>
 <h2>In alternativa</h2>
 <p>Se il pulsante non funziona: sulla pagina di Cardmarket premi <code>F12</code> → <b>Console</b>, incolla il codice e premi Invio.</p>
 <pre>{html.escape(code)}</pre>

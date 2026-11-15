@@ -105,7 +105,7 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
 .rtable input[type=number]{width:78px;padding:3px 6px}
 .st{display:inline-block;font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 9px;white-space:nowrap}
 .st.down{background:#e5484d;color:#fff}.st.up{background:var(--ok);color:#fff}.st.ok{background:var(--line);color:var(--fg)}
-.st.alone{background:#1e4fa3;color:#fff}.st.nodata,.st.noprice,.st.err{background:transparent;border:1px dashed var(--mut);color:var(--mut)}
+.st.alone{background:#1e4fa3;color:#fff}.st.nodata,.st.noprice,.st.wait,.st.err{background:transparent;border:1px dashed var(--mut);color:var(--mut)}
 .thumb{width:34px;height:47px;object-fit:contain;border-radius:3px;background:var(--bg);display:block}
 #btnBk.warn{border-color:#e5484d;color:#e5484d}#btnBk.on{border-color:var(--ok);color:var(--ok)}
 </style>
@@ -135,7 +135,7 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
 </div>
 
 <input type="file" id="fSale" accept=".pdf,.csv,.txt,.html,.htm" multiple hidden>
-<input type="file" id="fRestore" accept=".json" hidden>
+<input type="file" id="fPg" accept=".json,application/json" hidden><input type="file" id="fRestore" accept=".json" hidden>
 <dialog id="dlg"><div id="dlgBody"></div></dialog>
 
 <script>
@@ -526,6 +526,7 @@ function renderDash() {
   }).sort((a, b) => b.v + b.sv - (a.v + a.sv));
 
   // prezzi da rivedere (confronto con la tendenza di Cardmarket)
+  ls.forEach(l => { const M = mOf(l.k); if (M && M.t != null) l.c = Object.assign({}, l.c, { t: M.t }); });
   const withT = ls.filter(l => l.price != null && l.c.t);
   const high = withT.filter(l => l.price > l.c.t * 1.5 && l.price - l.c.t >= 0.05).sort((a, b) => (b.price / b.c.t) - (a.price / a.c.t)).slice(0, 15);
   const low = withT.filter(l => l.price < l.c.t * 0.7 && l.c.t - l.price >= 0.05).sort((a, b) => (a.price / a.c.t) - (b.price / b.c.t)).slice(0, 15);
@@ -919,44 +920,159 @@ function showSold() {
   });
 }
 
-// ---------- revisione prezzi ----------
-// state.market[chiave carta] = {d: "Da" (più bassa NM nella lingua della carta, escluse le tue), o: n. offerte, t: tendenza, tn: 1 se tendenza della versione normale, a: "Da" generale, at}
+// ---------- revisione prezzi (automatica: TCGdex + Price Guide di Cardmarket) ----------
+// state.market[chiave carta] = {v:2, lo: "Da" (prezzo minimo), t: tendenza, rv: 1 se valori Reverse, rn: 1 se Reverse ma valori della normale,
+//                               src: 'pg' | 'tcgdex', x: 1 se TCGdex abbina un altro prodotto Cardmarket, upd: data dei prezzi, at: quando l'ho letto}
+// state.pg = {at, p:{idProduct:[low, trend, lowReverse, trendReverse]}}  Price Guide ridotta alle carte che conosco
+// I prezzi sono quelli generali di Cardmarket (tutte le lingue e condizioni), aggiornati una volta al giorno.
 const r2 = v => Math.round(v * 100) / 100;
-const ST = { down: 'Da ribassare', up: 'Puoi rialzare', ok: 'In linea', alone: 'Nessun concorrente', nodata: 'Non controllata', noprice: 'Senza tuo prezzo', err: 'Non trovata' };
-const ST_ORD = { down: 0, up: 1, alone: 2, noprice: 3, err: 4, ok: 5, nodata: 6 };
+const PG_URL = 'https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_6.json';
+const PG_PAGE = 'https://www.cardmarket.com/it/Pokemon/Data/Price-Guide';
+const AUTO_H = 12;  // ogni quante ore aggiorno da solo
+const ST = { down: 'Da ribassare', up: 'Puoi rialzare', ok: 'In linea', nodata: 'Senza dati di mercato', noprice: 'Senza tuo prezzo', wait: 'Non ancora letta' };
+const ST_ORD = { down: 0, up: 1, noprice: 2, nodata: 3, ok: 4, wait: 5 };
+const BASEN = { low: 'Da', trend: 'Tendenza' };
 const revF = { st: 'all', set: '', q: '' };
-function revCfg() { return state.revCfg || (state.revCfg = { plus: 0, tol: 0 }); }
+function revCfg() {
+  const c = state.revCfg || (state.revCfg = {});
+  if (!c.base) c.base = 'low';
+  if (c.plus == null) c.plus = 0;
+  if (c.tol == null) c.tol = 0;
+  return c;
+}
+const mOf = k => { const M = (state.market || {})[k]; return M && M.v === 2 ? M : null; };
 function revRows() {
   const cfg = revCfg(), plus = (+cfg.plus || 0) / 100, tol = (+cfg.tol || 0) / 100 + 0.004;
   return Object.entries(state.listings).map(([k, l]) => {
-    const I = info(l), M = (state.market || {})[k];
-    const r = { k, l, name: I.name, set: I.set, rar: I.rar, c: I.c, M, sugg: null, diff: null };
-    if (!M) r.st = 'nodata';
-    else if (M.err) r.st = 'err';
-    else if (M.d == null) { r.st = 'alone'; if (M.t != null) r.sugg = r2(Math.max(0.02, M.t + plus)); }
-    else {
-      r.sugg = r2(Math.max(0.02, M.d + plus));
-      if (l.price == null) r.st = 'noprice';
-      else { r.diff = r2(l.price - r.sugg); r.st = r.diff > tol ? 'down' : r.diff < -tol ? 'up' : 'ok'; }
-    }
-    if (r.st === 'alone' && l.price != null && r.sugg != null) r.diff = r2(l.price - r.sugg);
+    const I = info(l), M = mOf(k);
+    const r = { k, l, name: I.name, set: I.set, rar: I.rar, c: I.c, M, sugg: null, diff: null, used: null };
+    if (!M) { r.st = 'wait'; return r; }
+    const own = cfg.base === 'trend' ? M.t : M.lo, other = cfg.base === 'trend' ? M.lo : M.t;
+    const b = own != null ? own : other;
+    if (b == null) { r.st = 'nodata'; return r; }
+    r.used = own != null ? cfg.base : (cfg.base === 'trend' ? 'low' : 'trend');
+    r.sugg = r2(Math.max(0.02, b + plus));
+    if (l.price == null) r.st = 'noprice';
+    else { r.diff = r2(l.price - r.sugg); r.st = r.diff > tol ? 'down' : r.diff < -tol ? 'up' : 'ok'; }
     return r;
   });
 }
-function importPrices() {
-  const m = location.hash.match(/^#cmprices=(.+)$/);
-  if (!m) return false;
-  history.replaceState(null, '', location.pathname);
-  let d;
-  try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Prezzi da Cardmarket non leggibili.'); return false; }
-  state.market = state.market || {};
-  const ks = Object.keys(d.res || {});
-  ks.forEach(k => { state.market[k] = d.res[k]; });
-  state.revAt = d.at || today();
-  save();
-  setTimeout(() => toast(`Prezzi aggiornati da Cardmarket: ${ks.length} carte controllate`), 300);
-  return true;
+
+// --- Price Guide: file JSON di Cardmarket (scaricato da solo se il browser lo permette, altrimenti caricato a mano) ---
+function pgKeep() {
+  // tengo solo le carte che conosco (in vendita + elenchi dei set), così non riempio la memoria del browser
+  const s = new Set(Object.values(state.listings).map(l => String(l.p)));
+  Object.values(state.cm).forEach(e => Object.keys(e.cards || {}).forEach(p => s.add(String(p))));
+  return s;
 }
+function pgImport(d) {
+  const list = Array.isArray(d) ? d : (d && (d.priceGuides || d.priceguides));
+  if (!Array.isArray(list) || !list.length || !('idProduct' in list[0])) throw new Error('non è una Price Guide di Cardmarket');
+  const keep = pgKeep(), p = {};
+  const n = v => (v = +v) > 0 ? r2(v) : null;
+  list.forEach(x => { if (keep.has(String(x.idProduct))) p[x.idProduct] = [n(x.low), n(x.trend), n(x['low-holo']), n(x['trend-holo'])]; });
+  state.pg = { at: d.createdAt ? new Date(d.createdAt).toISOString() : today(), p };
+  return Object.keys(p).length;
+}
+async function pgAuto() {
+  // il server di Cardmarket potrebbe non permettere il download da un altro sito: in quel caso resta TCGdex
+  if (state.pg && Date.now() - new Date(state.pg.at) < 20 * 3600e3) return true;
+  try {
+    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 30000);
+    const r = await fetch(PG_URL, { signal: ctl.signal }); clearTimeout(tm);
+    if (!r.ok) throw 0;
+    pgImport(await r.json());
+    state.pgAuto = 1;
+    return true;
+  } catch (e) { state.pgAuto = 0; return false; }
+}
+async function pgFile(f) {
+  try {
+    const n = pgImport(JSON.parse(await f.text()));
+    Object.keys(state.market || {}).forEach(k => { if (state.market[k]?.src === 'pg') delete state.market[k]; });
+    save(); toast(`Price Guide caricata: ${n} carte tue trovate`);
+    updatePrices(true);
+  } catch (e) { alert('File non valido: ' + (e.message || e) + '.\nScarica il file "Pokémon" dalla pagina Price Guide di Cardmarket.'); }
+}
+
+// --- TCGdex: prezzi Cardmarket dentro il dettaglio della carta ---
+async function tcgJson(url) {
+  try { const r = await fetch(url); if (!r.ok) return null; return await r.json(); } catch (e) { return null; }
+}
+async function tcgCardId(l) {
+  const setId = tcgIdFor(l.expName || state.cm[l.exp]?.name);
+  if (!setId) return null;
+  const n0 = norm(l.u);
+  for (const p of ['/sets/' + encodeURIComponent(setId), '@en/sets/' + encodeURIComponent(setId)]) {
+    const S = await tcg(p, 24);
+    const c = (S?.cards || []).find(x => norm(x.localId) === n0);
+    if (c) return c.id;
+  }
+  return null;
+}
+async function tcgPrice(l) {
+  const id = await tcgCardId(l);
+  if (!id) return null;
+  for (const base of [API, API_EN]) {
+    const d = await tcgJson(base + '/cards/' + encodeURIComponent(id));
+    const cm = d?.pricing?.cardmarket;
+    if (cm) return cm;
+  }
+  return null;
+}
+const pos = v => (v = +v) > 0 ? r2(v) : null;
+function fromVals(l, low, trend, lowR, trendR) {
+  if (l.rev && (lowR != null || trendR != null)) return { lo: lowR, t: trendR, rv: 1 };
+  return { lo: low, t: trend, rn: l.rev ? 1 : 0 };
+}
+let upd = null; // aggiornamento in corso
+async function updatePrices(force) {
+  if (upd) return upd;
+  const entries = Object.entries(state.listings);
+  if (!entries.length) return;
+  upd = (async () => {
+    const prog = { done: 0, tot: entries.length };
+    revProg(prog);
+    const pgOk = await pgAuto();
+    const pgFresh = state.pg && Date.now() - new Date(state.pg.at) < 3 * 86400e3;
+    state.market = state.market || {};
+    let i = 0;
+    const worker = async () => {
+      while (i < entries.length) {
+        const [k, l] = entries[i++];
+        const old = mOf(k);
+        if (!force && old && Date.now() - new Date(old.at) < AUTO_H * 3600e3) { prog.done++; continue; }
+        let M = null;
+        const pg = pgFresh && state.pg.p[l.p];
+        if (pg) M = Object.assign({ v: 2, src: 'pg', upd: state.pg.at }, fromVals(l, ...pg));
+        else {
+          const cm = await tcgPrice(l);
+          if (cm) {
+            M = Object.assign({ v: 2, src: 'tcgdex', upd: cm.updated || null },
+              fromVals(l, pos(cm.low), pos(cm.trend), pos(cm['low-holo']), pos(cm['trend-holo'])));
+            if (cm.idProduct && String(cm.idProduct) !== String(l.p)) M.x = 1;
+          } else if (state.pg?.p?.[l.p]) M = Object.assign({ v: 2, src: 'pg', upd: state.pg.at }, fromVals(l, ...state.pg.p[l.p]));
+        }
+        state.market[k] = Object.assign(M || { v: 2, src: '', lo: null, t: null }, { at: today() });
+        prog.done++;
+        if (prog.done % 10 === 0) revProg(prog);
+      }
+    };
+    await Promise.all([1, 2, 3, 4, 5, 6].map(worker));
+    state.revAt = today();
+    save();
+    revProg(null);
+    renderSets();
+    if (selected === '__prices') renderPrices();
+    return pgOk;
+  })();
+  try { return await upd; } finally { upd = null; }
+}
+function revProg(p) {
+  const el = $('rvProg');
+  if (el) el.textContent = p ? `Aggiorno i prezzi… ${p.done}/${p.tot}` : '';
+}
+
 function renderPrices() {
   const cfg = revCfg();
   const all = revRows();
@@ -968,25 +1084,27 @@ function renderPrices() {
   const cnt = s => scope.filter(r => r.st === s);
   const sumQ = (rs, f) => rs.reduce((a, r) => a + f(r) * r.l.q, 0);
   const down = cnt('down'), up = cnt('up');
-  const checked = scope.filter(r => r.M);
-  const oldest = checked.length ? checked.reduce((a, r) => (r.M.at && r.M.at < a ? r.M.at : a), today()) : null;
-  const fmtDT = d => d ? new Date(d).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+  const fmtD = d => d ? new Date(d).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+  const nPg = scope.filter(r => r.M?.src === 'pg').length, nTd = scope.filter(r => r.M?.src === 'tcgdex').length;
   const segB = (v, l, n) => `<button data-st="${v}" class="${revF.st === v ? 'on' : ''}">${l}${n != null ? ` (${n})` : ''}</button>`;
+  const sign = (+cfg.plus || 0) < 0 ? -1 : 1;
   $('main').innerHTML = `
   <div class="sethead"><div><h2>💶 Revisione prezzi</h2>
-    <div class="sub">Confronto tra il tuo prezzo e Cardmarket. <b>Da</b> = offerta più bassa nella lingua della carta, Near Mint o migliore, escluse le tue. Prezzo consigliato = Da + i centesimi scelti.</div></div>
-    <div class="row"><button class="pri" id="rvCheck">🔍 Controlla su Cardmarket (${scope.length} carte)</button></div></div>
+    <div class="sub">Prezzi di Cardmarket aggiornati in automatico (TCGdex e Price Guide di Cardmarket, una volta al giorno). <b>Da</b> = prezzo minimo, <b>Tendenza</b> = tendenza di prezzo: sono valori generali, di tutte le lingue e condizioni.</div></div>
+    <div class="row"><span class="small" id="rvProg"></span><button class="pri" id="rvUpd">🔄 Aggiorna prezzi</button><button id="rvPg" title="Carica il file Pokémon scaricato dalla pagina Price Guide di Cardmarket">📂 Carica Price Guide</button></div></div>
   <div class="kpis">
-    <div class="kpi"><span>Controllate</span><b>${checked.length} / ${scope.length}</b><small>controllo più vecchio: ${fmtDT(oldest)}</small></div>
-    <div class="kpi"><span>Da ribassare</span><b style="color:#e5484d">${down.length}</b><small>sei più caro dell'offerta più bassa${down.length ? ` · −${eur(sumQ(down, r => r.diff))} sul valore` : ''}</small></div>
-    <div class="kpi"><span>Puoi rialzare</span><b style="color:var(--ok)">${up.length}</b><small>${up.length ? `+${eur(sumQ(up, r => -r.diff))} di valore possibile` : 'nessuna sotto il prezzo consigliato'}</small></div>
-    <div class="kpi"><span>Nessun concorrente</span><b>${cnt('alone').length}</b><small>sei l'unico: guarda la tendenza</small></div>
+    <div class="kpi"><span>Prezzi letti</span><b>${scope.length - cnt('wait').length} / ${scope.length}</b><small>ultimo aggiornamento: ${fmtD(state.revAt)} · ${nTd} da TCGdex, ${nPg} da Price Guide</small></div>
+    <div class="kpi"><span>Da ribassare</span><b style="color:#e5484d">${down.length}</b><small>sopra il consigliato${down.length ? ` · −${eur(sumQ(down, r => r.diff))} sul valore` : ''}</small></div>
+    <div class="kpi"><span>Puoi rialzare</span><b style="color:var(--ok)">${up.length}</b><small>${up.length ? `+${eur(sumQ(up, r => -r.diff))} di valore possibile` : 'nessuna sotto il consigliato'}</small></div>
+    <div class="kpi"><span>Senza dati di mercato</span><b>${cnt('nodata').length}</b><small>carta non trovata o senza prezzi su Cardmarket</small></div>
   </div>
   <div class="filters">
-    <span class="seg" id="rvSeg">${segB('all', 'Tutte', scope.length)}${segB('down', 'Da ribassare', down.length)}${segB('up', 'Da rialzare', up.length)}${segB('alone', 'Senza concorrenti', cnt('alone').length)}${segB('ok', 'In linea', cnt('ok').length)}${segB('nodata', 'Non controllate', cnt('nodata').length)}</span>
+    <span class="seg" id="rvSeg">${segB('all', 'Tutte', scope.length)}${segB('down', 'Da ribassare', down.length)}${segB('up', 'Da rialzare', up.length)}${segB('ok', 'In linea', cnt('ok').length)}${segB('nodata', 'Senza dati', cnt('nodata').length)}${segB('noprice', 'Senza tuo prezzo', cnt('noprice').length)}</span>
     <select id="rvSet"><option value="">Tutti i set</option>${sets.map(s => `<option ${s === revF.set ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
     <input type="search" id="rvQ" placeholder="Cerca carta…" value="${esc(revF.q)}">
-    <label>Consigliato = Da + <input type="number" id="rvPlus" min="0" step="1" value="${+cfg.plus || 0}" style="width:60px"> cent.</label>
+    <label>Consigliato = <select id="rvBase"><option value="low" ${cfg.base === 'low' ? 'selected' : ''}>Da (prezzo minimo)</option><option value="trend" ${cfg.base === 'trend' ? 'selected' : ''}>Tendenza</option></select>
+      <select id="rvSign"><option value="1">+</option><option value="-1" ${sign < 0 ? 'selected' : ''}>−</option></select>
+      <input type="number" id="rvPlus" min="0" step="1" value="${Math.abs(+cfg.plus || 0)}" style="width:60px"> cent.</label>
     <label>ignora differenze fino a <input type="number" id="rvTol" min="0" step="1" value="${+cfg.tol || 0}" style="width:60px"> cent.</label>
   </div>
   <div class="row" style="margin-bottom:10px">
@@ -994,27 +1112,31 @@ function renderPrices() {
     <button id="rvCsv">⬇ Esporta elenco (CSV)</button>
     <span class="small">Cambia i prezzi su Cardmarket, poi segnali qui (casella + "Applica" oppure scrivi il prezzo nella colonna "Tuo prezzo").</span>
   </div>
-  ${list.length ? `<table class="rtable"><thead><tr><th><input type="checkbox" id="rvAll"></th><th></th><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Tuo prezzo</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n">Consigliato</th><th class="n">Differenza</th><th>Stato</th><th>Controllata</th></tr></thead><tbody>
+  ${list.length ? `<table class="rtable"><thead><tr><th><input type="checkbox" id="rvAll"></th><th></th><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Tuo prezzo</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n">Consigliato</th><th class="n">Differenza</th><th>Stato</th><th>Fonte</th></tr></thead><tbody>
   ${list.map(r => {
     const M = r.M || {}, im = imgSrcs('', r.c, r.l.u);
+    const noteR = M.rn ? '<small>della normale</small>' : '';
     return `<tr data-k="${esc(r.k)}"><td><input type="checkbox" class="rvSel" ${r.sugg == null ? 'disabled' : ''}></td>
     <td>${im.length ? `<img class="thumb" loading="lazy" referrerpolicy="no-referrer" src="${esc(im[0])}" data-srcs="${esc(im.slice(1).join('|'))}" onerror="nextImg(this)">` : ''}</td>
     <td><b>${esc(r.l.u)}</b> ${esc(r.name)}<small>${esc(r.set)} · ${esc(r.rar)}</small></td>
     <td>${r.l.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale'}<small>${LANGN[r.l.lang] || r.l.lang}</small></td>
     <td class="n">${r.l.q}</td>
     <td class="n"><input type="number" min="0" step="0.01" class="rvP" value="${r.l.price ?? ''}"></td>
-    <td class="n">${M.d != null ? `<b>${eur(M.d)}</b><small>${M.o} offert${M.o === 1 ? 'a' : 'e'}</small>` : M.at && !M.err ? '<small>nessun altro</small>' : ''}</td>
-    <td class="n">${M.t != null ? eur(M.t) + (M.tn ? '<small>della normale</small>' : '') : ''}</td>
-    <td class="n">${r.sugg != null ? `<b>${eur(r.sugg)}</b>${r.st === 'alone' ? '<small>da tendenza</small>' : ''}` : ''}</td>
+    <td class="n">${M.lo != null ? (cfg.base === 'low' ? `<b>${eur(M.lo)}</b>` : eur(M.lo)) + noteR : ''}</td>
+    <td class="n">${M.t != null ? (cfg.base === 'trend' ? `<b>${eur(M.t)}</b>` : eur(M.t)) + noteR : ''}</td>
+    <td class="n">${r.sugg != null ? `<b>${eur(r.sugg)}</b>${r.used !== cfg.base ? `<small>da ${BASEN[r.used]}</small>` : ''}` : ''}</td>
     <td class="n">${r.diff != null && Math.abs(r.diff) >= 0.005 ? `<span class="${r.diff > 0 ? 'up' : 'down'}">${r.diff > 0 ? '+' : '−'}${eur(Math.abs(r.diff))}</span>` : r.diff != null ? '0' : ''}</td>
-    <td><span class="st ${r.st}">${ST[r.st]}</span></td>
-    <td><small>${M.at ? fmtDT(M.at) : ''}</small></td></tr>`;
-  }).join('')}</tbody></table>` : `<p class="empty">${scope.length ? 'Nessuna carta in questo stato.' : 'Nessuna carta in vendita.'}</p>`}`;
+    <td><span class="st ${r.st}">${ST[r.st]}</span>${M.x ? '<small title="TCGdex collega questa carta a un altro prodotto Cardmarket: controlla">⚠ abbinamento da verificare</small>' : ''}</td>
+    <td><small>${M.src === 'pg' ? 'Price Guide' : M.src === 'tcgdex' ? 'TCGdex' : ''}${M.upd ? ' · ' + fmtD(M.upd) : ''}</small></td></tr>`;
+  }).join('')}</tbody></table>` : `<p class="empty">${scope.length ? 'Nessuna carta in questo stato.' : 'Nessuna carta in vendita.'}</p>`}
+  <p class="small" style="margin-top:12px">Se il browser non riesce a scaricare da solo la Price Guide, la aggiorno con TCGdex (che riprende gli stessi prezzi di Cardmarket). Per usare direttamente il file di Cardmarket: apri la <a href="${PG_PAGE}" target="_blank" rel="noreferrer">pagina Price Guide</a>, scarica il file <b>Pokémon</b> e caricalo con <b>📂 Carica Price Guide</b> (o trascinalo qui).</p>`;
 
   $('rvSeg').onclick = e => { const b = e.target.closest('button[data-st]'); if (!b) return; revF.st = b.dataset.st; renderPrices(); };
   $('rvSet').onchange = () => { revF.set = $('rvSet').value; renderPrices(); };
   $('rvQ').oninput = () => { revF.q = $('rvQ').value; clearTimeout(renderPrices.t); renderPrices.t = setTimeout(() => { renderPrices(); const q = $('rvQ'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 300); };
-  $('rvPlus').onchange = () => { cfg.plus = Math.max(0, parseInt($('rvPlus').value || '0', 10)); save(); renderSets(); renderPrices(); };
+  const setPlus = () => { cfg.plus = (+$('rvSign').value || 1) * Math.abs(parseInt($('rvPlus').value || '0', 10) || 0); save(); renderSets(); renderPrices(); };
+  $('rvPlus').onchange = setPlus; $('rvSign').onchange = setPlus;
+  $('rvBase').onchange = () => { cfg.base = $('rvBase').value; save(); renderSets(); renderPrices(); };
   $('rvTol').onchange = () => { cfg.tol = Math.max(0, parseInt($('rvTol').value || '0', 10)); save(); renderSets(); renderPrices(); };
   if ($('rvAll')) $('rvAll').onchange = () => document.querySelectorAll('.rvSel:not(:disabled)').forEach(c => { c.checked = $('rvAll').checked; });
   document.querySelectorAll('.rvP').forEach(inp => inp.onchange = () => {
@@ -1032,28 +1154,16 @@ function renderPrices() {
     save(); refresh(); toast(`Prezzo aggiornato su ${sel.length} carte`);
   };
   $('rvCsv').onclick = () => downloadCsv(`revisione-prezzi-${new Date().toISOString().slice(0, 10)}.csv`,
-    [['Set', 'Numero', 'Nome', 'Rarità', 'Variante', 'Lingua', 'Quantità', 'Tuo prezzo', 'Da', 'Offerte', 'Tendenza', 'Consigliato', 'Differenza', 'Stato', 'Controllata']].concat(
+    [['Set', 'Numero', 'Nome', 'Rarità', 'Variante', 'Lingua', 'Quantità', 'Tuo prezzo', 'Da', 'Tendenza', 'Consigliato', 'Differenza', 'Stato', 'Fonte', 'Prezzi del']].concat(
       list.map(r => [r.set, r.l.u, r.name, r.rar, r.l.rev ? 'Reverse Holo' : 'Normale', (r.l.lang || '').toUpperCase(), r.l.q, r.l.price ?? '',
-        r.M?.d ?? '', r.M?.o ?? '', r.M?.t ?? '', r.sugg ?? '', r.diff ?? '', ST[r.st], r.M?.at ? new Date(r.M.at).toLocaleString('it-IT') : ''])));
-  $('rvCheck').onclick = () => startPriceCheck(scope);
-}
-function startPriceCheck(rows) {
-  if (!rows.length) { alert('Nessuna carta da controllare.'); return; }
-  const items = rows.map(r => ({ k: r.k, p: r.l.p, e: r.l.exp, u: r.l.u, n: r.name, r: r.l.rev ? 1 : 0, l: r.l.lang || 'it', m: r.l.price, h: r.c?.ur || '', c: r.c?.c || '' }));
-  const min = Math.ceil(items.length * 1.5 / 60);
-  if (items.length > 150 && !confirm(`Sono ${items.length} carte: il controllo dura circa ${min} minuti (Cardmarket va interrogato piano per non bloccarti). Puoi fermarlo e riprenderlo. Procedo?`)) return;
-  const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, at: today(), items }))));
-  // l'elenco viaggia nel nome della scheda: Cardmarket cancella la parte dopo # dell'indirizzo
-  try { navigator.clipboard.writeText('csrev=' + encodeURIComponent(enc)); } catch (e) {} // ripiego: negli appunti
-  const win = window.open('https://www.cardmarket.com/it/Pokemon', 'csrev=' + encodeURIComponent(enc));
-  if (!win) alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.');
-  openDlg(`<h3>🔍 Controllo prezzi su Cardmarket</h3>
-    <ol style="line-height:1.8"><li>Si è aperta una scheda di Cardmarket (se non la vedi, controlla che il browser non abbia bloccato il popup).</li>
-    <li>Lì premi il pulsante <b>📋 Card Scanner → CM</b> nella barra dei preferiti: si apre il riquadro <b>💶 Revisione prezzi</b> con <b>${items.length} carte</b> (controlla che il numero sia questo). Se Chrome chiede di <b>leggere gli appunti</b>, consenti: l'elenco passa anche da lì.</li>
-    <li>Premi <b>▶ Avvia controllo</b> (circa ${min} min). Puoi lavorare in un'altra scheda nel frattempo.</li>
-    <li>Alla fine premi <b>📤 Invia prezzi al gestionale</b>: questa pagina si aggiorna da sola.</li></ol>
-    <p class="small">La prima volta reinstalla il pulsante dalla <a href="../cardmarket/" target="_blank">pagina di installazione</a>: la versione vecchia non conosce la revisione prezzi. Lo script legge soltanto i prezzi, non modifica le tue offerte.</p>
-    <p style="text-align:right"><button id="dClose">Ok</button></p>`, () => { $('dClose').onclick = closeDlg; });
+        r.M?.lo ?? '', r.M?.t ?? '', r.sugg ?? '', r.diff ?? '', ST[r.st], r.M?.src === 'pg' ? 'Price Guide' : r.M?.src === 'tcgdex' ? 'TCGdex' : '', r.M?.upd ? new Date(r.M.upd).toLocaleString('it-IT') : ''])));
+  $('rvUpd').onclick = async () => {
+    $('rvUpd').disabled = true;
+    await updatePrices(true);
+    toast('Prezzi aggiornati');
+  };
+  $('rvPg').onclick = () => $('fPg').click();
+  if (upd) revProg({ done: 0, tot: Object.keys(state.listings).length });
 }
 
 // ---------- backup automatico in una cartella del PC (es. dentro Google Drive o OneDrive) ----------
@@ -1197,17 +1307,24 @@ $('fRestore').onchange = async e => {
   catch (err) { alert('Backup non valido.'); }
 };
 document.addEventListener('dragover', e => e.preventDefault());
-document.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) importSales([...e.dataTransfer.files]); });
-window.addEventListener('hashchange', () => { if (importPrices()) selected = '__prices'; const name = importFromHash(); if (name) selected = tcgIdFor(name) || selected; refresh(); });
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  const fs = [...e.dataTransfer.files];
+  const pgF = fs.find(f => /price_?guide|\.json$/i.test(f.name));
+  if (pgF && /price_?guide/i.test(pgF.name)) { pgFile(pgF); return; }
+  if (fs.length) importSales(fs);
+});
+$('fPg').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) pgFile(f); };
+window.addEventListener('hashchange', () => { const name = importFromHash(); if (name) selected = tcgIdFor(name) || selected; refresh(); });
 
 (async () => {
-  const prices = importPrices();
   const arrived = importFromHash();
   bkInit();
   await loadSets();
   const bySet = listingsBySet();
-  selected = (prices && '__prices') || (arrived && tcgIdFor(arrived)) || Object.keys(bySet).sort((a, b) => bySet[b].length - bySet[a].length)[0] || (tcgSets[0] && tcgSets[0].id) || null;
+  selected = (arrived && tcgIdFor(arrived)) || Object.keys(bySet).sort((a, b) => bySet[b].length - bySet[a].length)[0] || (tcgSets[0] && tcgSets[0].id) || null;
   refresh();
+  updatePrices(false); // aggiorna da solo i prezzi più vecchi di 12 ore
 })();
 </script>
 </body>

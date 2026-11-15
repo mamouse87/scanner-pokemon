@@ -1,18 +1,14 @@
 // Card Scanner → Cardmarket "Inserisci carte bulk"
 // Compila le righe della pagina con la lista dell'app, controlla nome e rarità,
-// e imposta il prezzo = offerta più bassa (lingua della lista, Near Mint o migliore,
-// escluse le tue offerte) + i centesimi scelti. Non invia nulla da solo.
+// e imposta il prezzo = "Da" (prezzo minimo) oppure "Tendenza" ± i centesimi scelti.
+// I due valori li legge dalla pagina stessa (campi nascosti di ogni riga): nessuna richiesta a Cardmarket.
+// Non invia nulla da solo.
 (() => {
-  // revisione prezzi chiesta dal gestionale (funziona su qualunque pagina di Cardmarket)
-  // fuori dalla pagina "Inserisci carte bulk" il pulsante fa la revisione prezzi chiesta dal gestionale
-  if (/#csrev=/.test(location.hash) || /^csrev=/.test(window.name || '') || window.__csRev || !document.getElementById('BulkListingForm')) {
-    priceReview(); return;
-  }
   if (window.__csPanel) { window.__csPanel.style.display = 'block'; return; }
 
   const form = document.getElementById('BulkListingForm');
   if (!form) {
-    alert('Apri prima la pagina "Inserisci carte bulk" di Cardmarket per un\'espansione, poi premi di nuovo il pulsante.');
+    alert('Apri prima la pagina "Inserisci carte bulk" di Cardmarket per un\'espansione, poi premi di nuovo il pulsante.\n\n(La revisione prezzi ora si fa direttamente nel gestionale.)');
     return;
   }
 
@@ -27,7 +23,6 @@
     'promo': 'promo', 'nessuna': ''
   };
   const GEST_URL = 'https://mamouse87.github.io/scanner-pokemon/gestionale/';
-  const DELAY_MS = 1300;
   const MIN_PRICE = 0.02;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -54,8 +49,11 @@
       style="width:100%;height:110px;box-sizing:border-box;${inp};font:12px monospace"></textarea>
     <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin:8px 0">
       <span>Commento</span><input id="csComment" style="${inp}" placeholder="es. Collezione privata">
-      <span>Prezzo</span><span><input type="checkbox" id="csPrice" checked> offerta più bassa NM + <input id="csPlus" type="number" min="0" step="1" style="${inp};width:60px"> cent.</span>
-      <span>Tuo utente</span><input id="csMe" style="${inp}" placeholder="per escludere le tue offerte">
+      <span>Prezzo</span><span><input type="checkbox" id="csPrice" checked>
+        <select id="csBase" style="${inp}"><option value="low">"Da" (prezzo minimo)</option><option value="trend">Tendenza</option></select>
+        <select id="csSign" style="${inp}"><option value="1">+</option><option value="-1">−</option></select>
+        <input id="csPlus" type="number" min="0" step="1" style="${inp};width:60px"> cent.</span>
+      <span></span><span style="font-size:11.5px;color:#9aa3ad">es. 150 cent. = 1,50 €. Prezzo minimo 0,02 €.</span>
     </div>
     <div id="csProg" style="margin:0 0 8px;padding:8px;border-radius:8px;background:#0d1014;font-size:12.5px;display:none;max-height:38vh;overflow:auto"></div>
     <button id="csGo" style="width:100%;padding:10px;border:0;border-radius:8px;background:#ffcb05;color:#111;font-weight:700;cursor:pointer">Compila la pagina</button>
@@ -73,12 +71,6 @@
   };
   $('csClose').onclick = () => { panel.style.display = 'none'; };
 
-  function guessMe() {
-    // il nome utente compare nel menu account in alto (es. LULU-MOUSE)
-    const el = [...document.querySelectorAll('header a, header span, nav a, nav span')]
-      .find(x => /^[A-Za-z0-9_-]{3,}$/.test((x.textContent || '').trim()) && x.closest('[class*="account"],[id*="account"],[class*="user"]'));
-    return el ? el.textContent.trim() : '';
-  }
   function syncComment(force) {
     const m = $('csInput').value.match(/^COMMENTO\s+(.*)$/mi);
     if (m && (force || !$('csComment').value)) { $('csComment').value = m[1].trim(); store.set('comment', $('csComment').value); }
@@ -86,12 +78,15 @@
 
   // valori ricordati (servono anche per la seconda pagina del set)
   $('csInput').value = store.get('list', '');
-  $('csPlus').value = store.get('plus', '0');
-  $('csMe').value = store.get('me', '') || guessMe();
+  const plus0 = parseInt(store.get('plus', '0'), 10) || 0;
+  $('csPlus').value = String(Math.abs(plus0));
+  $('csSign').value = plus0 < 0 ? '-1' : store.get('sign', '1');
+  $('csBase').value = store.get('base', 'low');
   $('csComment').value = store.get('comment', '');
   $('csInput').addEventListener('input', () => { store.set('list', $('csInput').value); syncComment(); });
-  $('csPlus').addEventListener('input', () => store.set('plus', $('csPlus').value));
-  $('csMe').addEventListener('input', () => store.set('me', $('csMe').value));
+  $('csPlus').addEventListener('input', () => store.set('plus', String(Math.abs(parseInt($('csPlus').value || '0', 10) || 0))));
+  $('csSign').addEventListener('change', () => store.set('sign', $('csSign').value));
+  $('csBase').addEventListener('change', () => store.set('base', $('csBase').value));
   $('csComment').addEventListener('input', () => store.set('comment', $('csComment').value));
   $('csFile').addEventListener('change', async e => {
     const f = e.target.files[0];
@@ -187,46 +182,49 @@
   }
 
   // ---------- prezzo ----------
-  function parsePrice(t) {
-    const m = String(t).match(/(\d{1,3}(?:\.\d{3})*,\d{2})\s*€/);
-    return m ? parseFloat(m[1].replace(/\./g, '').replace(',', '.')) : null;
+  // Ogni riga della pagina "Inserisci carte bulk" ha i campi nascosti lowPrice ("Da") e trendPrice (tendenza).
+  function hidden(tr, n) {
+    const el = tr.querySelector(`input[name="${n}"]`) || field(tr, n);
+    const v = el ? parseFloat(String(el.value).replace(',', '.')) : NaN;
+    return isNaN(v) || v <= 0 ? null : v;
   }
-  let blocked = false;
-  /** Offerta più bassa sulla pagina della carta con i filtri (= il "Da" per lingua e condizione), escluse le tue. */
-  async function lowest(row, rev, langId, me) {
-    const u = new URL(row.href, location.origin);
-    u.searchParams.set('language', String(langId));
-    u.searchParams.set('minCondition', '2');
-    u.searchParams.set('isReverseHolo', rev ? 'Y' : 'N');
-    const r = await fetch(u.href, { credentials: 'include' });
-    if (r.status === 429 || r.status === 403) { blocked = true; throw new Error('Cardmarket ha rallentato le richieste (' + r.status + ')'); }
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
-    if (/just a moment|attention required/i.test(doc.title)) { blocked = true; throw new Error('controllo anti-bot di Cardmarket'); }
-
-    const rows = [...new Set([...doc.querySelectorAll('[id^="articleRow"], .article-row')])];
-    const meL = (me || '').trim().toLowerCase();
-    const prices = [];
-    let mine = 0;
-    for (const ar of rows) {
-      const seller = ar.querySelector('a[href*="/Users/"]');
-      if (meL && seller && seller.textContent.trim().toLowerCase() === meL) { mine++; continue; }
-      const pc = ar.querySelector('.price-container') || ar.querySelector('.col-offer') || ar;
-      const p = parsePrice(pc.textContent);
-      if (p != null) prices.push(p);
+  // Per le Reverse la pagina dà i valori della versione normale: provo la Price Guide pubblica di Cardmarket,
+  // che ha anche "Da" e tendenza delle Reverse (campi -holo). Se non si scarica, uso quelli della normale.
+  const PG_URL = 'https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_6.json';
+  let pg = null, pgTried = false;
+  async function priceGuide(pids) {
+    if (pgTried) return pg;
+    pgTried = true;
+    try {
+      const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 20000);
+      const r = await fetch(PG_URL, { signal: ctl.signal }); clearTimeout(tm);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      const list = Array.isArray(d) ? d : (d.priceGuides || d.priceguides || []);
+      pg = {};
+      list.forEach(x => { if (pids.has(String(x.idProduct))) pg[x.idProduct] = x; });
+      log(`Price Guide di Cardmarket scaricata (${d.createdAt ? new Date(d.createdAt).toLocaleDateString('it-IT') : 'oggi'}): uso i prezzi Reverse.`, '#9aa3ad');
+    } catch (e) { pg = null; log('Price Guide non scaricabile da qui (' + (e.message || e) + '): per le Reverse uso i valori della versione normale.', '#9aa3ad'); }
+    return pg;
+  }
+  const BASE_NAME = { low: 'Da', trend: 'Tendenza' };
+  /** valore base per la riga: {v, src, warn} */
+  function baseValue(tr, rev, base) {
+    const pid = (field(tr, 'idProduct') || {}).value;
+    const other = base === 'low' ? 'trend' : 'low';
+    if (rev && pg && pg[pid]) {
+      const x = pg[pid];
+      const pick = k => { const v = +x[k + '-holo']; return v > 0 ? v : null; };
+      const v = pick(base);
+      if (v != null) return { v, src: `${BASE_NAME[base]} Reverse` };
+      const w = pick(other);
+      if (w != null) return { v: w, src: `${BASE_NAME[other]} Reverse (manca ${BASE_NAME[base]})`, warn: true };
     }
-    if (prices.length) return { base: Math.min(...prices), src: `più bassa tra ${prices.length} offerte` + (mine ? `, ${mine} tue escluse` : '') };
-
-    // ripiego: il valore "Da" nel riquadro informazioni della carta
-    const dt = [...doc.querySelectorAll('dt')].find(d => /^(da|from|disponibile da)$/i.test(d.textContent.trim()));
-    const da = dt && dt.nextElementSibling ? parsePrice(dt.nextElementSibling.textContent) : null;
-    if (da != null) return { base: da, src: rows.length ? 'valore "Da" (offerte non lette)' : 'valore "Da"' };
-    return { base: null, src: rows.length ? 'offerte trovate ma prezzo non leggibile' : 'nessuna offerta NM in questa lingua' };
-  }
-  function trendOf(tr) {
-    const el = tr.querySelector('input[name="trendPrice"]');
-    const v = el ? parseFloat(el.value) : NaN;
-    return isNaN(v) ? null : v;
+    const val = { low: hidden(tr, 'lowPrice'), trend: hidden(tr, 'trendPrice') };
+    const tag = rev ? ' della normale' : '';
+    if (val[base] != null) return { v: val[base], src: BASE_NAME[base] + tag, warn: rev };
+    if (val[other] != null) return { v: val[other], src: `${BASE_NAME[other]}${tag} (manca ${BASE_NAME[base]})`, warn: true };
+    return { v: null, src: 'nessun prezzo sulla pagina', warn: true };
   }
 
   // ---------- lista dall'app ----------
@@ -398,12 +396,12 @@
     if (!items.length) { log('Nessuna carta nella lista.', '#ff6b6b'); return; }
     const rows = pageRows();
     const wantPrice = $('csPrice').checked;
-    const plus = Math.max(0, parseInt($('csPlus').value || '0', 10)) / 100;
+    const base = $('csBase').value === 'trend' ? 'trend' : 'low';
+    const plus = (+$('csSign').value || 1) * Math.abs(parseInt($('csPlus').value || '0', 10) || 0) / 100;
     const comment = $('csComment').value.trim();
-    const me = $('csMe').value.trim();
-    if (wantPrice && !me) log('Suggerimento: scrivi il tuo nome utente, così le tue offerte non contano come "più bassa".', '#ff9f43');
+    const fmtPlus = plus ? ` ${plus > 0 ? '+' : '−'} ${Math.abs(plus).toFixed(2).replace('.', ',')} €` : '';
     log(`${setName ? setName + ' · ' : ''}${LANG_NAME[lang]} · ${items.length} righe` +
-        (wantPrice ? ` · prezzo = più bassa + ${Math.round(plus * 100)} cent.` : '') + (comment ? ` · commento "${comment}"` : ''));
+        (wantPrice ? ` · prezzo = ${BASE_NAME[base]}${fmtPlus}` : '') + (comment ? ` · commento "${comment}"` : ''));
 
     const byNum = new Map();
     const missing = [];
@@ -428,6 +426,10 @@
     if (byNum.size > 100) log('Attenzione: più di 100 carte diverse, Cardmarket potrebbe non inserirle tutte in un solo invio.', '#ff9f43');
 
     let total = 0, warnings = 0;
+    if (wantPrice && [...byNum.values()].some(g => g.rev)) {
+      const pids = new Set([...byNum.values()].map(g => String((field(g.row.tr, 'idProduct') || {}).value)));
+      await priceGuide(pids);
+    }
     for (const [, g] of byNum) {
       const checks = [];
       if (sameName(g.name, g.row.name) === false) checks.push(`NOME diverso: app "${g.name}" / Cardmarket "${g.row.name}"`);
@@ -445,21 +447,14 @@
           log(`${g.row.label}: non esiste in versione Reverse su Cardmarket, saltata (controlla la carta).`, '#ff6b6b');
           continue;
         }
-        let price = null, src = '';
-        if (wantPrice && !blocked) {
-          try {
-            const res = await lowest(g.row, v.rev, lang, me);
-            src = res.src;
-            if (res.base != null) {
-              price = Math.max(MIN_PRICE, Math.round((res.base + plus) * 100) / 100);
-              src += `: ${res.base.toFixed(2)}${plus ? ' + ' + plus.toFixed(2) : ''}`;
-            }
-          } catch (e) { src = e.message; }
-          await sleep(DELAY_MS);
-        }
-        if (price == null && wantPrice) {
-          const t = trendOf(g.row.tr);
-          if (t != null) { price = Math.max(MIN_PRICE, Math.round((t + plus) * 100) / 100); src += (src ? ' → ' : '') + 'USATA LA TENDENZA, controlla'; }
+        let price = null, src = '', pwarn = false;
+        if (wantPrice) {
+          const b = baseValue(g.row.tr, v.rev, base);
+          src = b.src; pwarn = !!b.warn;
+          if (b.v != null) {
+            price = Math.max(MIN_PRICE, Math.round((b.v + plus) * 100) / 100);
+            src += `: ${b.v.toFixed(2)}${fmtPlus}`;
+          }
         }
         let tr = g.row.tr;
         if (!first) {
@@ -467,257 +462,17 @@
           if (!tr) { log(`${g.row.label}: non riesco a duplicare la riga per la Reverse, inseriscila a mano.`, '#ff6b6b'); continue; }
         }
         first = false;
-        fillRow(tr, { lang, rev: v.rev, qty: v.qty, price, comment, warn });
+        fillRow(tr, { lang, rev: v.rev, qty: v.qty, price, comment, warn: warn || (wantPrice && (price == null || pwarn)) });
         filled.push({ num: g.row.num.replace(/^0+(?=\d)/, ''), rev: v.rev, qty: v.qty, price, name: g.name || g.row.name, rarity: g.rarity || '' });
         total += v.qty;
+        if (!warn && wantPrice && (price == null || pwarn)) warnings++;
         log(`${g.row.label} [${v.rev ? 'REVERSE' : 'normale'}] · ${g.row.rarity || '?'} ×${v.qty} → ${price != null ? price.toFixed(2) + ' €' : 'prezzo vuoto'}` +
-            (src ? `  (${src})` : ''), (price == null && wantPrice) || /TENDENZA/.test(src) ? '#ff9f43' : null);
+            (src ? `  (${src})` : ''), wantPrice && (price == null || pwarn) ? '#ff9f43' : null);
       }
       checks.forEach(c => log('   ⚠ ' + c, '#ff9f43'));
     }
     log(`\nCompilate ${total} copie. Verde = normali, viola = Reverse, arancione = da controllare (${warnings}).`, '#3ecf6e');
-    log('Controlla e poi premi il pulsante di invio di Cardmarket in fondo alla pagina.', '#3ecf6e');
     showGest();
     if (filled.length) log('Controlla la pagina, poi premi il pulsante verde "Invia al gestionale". La messa in vendita su Cardmarket la fai tu.', '#3ecf6e');
-    if (blocked) log('Cardmarket ha bloccato le ricerche prezzi: per le carte restanti è stata usata la tendenza. Riprova tra qualche minuto.', '#ff9f43');
-  }
-
-  // ================= REVISIONE PREZZI =================
-  // Il gestionale apre Cardmarket con #csrev=<elenco delle carte in vendita>.
-  // Per ogni carta leggo: "Da" = offerta più bassa nella lingua della carta, Near Mint o migliore,
-  // escluse le tue; "Tendenza di prezzo" dal riquadro informazioni. Poi rimando tutto al gestionale.
-  // Legge soltanto: non modifica le tue offerte.
-  async function priceReview() {
-    const GEST = 'https://mamouse87.github.io/scanner-pokemon/gestionale/';
-    const WAIT = 1300;
-    const LID = { it: 5, en: 1, fr: 2, de: 3, es: 4, pt: 8 };
-    const wait = ms => new Promise(r => setTimeout(r, ms));
-    const H = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const S = {
-      get: (k, d) => { try { const v = localStorage.getItem('cs_' + k); return v == null ? d : v; } catch (e) { return d; } },
-      set: (k, v) => { try { localStorage.setItem('cs_' + k, v); } catch (e) {} },
-      json: (k, d) => { try { return JSON.parse(S.get(k, '')) || d; } catch (e) { return d; } }
-    };
-    const eu = v => v == null ? '—' : v.toFixed(2).replace('.', ',') + ' €';
-
-    let job = null;
-    // l'elenco arriva nel nome della scheda (Cardmarket cancella la parte dopo # dell'indirizzo); il # resta come ripiego
-    let hm = (window.name || '').match(/^csrev=(.+)$/) || location.hash.match(/#csrev=([^&]+)/);
-    if (!hm) {
-      // terzo modo: il gestionale copia l'elenco negli appunti (Chrome può chiedere il permesso di leggerli)
-      try { const t = (await navigator.clipboard.readText()).trim(); hm = t.match(/^csrev=(.+)$/); if (hm) navigator.clipboard.writeText('').catch(() => {}); } catch (e) {}
-    }
-    if (window.__csRev) {
-      if (!hm) { window.__csRev.style.display = 'block'; return; }
-      window.__csRevStop && window.__csRevStop(); window.__csRev.remove(); window.__csRev = null; // arriva un elenco nuovo
-    }
-    if (hm) {
-      try { window.name = ''; } catch (e) {}
-      try {
-        job = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(hm[1])))));
-        S.set('revlist', JSON.stringify(job)); S.set('revres', '{}');
-      } catch (e) { alert('Elenco dal gestionale non leggibile: riprova dal gestionale.'); }
-      history.replaceState(null, '', location.pathname + location.search);
-    }
-    if (!job) job = S.json('revlist', null);
-    if (!job || !job.items || !job.items.length) { alert('Questo pulsante si usa sulla pagina "Inserisci carte bulk" di un\'espansione.\n\nPer la revisione prezzi parti dal gestionale: "Revisione prezzi" → "Controlla su Cardmarket", poi premi qui il pulsante (se Chrome chiede di leggere gli appunti, consenti).'); return; }
-    const res = S.json('revres', {});
-
-    const P = document.createElement('div');
-    window.__csRev = P;
-    P.style.cssText = 'position:fixed;top:12px;right:12px;width:470px;max-height:92vh;overflow:auto;z-index:99999;background:#1c2128;color:#e8eaed;' +
-      'font:14px/1.4 system-ui,sans-serif;border-radius:12px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.4)';
-    const ip = 'background:#0d1014;color:#e8eaed;border:1px solid #333a44;border-radius:6px;padding:5px';
-    const bt = c => `width:100%;margin-top:8px;padding:10px;border:0;border-radius:8px;background:${c};color:#111;font-weight:700;cursor:pointer`;
-    P.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <b style="color:#ffcb05">💶 Revisione prezzi</b>
-        <button id="rvX" style="background:none;border:0;color:#e8eaed;font-size:18px;cursor:pointer">✕</button></div>
-      <div id="rvInfo" style="font-size:13px;color:#9aa3ad"></div>
-      <div style="margin:8px 0">Tuo utente <input id="rvMe" style="${ip};width:60%" placeholder="per escludere le tue offerte"></div>
-      <div style="height:10px;background:#0d1014;border-radius:5px;overflow:hidden"><i id="rvBar" style="display:block;height:100%;width:0;background:#ffcb05"></i></div>
-      <button id="rvGo" style="${bt('#ffcb05')}">▶ Avvia controllo</button>
-      <button id="rvSend" style="${bt('#3ecf6e')};display:none"></button>
-      <div id="rvLog" style="margin-top:10px;font:12px/1.45 monospace;white-space:pre-wrap"></div>
-      <div style="margin-top:8px;text-align:right"><a href="#" id="rvDrop" style="color:#9aa3ad;font-size:11px">chiudi e dimentica questo elenco</a></div>`;
-    document.body.appendChild(P);
-    const q = id => P.querySelector('#' + id);
-    const log = (t, c) => { const d = document.createElement('div'); if (c) d.style.color = c; d.textContent = t; q('rvLog').appendChild(d); P.scrollTop = P.scrollHeight; };
-    q('rvMe').value = S.get('me', '');
-    q('rvMe').oninput = () => S.set('me', q('rvMe').value);
-    q('rvX').onclick = () => { stop = true; P.style.display = 'none'; };
-    q('rvDrop').onclick = e => {
-      e.preventDefault();
-      if (!confirm('Chiudere la revisione e dimenticare questo elenco? (i prezzi già inviati al gestionale restano lì)')) return;
-      stop = true; try { localStorage.removeItem('cs_revlist'); localStorage.removeItem('cs_revres'); } catch (er) {}
-      P.remove(); window.__csRev = null;
-    };
-
-    const items = job.items;
-    function status() {
-      const done = items.filter(it => res[it.k] && !res[it.k].err).length;
-      const left = items.length - done;
-      q('rvBar').style.width = (done / items.length * 100) + '%';
-      q('rvInfo').innerHTML = `Elenco dal gestionale: <b>${items.length}</b> carte · controllate <b>${done}</b>` +
-        (left ? ` · mancano ${left} (circa ${Math.max(1, Math.ceil(left * WAIT * 1.15 / 60000))} min)` : ' ✔');
-      q('rvGo').textContent = running ? '⏸ Ferma' : done && left ? '▶ Riprendi controllo' : done ? '↻ Ricontrolla tutto' : '▶ Avvia controllo';
-      const b = q('rvSend');
-      b.style.display = done ? 'block' : 'none';
-      b.textContent = `📤 Invia prezzi al gestionale (${done} carte)`;
-    }
-
-    let blockedR = false;
-    async function getDoc(url) {
-      const r = await fetch(url, { credentials: 'include' });
-      if (r.status === 429 || r.status === 403) { blockedR = true; throw new Error('Cardmarket ha rallentato le richieste (' + r.status + ')'); }
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const d = new DOMParser().parseFromString(await r.text(), 'text/html');
-      if (/just a moment|attention required/i.test(d.title)) { blockedR = true; throw new Error('controllo anti-bot di Cardmarket'); }
-      return d;
-    }
-
-    // indirizzo della pagina di ogni carta: se il gestionale non lo conosce lo cerco nella pagina "Inserisci carte bulk" del set
-    const hrefs = S.json('href', {});
-    items.forEach(it => { if (it.h) hrefs[it.p] = it.h; }); // indirizzi già noti al gestionale
-    const bulkTrend = {};
-    const numKey = n => { const x = String(n || '').toUpperCase().replace(/^[A-Z]*?(?=\d)/, ''); return /^\d+$/.test(x) ? String(parseInt(x, 10)) : x; };
-    // 1° modo: l'elenco del set in modalità lista (Prodotti → Singole → espansione), una pagina alla volta
-    async function fromSinglesList(exp, todo) {
-      const known = list0 => list0.map(it => hrefs[it.p]).find(Boolean);
-      let slug = (known(items.filter(it => it.e === exp)) || '').match(/\/Products\/Singles\/([^/?#]+)\//);
-      slug = slug ? slug[1] : '';
-      const code = (todo.find(it => it.c) || {}).c || '';
-      for (let site = 1; site <= 15 && todo.some(it => !hrefs[it.p]) && !stop; site++) {
-        const base = slug ? `/it/Pokemon/Products/Singles/${slug}?` : `/it/Pokemon/Products/Singles?idExpansion=${encodeURIComponent(exp)}&`;
-        const d = await getDoc(base + `mode=list&idRarity=0&sortBy=collectorsnumber_asc&perSite=50&site=${site}`);
-        const links = [...d.querySelectorAll('a[href*="/Products/Singles/"]')].map(a => a.getAttribute('href').split(/[?#]/)[0])
-          .map(h => ({ h, m: h.match(/\/Products\/Singles\/([^/]+)\/[^/]*?-([A-Z][A-Z0-9]{1,5}?)(\d{1,3}[a-z]?)(?:-V\d+)?$/) })).filter(x => x.m);
-        // se conosco la sigla del set (es. DLR) tengo solo quelle carte: evita di prendere carte di altri set
-        let good = links.filter(x => !code || x.m[2].toUpperCase() === code.toUpperCase());
-        if (!code && !slug && good.length) {
-          // senza sigla tengo il set più presente nella pagina (scarto i "visualizzati di recente" di altri set)
-          const cnt = {}; good.forEach(x => { cnt[x.m[1]] = (cnt[x.m[1]] || 0) + 1; });
-          slug = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0];
-        }
-        if (slug) good = good.filter(x => x.m[1] === slug);
-        if (!good.length) { log(`Elenco del set (pagina ${site}): nessuna carta trovata — "${d.title.trim().slice(0, 60)}"`, '#9aa3ad'); await wait(WAIT); break; }
-        if (!slug) slug = good[0].m[1];
-        let added = 0;
-        good.forEach(x => todo.forEach(it => {
-          if (!hrefs[it.p] && numKey(it.u) === numKey(x.m[3])) { hrefs[it.p] = x.h; added++; }
-        }));
-        S.set('href', JSON.stringify(hrefs));
-        log(`Elenco del set ${slug} pagina ${site}: ${good.length} carte lette, ${added} abbinate`, '#9aa3ad');
-        await wait(WAIT);
-        if (good.length < 20) break; // ultima pagina
-      }
-    }
-    async function findHrefs(list) {
-      list.forEach(it => { if (it.h) hrefs[it.p] = it.h; });
-      const byExp = {};
-      list.forEach(it => { if (!hrefs[it.p] && it.e) (byExp[it.e] = byExp[it.e] || []).push(it); });
-      for (const [exp, todo] of Object.entries(byExp)) {
-        try { await fromSinglesList(exp, todo); } catch (e) { log('Elenco del set: ' + e.message, '#ff9f43'); if (blockedR) throw e; }
-      }
-      // 2° modo (ripiego): la pagina "Inserisci carte bulk" del set
-      const need = {};
-      list.forEach(it => { if (!hrefs[it.p] && it.e) (need[it.e] = need[it.e] || new Set()).add(String(it.p)); });
-      for (const [exp, set] of Object.entries(need)) {
-        for (let site = 1; site <= 12 && set.size && !stop; site++) {
-          const d = await getDoc(`/it/Pokemon/Stock/ListingMethods/BulkListing?sortBy=number&idExpansion=${encodeURIComponent(exp)}` + (site > 1 ? '&site=' + site : ''));
-          let found = 0;
-          d.querySelectorAll('input[name^="idProduct"]').forEach(inp => {
-            const tr = inp.closest('tr'), a = tr && tr.querySelector('.col-product a');
-            if (!inp.value || !a) return;
-            found++;
-            hrefs[inp.value] = a.getAttribute('href');
-            set.delete(inp.value);
-            const t = parseFloat((tr.querySelector('input[name="trendPrice"]') || {}).value || '');
-            if (!isNaN(t)) bulkTrend[inp.value] = t;
-          });
-          S.set('href', JSON.stringify(hrefs));
-          if (!found) log(`Pagina "Inserisci carte bulk" (${site}): nessuna carta — "${d.title.trim().slice(0, 60)}"`, '#9aa3ad');
-          await wait(WAIT);
-          if (!found) break;
-        }
-      }
-    }
-
-    async function check(it, me) {
-      const u = new URL(hrefs[it.p], location.origin);
-      u.searchParams.set('language', String(LID[it.l] || 5));
-      u.searchParams.set('minCondition', '2');
-      u.searchParams.set('isReverseHolo', it.r ? 'Y' : 'N');
-      const d = await getDoc(u.href);
-      const meL = (me || '').trim().toLowerCase();
-      const prices = [];
-      let mine = 0;
-      [...new Set([...d.querySelectorAll('[id^="articleRow"], .article-row')])].forEach(ar => {
-        const s = ar.querySelector('a[href*="/Users/"]');
-        if (meL && s && s.textContent.trim().toLowerCase() === meL) { mine++; return; }
-        const p = parsePrice((ar.querySelector('.price-container') || ar.querySelector('.col-offer') || ar).textContent);
-        if (p != null) prices.push(p);
-      });
-      // riquadro informazioni: "Da", "Tendenza di prezzo"… (per le Reverse cerco la voce Reverse se c'è)
-      const info = [];
-      d.querySelectorAll('dt').forEach(dt => {
-        const dd = dt.nextElementSibling;
-        if (dd && dd.tagName === 'DD') info.push([dt.textContent.trim().toLowerCase(), parsePrice(dd.textContent)]);
-      });
-      const isTrend = l => /tendenza|trend/.test(l);
-      let t = null, tn = 0;
-      if (it.r) { const x = info.find(([l, v]) => isTrend(l) && /reverse/.test(l) && v != null); if (x) t = x[1]; }
-      if (t == null) {
-        const x = info.find(([l, v]) => isTrend(l) && !/reverse/.test(l) && v != null);
-        if (x) { t = x[1]; tn = it.r ? 1 : 0; }
-        else if (bulkTrend[it.p] != null) { t = bulkTrend[it.p]; tn = it.r ? 1 : 0; }
-      }
-      const da = info.find(([l, v]) => /^(da|from|disponibile da)$/.test(l) && v != null);
-      return { d: prices.length ? Math.min(...prices) : null, o: prices.length, mine, t, tn, a: da ? da[1] : null, at: new Date().toISOString() };
-    }
-
-    let running = false, stop = false;
-    window.__csRevStop = () => { stop = true; };
-    async function go() {
-      if (running) { stop = true; return; }
-      const me = q('rvMe').value.trim();
-      if (!me && !confirm('Non hai scritto il tuo nome utente: le tue offerte verranno contate come concorrenti. Continuare?')) return;
-      if (items.every(it => res[it.k] && !res[it.k].err)) { Object.keys(res).forEach(k => delete res[k]); S.set('revres', '{}'); q('rvLog').textContent = ''; }
-      running = true; stop = false; blockedR = false; status();
-      try {
-        const todo = items.filter(it => !res[it.k] || res[it.k].err); // riprovo anche quelle non trovate prima
-        if (todo.some(it => !it.h && !hrefs[it.p])) { log('Cerco le pagine delle carte nei set…', '#9aa3ad'); await findHrefs(todo); }
-        for (const it of todo) {
-          if (stop) break;
-          const name = `${it.u} ${it.n || ''}${it.r ? ' (Reverse)' : ''} ${String(it.l || '').toUpperCase()}`;
-          if (!hrefs[it.p]) { log(`${name}: pagina della carta non trovata, saltata`, '#ff9f43'); res[it.k] = { err: 'pagina non trovata', at: new Date().toISOString() }; continue; }
-          try {
-            const r = await check(it, me);
-            res[it.k] = r;
-            const tuo = it.m != null ? it.m : null;
-            const diff = r.d != null && tuo != null ? tuo - r.d : null;
-            log(`${name}: tuo ${eu(tuo)} · Da ${eu(r.d)}${r.o ? ` (${r.o} off.)` : ' (nessun altro)'} · Tendenza ${eu(r.t)}`,
-              diff == null ? '#9aa3ad' : diff > 0.004 ? '#ff6b6b' : diff < -0.004 ? '#3ecf6e' : null);
-          } catch (e) {
-            log(`${name}: ${e.message}`, '#ff6b6b');
-            if (blockedR) { log('Cardmarket ha bloccato le richieste: aspetta qualche minuto e premi "Riprendi". Quelle già controllate restano salvate.', '#ff9f43'); break; }
-          }
-          S.set('revres', JSON.stringify(res));
-          status();
-          await wait(WAIT);
-        }
-      } catch (e) { log('Errore: ' + e.message, '#ff6b6b'); }
-      running = false; status();
-      if (items.every(it => res[it.k])) log('Controllo finito ✔ Premi il pulsante verde per mandare i prezzi al gestionale.', '#3ecf6e');
-    }
-    q('rvGo').onclick = go;
-    q('rvSend').onclick = () => {
-      const out = {};
-      items.forEach(it => { if (res[it.k]) out[it.k] = res[it.k]; });
-      const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, at: new Date().toISOString(), res: out }))));
-      window.open(GEST + '#cmprices=' + encodeURIComponent(enc), 'gestionaleCarte');
-      log(`Inviati al gestionale i prezzi di ${Object.keys(out).length} carte.`, '#3ecf6e');
-    };
-    status();
   }
 })();

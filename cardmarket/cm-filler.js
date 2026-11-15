@@ -546,7 +546,7 @@
 
     const items = job.items;
     function status() {
-      const done = items.filter(it => res[it.k]).length;
+      const done = items.filter(it => res[it.k] && !res[it.k].err).length;
       const left = items.length - done;
       q('rvBar').style.width = (done / items.length * 100) + '%';
       q('rvInfo').innerHTML = `Elenco dal gestionale: <b>${items.length}</b> carte · controllate <b>${done}</b>` +
@@ -570,8 +570,40 @@
     // indirizzo della pagina di ogni carta: se il gestionale non lo conosce lo cerco nella pagina "Inserisci carte bulk" del set
     const hrefs = S.json('href', {});
     const bulkTrend = {};
+    const numKey = n => { const x = String(n || '').toUpperCase().replace(/^[A-Z]*?(?=\d)/, ''); return /^\d+$/.test(x) ? String(parseInt(x, 10)) : x; };
+    // 1° modo: l'elenco del set in modalità lista (Prodotti → Singole → espansione), una pagina alla volta
+    async function fromSinglesList(exp, todo) {
+      const known = list0 => list0.map(it => hrefs[it.p]).find(Boolean);
+      let slug = (known(items.filter(it => it.e === exp)) || '').match(/\/Products\/Singles\/([^/?#]+)\//);
+      slug = slug ? slug[1] : '';
+      const code = (todo.find(it => it.c) || {}).c || '';
+      for (let site = 1; site <= 15 && todo.some(it => !hrefs[it.p]) && !stop; site++) {
+        const base = slug ? `/it/Pokemon/Products/Singles/${slug}?` : `/it/Pokemon/Products/Singles?idExpansion=${encodeURIComponent(exp)}&`;
+        const d = await getDoc(base + `mode=list&idRarity=0&sortBy=collectorsnumber_asc&perSite=50&site=${site}`);
+        const links = [...d.querySelectorAll('a[href*="/Products/Singles/"]')].map(a => a.getAttribute('href').split(/[?#]/)[0])
+          .map(h => ({ h, m: h.match(/\/Products\/Singles\/([^/]+)\/[^/]*?-([A-Z][A-Z0-9]{1,5}?)(\d{1,3}[a-z]?)(?:-V\d+)?$/) })).filter(x => x.m);
+        // se conosco la sigla del set (es. DLR) tengo solo quelle carte: evita di prendere carte di altri set
+        const good = links.filter(x => !code || x.m[2].toUpperCase() === code.toUpperCase());
+        if (!good.length) { log(`Elenco del set (pagina ${site}): nessuna carta trovata — "${d.title.trim().slice(0, 60)}"`, '#9aa3ad'); await wait(WAIT); break; }
+        if (!slug) slug = good[0].m[1];
+        let added = 0;
+        good.forEach(x => todo.forEach(it => {
+          if (!hrefs[it.p] && numKey(it.u) === numKey(x.m[3])) { hrefs[it.p] = x.h; added++; }
+        }));
+        S.set('href', JSON.stringify(hrefs));
+        log(`Elenco del set ${slug} pagina ${site}: ${good.length} carte lette, ${added} abbinate`, '#9aa3ad');
+        await wait(WAIT);
+        if (good.length < 20) break; // ultima pagina
+      }
+    }
     async function findHrefs(list) {
       list.forEach(it => { if (it.h) hrefs[it.p] = it.h; });
+      const byExp = {};
+      list.forEach(it => { if (!hrefs[it.p] && it.e) (byExp[it.e] = byExp[it.e] || []).push(it); });
+      for (const [exp, todo] of Object.entries(byExp)) {
+        try { await fromSinglesList(exp, todo); } catch (e) { log('Elenco del set: ' + e.message, '#ff9f43'); if (blockedR) throw e; }
+      }
+      // 2° modo (ripiego): la pagina "Inserisci carte bulk" del set
       const need = {};
       list.forEach(it => { if (!hrefs[it.p] && it.e) (need[it.e] = need[it.e] || new Set()).add(String(it.p)); });
       for (const [exp, set] of Object.entries(need)) {
@@ -588,6 +620,7 @@
             if (!isNaN(t)) bulkTrend[inp.value] = t;
           });
           S.set('href', JSON.stringify(hrefs));
+          if (!found) log(`Pagina "Inserisci carte bulk" (${site}): nessuna carta — "${d.title.trim().slice(0, 60)}"`, '#9aa3ad');
           await wait(WAIT);
           if (!found) break;
         }
@@ -632,10 +665,10 @@
       if (running) { stop = true; return; }
       const me = q('rvMe').value.trim();
       if (!me && !confirm('Non hai scritto il tuo nome utente: le tue offerte verranno contate come concorrenti. Continuare?')) return;
-      if (items.every(it => res[it.k])) { Object.keys(res).forEach(k => delete res[k]); S.set('revres', '{}'); q('rvLog').textContent = ''; }
+      if (items.every(it => res[it.k] && !res[it.k].err)) { Object.keys(res).forEach(k => delete res[k]); S.set('revres', '{}'); q('rvLog').textContent = ''; }
       running = true; stop = false; blockedR = false; status();
       try {
-        const todo = items.filter(it => !res[it.k]);
+        const todo = items.filter(it => !res[it.k] || res[it.k].err); // riprovo anche quelle non trovate prima
         if (todo.some(it => !it.h && !hrefs[it.p])) { log('Cerco le pagine delle carte nei set…', '#9aa3ad'); await findHrefs(todo); }
         for (const it of todo) {
           if (stop) break;

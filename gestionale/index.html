@@ -1039,7 +1039,7 @@ function renderPrices() {
 }
 function startPriceCheck(rows) {
   if (!rows.length) { alert('Nessuna carta da controllare.'); return; }
-  const items = rows.map(r => ({ k: r.k, p: r.l.p, e: r.l.exp, u: r.l.u, n: r.name, r: r.l.rev ? 1 : 0, l: r.l.lang || 'it', m: r.l.price, h: r.c?.ur || '' }));
+  const items = rows.map(r => ({ k: r.k, p: r.l.p, e: r.l.exp, u: r.l.u, n: r.name, r: r.l.rev ? 1 : 0, l: r.l.lang || 'it', m: r.l.price, h: r.c?.ur || '', c: r.c?.c || '' }));
   const min = Math.ceil(items.length * 1.5 / 60);
   if (items.length > 150 && !confirm(`Sono ${items.length} carte: il controllo dura circa ${min} minuti (Cardmarket va interrogato piano per non bloccarti). Puoi fermarlo e riprenderlo. Procedo?`)) return;
   const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, at: today(), items }))));

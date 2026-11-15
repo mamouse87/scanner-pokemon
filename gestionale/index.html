@@ -1043,10 +1043,13 @@ function startPriceCheck(rows) {
   const min = Math.ceil(items.length * 1.5 / 60);
   if (items.length > 150 && !confirm(`Sono ${items.length} carte: il controllo dura circa ${min} minuti (Cardmarket va interrogato piano per non bloccarti). Puoi fermarlo e riprenderlo. Procedo?`)) return;
   const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, at: today(), items }))));
-  window.open('https://www.cardmarket.com/it/Pokemon#csrev=' + encodeURIComponent(enc), 'cardmarketRev');
+  // l'elenco viaggia nel nome della scheda: Cardmarket cancella la parte dopo # dell'indirizzo
+  try { navigator.clipboard.writeText('csrev=' + encodeURIComponent(enc)); } catch (e) {} // ripiego: negli appunti
+  const win = window.open('https://www.cardmarket.com/it/Pokemon', 'csrev=' + encodeURIComponent(enc));
+  if (!win) alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.');
   openDlg(`<h3>🔍 Controllo prezzi su Cardmarket</h3>
     <ol style="line-height:1.8"><li>Si è aperta una scheda di Cardmarket (se non la vedi, controlla che il browser non abbia bloccato il popup).</li>
-    <li>Lì premi il pulsante <b>📋 Card Scanner → CM</b> nella barra dei preferiti: si apre il riquadro <b>💶 Revisione prezzi</b> con ${items.length} carte.</li>
+    <li>Lì premi il pulsante <b>📋 Card Scanner → CM</b> nella barra dei preferiti: si apre il riquadro <b>💶 Revisione prezzi</b> con <b>${items.length} carte</b> (controlla che il numero sia questo). Se Chrome chiede di <b>leggere gli appunti</b>, consenti: l'elenco passa anche da lì.</li>
     <li>Premi <b>▶ Avvia controllo</b> (circa ${min} min). Puoi lavorare in un'altra scheda nel frattempo.</li>
     <li>Alla fine premi <b>📤 Invia prezzi al gestionale</b>: questa pagina si aggiorna da sola.</li></ol>
     <p class="small">La prima volta reinstalla il pulsante dalla <a href="../cardmarket/" target="_blank">pagina di installazione</a>: la versione vecchia non conosce la revisione prezzi. Lo script legge soltanto i prezzi, non modifica le tue offerte.</p>

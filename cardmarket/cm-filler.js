@@ -4,8 +4,8 @@
 // escluse le tue offerte) + i centesimi scelti. Non invia nulla da solo.
 (() => {
   // revisione prezzi chiesta dal gestionale (funziona su qualunque pagina di Cardmarket)
-  if (/#csrev=/.test(location.hash) || window.__csRev ||
-      (!document.getElementById('BulkListingForm') && (() => { try { return !!localStorage.getItem('cs_revlist'); } catch (e) { return false; } })())) {
+  // fuori dalla pagina "Inserisci carte bulk" il pulsante fa la revisione prezzi chiesta dal gestionale
+  if (/#csrev=/.test(location.hash) || /^csrev=/.test(window.name || '') || window.__csRev || !document.getElementById('BulkListingForm')) {
     priceReview(); return;
   }
   if (window.__csPanel) { window.__csPanel.style.display = 'block'; return; }
@@ -487,8 +487,7 @@
   // Per ogni carta leggo: "Da" = offerta più bassa nella lingua della carta, Near Mint o migliore,
   // escluse le tue; "Tendenza di prezzo" dal riquadro informazioni. Poi rimando tutto al gestionale.
   // Legge soltanto: non modifica le tue offerte.
-  function priceReview() {
-    if (window.__csRev) { window.__csRev.style.display = 'block'; return; }
+  async function priceReview() {
     const GEST = 'https://mamouse87.github.io/scanner-pokemon/gestionale/';
     const WAIT = 1300;
     const LID = { it: 5, en: 1, fr: 2, de: 3, es: 4, pt: 8 };
@@ -502,8 +501,18 @@
     const eu = v => v == null ? '—' : v.toFixed(2).replace('.', ',') + ' €';
 
     let job = null;
-    const hm = location.hash.match(/#csrev=([^&]+)/);
+    // l'elenco arriva nel nome della scheda (Cardmarket cancella la parte dopo # dell'indirizzo); il # resta come ripiego
+    let hm = (window.name || '').match(/^csrev=(.+)$/) || location.hash.match(/#csrev=([^&]+)/);
+    if (!hm) {
+      // terzo modo: il gestionale copia l'elenco negli appunti (Chrome può chiedere il permesso di leggerli)
+      try { const t = (await navigator.clipboard.readText()).trim(); hm = t.match(/^csrev=(.+)$/); if (hm) navigator.clipboard.writeText('').catch(() => {}); } catch (e) {}
+    }
+    if (window.__csRev) {
+      if (!hm) { window.__csRev.style.display = 'block'; return; }
+      window.__csRevStop && window.__csRevStop(); window.__csRev.remove(); window.__csRev = null; // arriva un elenco nuovo
+    }
     if (hm) {
+      try { window.name = ''; } catch (e) {}
       try {
         job = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(hm[1])))));
         S.set('revlist', JSON.stringify(job)); S.set('revres', '{}');
@@ -511,7 +520,7 @@
       history.replaceState(null, '', location.pathname + location.search);
     }
     if (!job) job = S.json('revlist', null);
-    if (!job || !job.items || !job.items.length) { alert('Nessun elenco da controllare: parti dal gestionale, "Revisione prezzi" → "Controlla su Cardmarket".'); return; }
+    if (!job || !job.items || !job.items.length) { alert('Questo pulsante si usa sulla pagina "Inserisci carte bulk" di un\'espansione.\n\nPer la revisione prezzi parti dal gestionale: "Revisione prezzi" → "Controlla su Cardmarket", poi premi qui il pulsante (se Chrome chiede di leggere gli appunti, consenti).'); return; }
     const res = S.json('revres', {});
 
     const P = document.createElement('div');
@@ -583,7 +592,13 @@
         const links = [...d.querySelectorAll('a[href*="/Products/Singles/"]')].map(a => a.getAttribute('href').split(/[?#]/)[0])
           .map(h => ({ h, m: h.match(/\/Products\/Singles\/([^/]+)\/[^/]*?-([A-Z][A-Z0-9]{1,5}?)(\d{1,3}[a-z]?)(?:-V\d+)?$/) })).filter(x => x.m);
         // se conosco la sigla del set (es. DLR) tengo solo quelle carte: evita di prendere carte di altri set
-        const good = links.filter(x => !code || x.m[2].toUpperCase() === code.toUpperCase());
+        let good = links.filter(x => !code || x.m[2].toUpperCase() === code.toUpperCase());
+        if (!code && !slug && good.length) {
+          // senza sigla tengo il set più presente nella pagina (scarto i "visualizzati di recente" di altri set)
+          const cnt = {}; good.forEach(x => { cnt[x.m[1]] = (cnt[x.m[1]] || 0) + 1; });
+          slug = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0];
+        }
+        if (slug) good = good.filter(x => x.m[1] === slug);
         if (!good.length) { log(`Elenco del set (pagina ${site}): nessuna carta trovata — "${d.title.trim().slice(0, 60)}"`, '#9aa3ad'); await wait(WAIT); break; }
         if (!slug) slug = good[0].m[1];
         let added = 0;
@@ -661,6 +676,7 @@
     }
 
     let running = false, stop = false;
+    window.__csRevStop = () => { stop = true; };
     async function go() {
       if (running) { stop = true; return; }
       const me = q('rvMe').value.trim();

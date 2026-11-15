@@ -14,7 +14,25 @@ html,body{height:100%}
 body{margin:0;font:14px/1.45 "Atkinson Hyperlegible",system-ui,"Segoe UI",sans-serif;background:var(--bg);color:var(--fg);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
 .top{background:var(--card);padding:12px 22px;border-bottom:1px solid var(--line);z-index:3}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-h1{margin:0;font-size:19px;letter-spacing:-.01em;color:var(--navy)}
+h1{margin:0;font-size:17px;letter-spacing:-.005em;color:#fff;white-space:nowrap}
+.top{display:flex;align-items:center;gap:22px;background:var(--navy)!important;color:#fff;padding:0 18px!important;height:58px;border-bottom:0!important}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .mark{width:20px;height:28px;border-radius:4px;background:linear-gradient(160deg,#f2c230 0 46%,#fff 46% 54%,#e9eef7 54%);box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.tstats{display:flex;gap:18px;font-size:13px;color:#c9d6ef;white-space:nowrap;overflow:hidden}
+.tstats b{color:#fff;font-size:15px;margin-right:4px;font-variant-numeric:tabular-nums}
+.tstats .w{color:#ffd28a}
+.tact{margin-left:auto;display:flex;gap:6px;align-items:center}
+.tm summary{background:rgba(255,255,255,.1)!important;border:1px solid rgba(255,255,255,.18)!important;color:#fff!important;padding:7px 13px!important}
+.tm summary:hover,.tm[open] summary{background:rgba(255,255,255,.2)!important}
+.tm .car{opacity:.7;font-size:11px;margin-left:2px}
+.tm .mn{min-width:300px}
+.tm .mn button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:9px 12px;color:var(--fg)}
+.tm .mn button b{font-size:14px;color:var(--navy)}.tm .mn button small{font-size:12px;color:var(--mut);font-weight:400}
+.ticon{position:relative;background:rgba(255,255,255,.1)!important;border:1px solid rgba(255,255,255,.18)!important;color:#fff!important;padding:7px 11px!important;font-size:15px;line-height:1}
+.ticon:hover{background:rgba(255,255,255,.2)!important}
+.ticon .dot{position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:#9aa6ba;box-shadow:0 0 0 2px var(--navy)}
+.ticon.on .dot{background:#3ecf7e}.ticon.warn .dot{background:#ff6b5b}
+.ticon .lb{font-size:12.5px;font-weight:600;margin-left:6px}
 .stats{color:var(--mut);font-size:13px}
 button,select,input{font:inherit;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--fg)}
 button{cursor:pointer;font-weight:600;color:var(--navy)}
@@ -158,24 +176,25 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
 .st.down{background:#e5484d;color:#fff}.st.up{background:var(--ok);color:#fff}.st.ok{background:var(--line);color:var(--fg)}
 .st.alone{background:#1e4fa3;color:#fff}.st.nodata,.st.noprice,.st.wait,.st.err{background:transparent;border:1px dashed var(--mut);color:var(--mut)}
 .thumb{width:34px;height:47px;object-fit:contain;border-radius:3px;background:var(--bg);display:block}
-#btnBk.warn{border-color:#e5484d;color:#e5484d}#btnBk.on{border-color:var(--ok);color:var(--ok)}
+
 </style>
 </head>
 <body>
 <div class="top">
-  <div class="row" style="justify-content:space-between">
-    <div><h1>Gestionale carte</h1><div class="stats" id="stats"></div></div>
-    <div class="row">
-      <button id="btnCat" title="Carica le liste .txt dell'app: le carte vanno in Standby">📥 Carica liste dall'app</button>
-      <button id="btnSale" title="Carica i PDF degli ordini di Cardmarket: le carte vendute escono dal magazzino">🧾 Carica ordini venduti</button>
-      <span class="tbsep"></span>
-      <button id="btnUpd">🔄 Aggiorna prezzi</button>
-      <button id="btnEditCM" title="Cambia i prezzi delle carte in vendita su Cardmarket, per tutti i set o uno solo">✏️ Cambia prezzi su Cardmarket</button>
-      <span class="tbsep"></span>
-      <button id="btnBk" title="Backup automatico">💾 Backup…</button>
-      <button id="btnMore" title="Backup manuale, ripristino, Price Guide…">⚙</button>
-      <button id="btnSold" class="hide">📈 Vendite</button>
-    </div>
+  <div class="brand"><span class="mark" aria-hidden="true"></span><h1>Gestionale carte</h1></div>
+  <div class="tstats" id="stats"></div>
+  <div class="tact">
+    <details class="menu tm"><summary>📥 Carica <span class="car">▾</span></summary><div class="mn">
+      <button id="btnCat"><b>Liste dall'app</b><small>File .txt del telefono: le carte vanno in Standby</small></button>
+      <button id="btnSale"><b>Ordini venduti</b><small>PDF degli ordini di Cardmarket: le carte vendute escono dal magazzino</small></button>
+    </div></details>
+    <details class="menu tm"><summary id="sumPrezzi">€ Prezzi <span class="car">▾</span></summary><div class="mn">
+      <button id="btnUpd"><b>Aggiorna prezzi di mercato</b><small id="updInfo">Tutto il catalogo, da TCGdex</small></button>
+      <button id="btnEditCM"><b>Cambia prezzi su Cardmarket</b><small>Tutti i set, es. da Tendenza a prezzo minimo</small></button>
+    </div></details>
+    <button id="btnBk" class="ticon" title="Backup automatico">💾</button>
+    <button id="btnMore" class="ticon" title="Impostazioni: backup manuale, ripristino, Price Guide">⚙</button>
+    <button id="btnSold" class="hide">📈 Vendite</button>
   </div>
 </div>
 <div class="wrap">
@@ -1412,9 +1431,9 @@ function showProg(p) {
   const b = $('btnUpd');
   if (!b) return;
   b.disabled = !!p;
-  b.textContent = p ? `🔄 Aggiorno ${p.done}/${p.tot} carte…` : '🔄 Aggiorna prezzi';
-  if (p) b.title = `Tutto il catalogo, tutti i set: ${p.tot} carte diverse (in vendita + Standby, Normali e Reverse contate a parte) = ${p.copies} copie`;
-  else b.title = state.revAt ? `Ultimo aggiornamento: ${fmtDT(state.revAt)}` : '';
+  const sm = $('sumPrezzi'), inf = $('updInfo');
+  if (sm) sm.innerHTML = p ? `🔄 Aggiorno ${p.done}/${p.tot}… <span class="car">▾</span>` : '€ Prezzi <span class="car">▾</span>';
+  if (inf) inf.textContent = p ? `Aggiorno ${p.done} di ${p.tot} carte (tutti i set)…` : state.revAt ? `Tutto il catalogo · ultimo aggiornamento ${fmtDT(state.revAt)}` : 'Tutto il catalogo, da TCGdex';
 }
 
 // --- conferma delle variazioni ---
@@ -1917,8 +1936,8 @@ function bkShow() {
   const b = $('btnBk'); if (!b) return;
   const at = localStorage.getItem('gestionaleBackupAt');
   const t = at ? new Date(at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
-  const L = { ok: [`💾 Backup ✔ ${t}`, 'on'], paused: ['💾 Backup in pausa: clicca', 'warn'], off: ['💾 Backup non attivo', 'warn'], err: ['⚠ Backup non riuscito', 'warn'], nosupport: ['💾 Backup', ''] }[bkState];
-  b.textContent = L[0]; b.className = L[1];
+  const L = { ok: [`Backup attivo · ultimo salvataggio ${t}`, 'on', ''], paused: ['Backup in pausa: clicca per riattivarlo', 'warn', 'In pausa'], off: ['Backup non attivo: clicca per attivarlo', 'warn', 'Backup spento'], err: ['Backup non riuscito', 'warn', 'Errore backup'], nosupport: ['Backup', '', ''] }[bkState];
+  b.innerHTML = `💾<i class="dot"></i>${L[2] ? `<span class="lb">${L[2]}</span>` : ''}`; b.title = L[0]; b.className = 'ticon ' + L[1];
 }
 function bkDialog() {
   if (bkState === 'paused') { bkResume(); return; }
@@ -1963,10 +1982,15 @@ function refresh() {
   const copies = ls.reduce((a, l) => a + l.q, 0);
   const value = ls.reduce((a, l) => a + (l.price || 0) * l.q, 0);
   const noPrice = ls.filter(l => l.price == null).length;
-  $('stats').textContent = `In vendita su Cardmarket: ${copies} copie · ${ls.length} righe · valore ${eur(value)}` +
-    (noPrice ? ` (${noPrice} righe senza prezzo)` : '') + ` · vendute ${state.sold.reduce((a, s) => a + s.q, 0)}`;
+  const sbq = Object.values(state.standby || {}).reduce((a, x) => a + x.q, 0);
+  $('stats').innerHTML = `<span><b>${copies}</b>in vendita</span><span><b>${eur(value) || '0,00 €'}</b>valore</span>` +
+    (sbq ? `<span><b>${sbq}</b>in Standby</span>` : '') + `<span><b>${state.sold.reduce((a, s) => a + s.q, 0)}</b>vendute</span>` +
+    (noPrice ? `<span class="w"><b>${noPrice}</b>senza prezzo</span>` : '');
   renderSets(); renderSet();
 }
+document.addEventListener('click', e => {
+  document.querySelectorAll('details.menu[open]').forEach(d => { if (!d.contains(e.target) || e.target.closest('.mn button')) d.removeAttribute('open'); });
+});
 $('btnSale').onclick = () => $('fSale').click();
 $('fSale').onchange = e => { importSales([...e.target.files]); e.target.value = ''; };
 $('btnSold').onclick = () => { selected = '__sales'; renderSets(); renderSet(); };

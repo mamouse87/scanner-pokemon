@@ -97,6 +97,17 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
 .tag{display:inline-block;font-size:11px;font-weight:700;border-radius:5px;padding:1px 6px;background:var(--bg)}
 .tag.cm{background:#1e4fa3;color:#fff}.tag.eb{background:#e53238;color:#fff}.tag.mn{background:var(--line)}
 .panel.wide{grid-column:1/-1}
+.rtable{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.rtable th{position:sticky;top:-16px;background:var(--card);color:var(--mut);font-weight:600;text-align:left;padding:8px;border-bottom:1px solid var(--line);z-index:1}
+.rtable td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.rtable td.n{text-align:right;white-space:nowrap}
+.rtable small{display:block;color:var(--mut);font-size:11.5px}
+.rtable input[type=number]{width:78px;padding:3px 6px}
+.st{display:inline-block;font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 9px;white-space:nowrap}
+.st.down{background:#e5484d;color:#fff}.st.up{background:var(--ok);color:#fff}.st.ok{background:var(--line);color:var(--fg)}
+.st.alone{background:#1e4fa3;color:#fff}.st.nodata,.st.noprice,.st.err{background:transparent;border:1px dashed var(--mut);color:var(--mut)}
+.thumb{width:34px;height:47px;object-fit:contain;border-radius:3px;background:var(--bg);display:block}
+#btnBk.warn{border-color:#e5484d;color:#e5484d}#btnBk.on{border-color:var(--ok);color:var(--ok)}
 </style>
 </head>
 <body>
@@ -106,6 +117,8 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
     <div class="row">
       <button class="pri" id="btnSale">🧾 Carica vendite</button>
       <button id="btnSold">📈 Vendite</button>
+      <button id="btnRev">💶 Revisione prezzi</button>
+      <button id="btnBk" title="Backup automatico">💾 Backup…</button>
       <button id="btnMore">⚙ Altro</button>
     </div>
   </div>
@@ -170,7 +183,7 @@ function load() {
   } catch (e) {}
   return s;
 }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { alert('Il browser non riesce a salvare: fai un Backup da "Altro".'); } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { alert('Il browser non riesce a salvare: fai un Backup da "Altro".'); } bkSchedule(); }
 const lkey = (p, rev, lang) => `${p}|${rev ? 'R' : 'N'}|${lang || 'it'}`;
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 4000); }
 
@@ -305,7 +318,9 @@ function renderSets() {
   const mine = items.filter(s => cnt(s.id)), rest = items.filter(s => !cnt(s.id));
   const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}">${s.symbol ? `<img src="${esc(s.symbol)}.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<span style="width:22px"></span>'}<span class="nm">${esc(s.name)}</span>${cnt(s.id) ? `<span class="n">${cnt(s.id)}</span>` : ''}</a>`;
   $('sets').innerHTML = `<a href="#" data-id="__dash" class="dash ${selected === '__dash' ? 'sel' : ''}"><span style="width:22px;text-align:center">📊</span><span class="nm">Statistiche magazzino</span></a>` +
-    `<a href="#" data-id="__sales" class="dash ${selected === '__sales' ? 'sel' : ''}"><span style="width:22px;text-align:center">📈</span><span class="nm">Vendite</span>${state.sold.length ? `<span class="n" style="background:var(--acc);color:#111">${state.sold.reduce((a, x) => a + x.q, 0)}</span>` : ''}</a>` + ((mine.length ? `<div class="grp">Con carte in vendita</div>${mine.map(link).join('')}` : '') +
+    `<a href="#" data-id="__sales" class="dash ${selected === '__sales' ? 'sel' : ''}"><span style="width:22px;text-align:center">📈</span><span class="nm">Vendite</span>${state.sold.length ? `<span class="n" style="background:var(--acc);color:#111">${state.sold.reduce((a, x) => a + x.q, 0)}</span>` : ''}</a>` +
+    (() => { const todo = revRows().filter(r => r.st === 'down' || r.st === 'up').length;
+      return `<a href="#" data-id="__prices" class="dash ${selected === '__prices' ? 'sel' : ''}"><span style="width:22px;text-align:center">💶</span><span class="nm">Revisione prezzi</span>${todo ? `<span class="n" style="background:#e5484d">${todo}</span>` : ''}</a>`; })() + ((mine.length ? `<div class="grp">Con carte in vendita</div>${mine.map(link).join('')}` : '') +
     (rest.length ? `<div class="grp">${mine.length ? 'Tutti gli altri set' : 'Tutti i set'} · dal più recente (${rest.length})</div>${rest.map(link).join('')}` : '')) ||
     '<p class="small" style="padding:12px">Nessun set trovato.</p>';
 }
@@ -348,6 +363,7 @@ async function renderSet() {
   current = null;
   if (selected === '__dash') { renderDash(); return; }
   if (selected === '__sales') { renderSales(); return; }
+  if (selected === '__prices') { renderPrices(); return; }
   if (!selected) {
     main.innerHTML = `<div class="empty">Scegli un set dalla lista a sinistra.<br>
       Le carte in vendita arrivano da Cardmarket con il pulsante <b>Card Scanner → CM</b>: dopo "Mettere in vendita le carte" premi il pulsante verde dello script.</div>`;
@@ -903,6 +919,238 @@ function showSold() {
   });
 }
 
+// ---------- revisione prezzi ----------
+// state.market[chiave carta] = {d: "Da" (più bassa NM nella lingua della carta, escluse le tue), o: n. offerte, t: tendenza, tn: 1 se tendenza della versione normale, a: "Da" generale, at}
+const r2 = v => Math.round(v * 100) / 100;
+const ST = { down: 'Da ribassare', up: 'Puoi rialzare', ok: 'In linea', alone: 'Nessun concorrente', nodata: 'Non controllata', noprice: 'Senza tuo prezzo', err: 'Non trovata' };
+const ST_ORD = { down: 0, up: 1, alone: 2, noprice: 3, err: 4, ok: 5, nodata: 6 };
+const revF = { st: 'all', set: '', q: '' };
+function revCfg() { return state.revCfg || (state.revCfg = { plus: 0, tol: 0 }); }
+function revRows() {
+  const cfg = revCfg(), plus = (+cfg.plus || 0) / 100, tol = (+cfg.tol || 0) / 100 + 0.004;
+  return Object.entries(state.listings).map(([k, l]) => {
+    const I = info(l), M = (state.market || {})[k];
+    const r = { k, l, name: I.name, set: I.set, rar: I.rar, c: I.c, M, sugg: null, diff: null };
+    if (!M) r.st = 'nodata';
+    else if (M.err) r.st = 'err';
+    else if (M.d == null) { r.st = 'alone'; if (M.t != null) r.sugg = r2(Math.max(0.02, M.t + plus)); }
+    else {
+      r.sugg = r2(Math.max(0.02, M.d + plus));
+      if (l.price == null) r.st = 'noprice';
+      else { r.diff = r2(l.price - r.sugg); r.st = r.diff > tol ? 'down' : r.diff < -tol ? 'up' : 'ok'; }
+    }
+    if (r.st === 'alone' && l.price != null && r.sugg != null) r.diff = r2(l.price - r.sugg);
+    return r;
+  });
+}
+function importPrices() {
+  const m = location.hash.match(/^#cmprices=(.+)$/);
+  if (!m) return false;
+  history.replaceState(null, '', location.pathname);
+  let d;
+  try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Prezzi da Cardmarket non leggibili.'); return false; }
+  state.market = state.market || {};
+  const ks = Object.keys(d.res || {});
+  ks.forEach(k => { state.market[k] = d.res[k]; });
+  state.revAt = d.at || today();
+  save();
+  setTimeout(() => toast(`Prezzi aggiornati da Cardmarket: ${ks.length} carte controllate`), 300);
+  return true;
+}
+function renderPrices() {
+  const cfg = revCfg();
+  const all = revRows();
+  const sets = [...new Set(all.map(r => r.set).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const qq = simp(revF.q);
+  const scope = all.filter(r => (!revF.set || r.set === revF.set) && (!qq || simp(`${r.name} ${r.l.u} ${r.set}`).includes(qq)));
+  const list = scope.filter(r => revF.st === 'all' || r.st === revF.st)
+    .sort((a, b) => ST_ORD[a.st] - ST_ORD[b.st] || Math.abs(b.diff || 0) - Math.abs(a.diff || 0) || String(a.set).localeCompare(b.set) || (parseInt(a.l.u) || 0) - (parseInt(b.l.u) || 0));
+  const cnt = s => scope.filter(r => r.st === s);
+  const sumQ = (rs, f) => rs.reduce((a, r) => a + f(r) * r.l.q, 0);
+  const down = cnt('down'), up = cnt('up');
+  const checked = scope.filter(r => r.M);
+  const oldest = checked.length ? checked.reduce((a, r) => (r.M.at && r.M.at < a ? r.M.at : a), today()) : null;
+  const fmtDT = d => d ? new Date(d).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+  const segB = (v, l, n) => `<button data-st="${v}" class="${revF.st === v ? 'on' : ''}">${l}${n != null ? ` (${n})` : ''}</button>`;
+  $('main').innerHTML = `
+  <div class="sethead"><div><h2>💶 Revisione prezzi</h2>
+    <div class="sub">Confronto tra il tuo prezzo e Cardmarket. <b>Da</b> = offerta più bassa nella lingua della carta, Near Mint o migliore, escluse le tue. Prezzo consigliato = Da + i centesimi scelti.</div></div>
+    <div class="row"><button class="pri" id="rvCheck">🔍 Controlla su Cardmarket (${scope.length} carte)</button></div></div>
+  <div class="kpis">
+    <div class="kpi"><span>Controllate</span><b>${checked.length} / ${scope.length}</b><small>controllo più vecchio: ${fmtDT(oldest)}</small></div>
+    <div class="kpi"><span>Da ribassare</span><b style="color:#e5484d">${down.length}</b><small>sei più caro dell'offerta più bassa${down.length ? ` · −${eur(sumQ(down, r => r.diff))} sul valore` : ''}</small></div>
+    <div class="kpi"><span>Puoi rialzare</span><b style="color:var(--ok)">${up.length}</b><small>${up.length ? `+${eur(sumQ(up, r => -r.diff))} di valore possibile` : 'nessuna sotto il prezzo consigliato'}</small></div>
+    <div class="kpi"><span>Nessun concorrente</span><b>${cnt('alone').length}</b><small>sei l'unico: guarda la tendenza</small></div>
+  </div>
+  <div class="filters">
+    <span class="seg" id="rvSeg">${segB('all', 'Tutte', scope.length)}${segB('down', 'Da ribassare', down.length)}${segB('up', 'Da rialzare', up.length)}${segB('alone', 'Senza concorrenti', cnt('alone').length)}${segB('ok', 'In linea', cnt('ok').length)}${segB('nodata', 'Non controllate', cnt('nodata').length)}</span>
+    <select id="rvSet"><option value="">Tutti i set</option>${sets.map(s => `<option ${s === revF.set ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+    <input type="search" id="rvQ" placeholder="Cerca carta…" value="${esc(revF.q)}">
+    <label>Consigliato = Da + <input type="number" id="rvPlus" min="0" step="1" value="${+cfg.plus || 0}" style="width:60px"> cent.</label>
+    <label>ignora differenze fino a <input type="number" id="rvTol" min="0" step="1" value="${+cfg.tol || 0}" style="width:60px"> cent.</label>
+  </div>
+  <div class="row" style="margin-bottom:10px">
+    <button id="rvApply">✔ Applica il prezzo consigliato alle selezionate</button>
+    <button id="rvCsv">⬇ Esporta elenco (CSV)</button>
+    <span class="small">Cambia i prezzi su Cardmarket, poi segnali qui (casella + "Applica" oppure scrivi il prezzo nella colonna "Tuo prezzo").</span>
+  </div>
+  ${list.length ? `<table class="rtable"><thead><tr><th><input type="checkbox" id="rvAll"></th><th></th><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Tuo prezzo</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n">Consigliato</th><th class="n">Differenza</th><th>Stato</th><th>Controllata</th></tr></thead><tbody>
+  ${list.map(r => {
+    const M = r.M || {}, im = imgSrcs('', r.c, r.l.u);
+    return `<tr data-k="${esc(r.k)}"><td><input type="checkbox" class="rvSel" ${r.sugg == null ? 'disabled' : ''}></td>
+    <td>${im.length ? `<img class="thumb" loading="lazy" referrerpolicy="no-referrer" src="${esc(im[0])}" data-srcs="${esc(im.slice(1).join('|'))}" onerror="nextImg(this)">` : ''}</td>
+    <td><b>${esc(r.l.u)}</b> ${esc(r.name)}<small>${esc(r.set)} · ${esc(r.rar)}</small></td>
+    <td>${r.l.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale'}<small>${LANGN[r.l.lang] || r.l.lang}</small></td>
+    <td class="n">${r.l.q}</td>
+    <td class="n"><input type="number" min="0" step="0.01" class="rvP" value="${r.l.price ?? ''}"></td>
+    <td class="n">${M.d != null ? `<b>${eur(M.d)}</b><small>${M.o} offert${M.o === 1 ? 'a' : 'e'}</small>` : M.at && !M.err ? '<small>nessun altro</small>' : ''}</td>
+    <td class="n">${M.t != null ? eur(M.t) + (M.tn ? '<small>della normale</small>' : '') : ''}</td>
+    <td class="n">${r.sugg != null ? `<b>${eur(r.sugg)}</b>${r.st === 'alone' ? '<small>da tendenza</small>' : ''}` : ''}</td>
+    <td class="n">${r.diff != null && Math.abs(r.diff) >= 0.005 ? `<span class="${r.diff > 0 ? 'up' : 'down'}">${r.diff > 0 ? '+' : '−'}${eur(Math.abs(r.diff))}</span>` : r.diff != null ? '0' : ''}</td>
+    <td><span class="st ${r.st}">${ST[r.st]}</span></td>
+    <td><small>${M.at ? fmtDT(M.at) : ''}</small></td></tr>`;
+  }).join('')}</tbody></table>` : `<p class="empty">${scope.length ? 'Nessuna carta in questo stato.' : 'Nessuna carta in vendita.'}</p>`}`;
+
+  $('rvSeg').onclick = e => { const b = e.target.closest('button[data-st]'); if (!b) return; revF.st = b.dataset.st; renderPrices(); };
+  $('rvSet').onchange = () => { revF.set = $('rvSet').value; renderPrices(); };
+  $('rvQ').oninput = () => { revF.q = $('rvQ').value; clearTimeout(renderPrices.t); renderPrices.t = setTimeout(() => { renderPrices(); const q = $('rvQ'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 300); };
+  $('rvPlus').onchange = () => { cfg.plus = Math.max(0, parseInt($('rvPlus').value || '0', 10)); save(); renderSets(); renderPrices(); };
+  $('rvTol').onchange = () => { cfg.tol = Math.max(0, parseInt($('rvTol').value || '0', 10)); save(); renderSets(); renderPrices(); };
+  if ($('rvAll')) $('rvAll').onchange = () => document.querySelectorAll('.rvSel:not(:disabled)').forEach(c => { c.checked = $('rvAll').checked; });
+  document.querySelectorAll('.rvP').forEach(inp => inp.onchange = () => {
+    const L = state.listings[inp.closest('tr').dataset.k];
+    if (!L) return;
+    L.price = inp.value === '' ? null : r2(+inp.value);
+    save(); refresh();
+  });
+  $('rvApply').onclick = () => {
+    const sel = [...document.querySelectorAll('.rvSel:checked')].map(c => c.closest('tr').dataset.k);
+    if (!sel.length) { alert('Seleziona prima le carte (casella a sinistra).'); return; }
+    if (!confirm(`Hai già cambiato su Cardmarket il prezzo di queste ${sel.length} carte? Nel gestionale metto il prezzo consigliato.`)) return;
+    const rows = Object.fromEntries(revRows().map(r => [r.k, r]));
+    sel.forEach(k => { if (rows[k]?.sugg != null && state.listings[k]) state.listings[k].price = rows[k].sugg; });
+    save(); refresh(); toast(`Prezzo aggiornato su ${sel.length} carte`);
+  };
+  $('rvCsv').onclick = () => downloadCsv(`revisione-prezzi-${new Date().toISOString().slice(0, 10)}.csv`,
+    [['Set', 'Numero', 'Nome', 'Rarità', 'Variante', 'Lingua', 'Quantità', 'Tuo prezzo', 'Da', 'Offerte', 'Tendenza', 'Consigliato', 'Differenza', 'Stato', 'Controllata']].concat(
+      list.map(r => [r.set, r.l.u, r.name, r.rar, r.l.rev ? 'Reverse Holo' : 'Normale', (r.l.lang || '').toUpperCase(), r.l.q, r.l.price ?? '',
+        r.M?.d ?? '', r.M?.o ?? '', r.M?.t ?? '', r.sugg ?? '', r.diff ?? '', ST[r.st], r.M?.at ? new Date(r.M.at).toLocaleString('it-IT') : ''])));
+  $('rvCheck').onclick = () => startPriceCheck(scope);
+}
+function startPriceCheck(rows) {
+  if (!rows.length) { alert('Nessuna carta da controllare.'); return; }
+  const items = rows.map(r => ({ k: r.k, p: r.l.p, e: r.l.exp, u: r.l.u, n: r.name, r: r.l.rev ? 1 : 0, l: r.l.lang || 'it', m: r.l.price, h: r.c?.ur || '' }));
+  const min = Math.ceil(items.length * 1.5 / 60);
+  if (items.length > 150 && !confirm(`Sono ${items.length} carte: il controllo dura circa ${min} minuti (Cardmarket va interrogato piano per non bloccarti). Puoi fermarlo e riprenderlo. Procedo?`)) return;
+  const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, at: today(), items }))));
+  window.open('https://www.cardmarket.com/it/Pokemon#csrev=' + encodeURIComponent(enc), 'cardmarketRev');
+  openDlg(`<h3>🔍 Controllo prezzi su Cardmarket</h3>
+    <ol style="line-height:1.8"><li>Si è aperta una scheda di Cardmarket (se non la vedi, controlla che il browser non abbia bloccato il popup).</li>
+    <li>Lì premi il pulsante <b>📋 Card Scanner → CM</b> nella barra dei preferiti: si apre il riquadro <b>💶 Revisione prezzi</b> con ${items.length} carte.</li>
+    <li>Premi <b>▶ Avvia controllo</b> (circa ${min} min). Puoi lavorare in un'altra scheda nel frattempo.</li>
+    <li>Alla fine premi <b>📤 Invia prezzi al gestionale</b>: questa pagina si aggiorna da sola.</li></ol>
+    <p class="small">La prima volta reinstalla il pulsante dalla <a href="../cardmarket/" target="_blank">pagina di installazione</a>: la versione vecchia non conosce la revisione prezzi. Lo script legge soltanto i prezzi, non modifica le tue offerte.</p>
+    <p style="text-align:right"><button id="dClose">Ok</button></p>`, () => { $('dClose').onclick = closeDlg; });
+}
+
+// ---------- backup automatico in una cartella del PC (es. dentro Google Drive o OneDrive) ----------
+const BK_FILE = 'gestionale-carte.json', BK_SUB = 'copie-giornaliere', BK_KEEP = 30;
+let bkDir = null, bkState = 'off', bkErr = '', bkTimer = null;
+function bkDb(op, val) {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('gestionaleBackup', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('h');
+    r.onerror = () => rej(r.error);
+    r.onsuccess = () => {
+      const st = r.result.transaction('h', op === 'get' ? 'readonly' : 'readwrite').objectStore('h');
+      const x = op === 'get' ? st.get('dir') : op === 'del' ? st.delete('dir') : st.put(val, 'dir');
+      x.onsuccess = () => res(x.result); x.onerror = () => rej(x.error);
+    };
+  });
+}
+async function bkWriteFile(dir, name, txt) {
+  const fh = await dir.getFileHandle(name, { create: true });
+  const w = await fh.createWritable(); await w.write(txt); await w.close();
+}
+function bkSchedule() { if (bkState === 'ok') { clearTimeout(bkTimer); bkTimer = setTimeout(bkWrite, 2500); } }
+async function bkWrite() {
+  if (!bkDir || bkState !== 'ok') return;
+  try {
+    const txt = JSON.stringify(state);
+    await bkWriteFile(bkDir, BK_FILE, txt);
+    const sub = await bkDir.getDirectoryHandle(BK_SUB, { create: true });
+    await bkWriteFile(sub, `gestionale-carte-${dayKey(Date.now())}.json`, txt);
+    const names = [];
+    for await (const [n] of sub.entries()) if (/^gestionale-carte-\d{4}-\d\d-\d\d\.json$/.test(n)) names.push(n);
+    for (const n of names.sort().slice(0, -BK_KEEP)) await sub.removeEntry(n).catch(() => {});
+    localStorage.setItem('gestionaleBackupAt', today());
+  } catch (e) { bkState = 'err'; bkErr = e.message; }
+  bkShow();
+}
+async function bkInit() {
+  if (!window.showDirectoryPicker) { bkState = 'nosupport'; bkShow(); return; }
+  try { bkDir = await bkDb('get'); } catch (e) { bkDir = null; }
+  if (bkDir) { try { bkState = (await bkDir.queryPermission({ mode: 'readwrite' })) === 'granted' ? 'ok' : 'paused'; } catch (e) { bkState = 'paused'; } }
+  bkShow();
+  if (bkState === 'ok') bkWrite();
+}
+async function bkChoose() {
+  try {
+    const d = await window.showDirectoryPicker({ id: 'gestionaleBackup', mode: 'readwrite' });
+    bkDir = d; await bkDb('put', d); bkState = 'ok';
+    await bkWrite();
+    if (bkState === 'ok') toast('Backup automatico attivo ✔');
+  } catch (e) { if (e.name !== 'AbortError') alert('Non riesco a usare quella cartella: ' + e.message); }
+  bkShow();
+}
+async function bkResume() {
+  if (!bkDir) return bkChoose();
+  try { bkState = (await bkDir.requestPermission({ mode: 'readwrite' })) === 'granted' ? 'ok' : 'paused'; } catch (e) { bkState = 'paused'; }
+  if (bkState === 'ok') { await bkWrite(); toast('Backup automatico riattivato ✔'); }
+  bkShow();
+}
+function bkShow() {
+  const b = $('btnBk'); if (!b) return;
+  const at = localStorage.getItem('gestionaleBackupAt');
+  const t = at ? new Date(at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
+  const L = { ok: [`💾 Backup ✔ ${t}`, 'on'], paused: ['💾 Backup in pausa: clicca', 'warn'], off: ['💾 Backup non attivo', 'warn'], err: ['⚠ Backup non riuscito', 'warn'], nosupport: ['💾 Backup', ''] }[bkState];
+  b.textContent = L[0]; b.className = L[1];
+}
+function bkDialog() {
+  if (bkState === 'paused') { bkResume(); return; }
+  const at = localStorage.getItem('gestionaleBackupAt');
+  openDlg(`<h3>💾 Backup automatico</h3>
+    ${bkState === 'nosupport' ? '<p>Questo browser non permette di salvare da solo in una cartella: usa <b>Chrome</b> o <b>Edge</b> sul PC. Intanto puoi scaricare il backup a mano.</p>' : `
+    <p>Scegli una volta una cartella del PC: da quel momento, a ogni modifica, il gestionale ci salva da solo <b>${BK_FILE}</b> e una copia per ogni giorno nella sottocartella <b>${BK_SUB}</b> (tiene gli ultimi ${BK_KEEP} giorni).</p>
+    <p>Consiglio: scegli una cartella dentro <b>Google Drive</b> (programma "Drive per desktop") o <b>OneDrive</b>, così il backup finisce anche online. Dal telefono puoi aprire il gestionale e fare <b>Ripristina backup</b> scegliendo quel file da Drive per consultarlo.</p>
+    <p>Stato: <b>${{ ok: 'attivo ✔', off: 'non attivo', err: 'errore: ' + esc(bkErr), paused: 'in pausa' }[bkState]}</b>${bkDir ? ` · cartella <b>${esc(bkDir.name)}</b>` : ''}${at ? ` · ultimo salvataggio ${new Date(at).toLocaleString('it-IT')}` : ''}</p>
+    <p class="small">Per sicurezza Chrome può chiedere di nuovo il permesso quando riapri il gestionale: in quel caso il pulsante in alto diventa "Backup in pausa", cliccalo e scegli <b>Consenti a ogni visita</b>.</p>`}
+    <p class="row">${bkState !== 'nosupport' ? `<button class="pri" id="bkPick">📁 ${bkDir ? 'Cambia cartella' : 'Scegli la cartella'}</button>${bkDir ? '<button id="bkNow">Salva adesso</button><button id="bkLoad">↩ Ripristina dall\'ultimo backup</button><button id="bkOff">Disattiva</button>' : ''}` : ''}
+      <button id="bkDl">⬇ Scarica backup a mano</button><button id="bkUp">↩ Ripristina da file…</button></p>
+    <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
+    $('dClose').onclick = closeDlg;
+    $('bkDl').onclick = downloadBackup;
+    $('bkUp').onclick = () => $('fRestore').click();
+    if ($('bkPick')) $('bkPick').onclick = async () => { await bkChoose(); bkDialog(); };
+    if ($('bkNow')) $('bkNow').onclick = async () => { if (bkState !== 'ok') await bkResume(); else { await bkWrite(); toast('Backup salvato'); } bkDialog(); };
+    if ($('bkOff')) $('bkOff').onclick = async () => { if (!confirm('Disattivare il backup automatico? I file già salvati restano nella cartella.')) return; await bkDb('del'); bkDir = null; bkState = 'off'; bkShow(); bkDialog(); };
+    if ($('bkLoad')) $('bkLoad').onclick = async () => {
+      try {
+        if (bkState !== 'ok') await bkResume();
+        const s = JSON.parse(await (await (await bkDir.getFileHandle(BK_FILE)).getFile()).text());
+        if (!s.listings) throw new Error('file non valido');
+        if (confirm(`Sostituire i dati attuali con il backup della cartella (${Object.keys(s.listings).length} righe in vendita, ${(s.sold || []).length} vendite)?`)) { state = Object.assign({ cm: {}, sold: [] }, s); save(); closeDlg(); refresh(); }
+      } catch (e) { alert('Non riesco a leggere il backup: ' + e.message); }
+    };
+  });
+}
+function downloadBackup() {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(state)], { type: 'application/json' }));
+  a.download = `gestionale-carte-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+}
+
 // ---------- comandi ----------
 function openDlg(html, wire) { $('dlgBody').innerHTML = html; if (!$('dlg').open) $('dlg').showModal(); wire && wire(); }
 function closeDlg() { $('dlg').close(); }
@@ -918,12 +1166,14 @@ function refresh() {
 $('btnSale').onclick = () => $('fSale').click();
 $('fSale').onchange = e => { importSales([...e.target.files]); e.target.value = ''; };
 $('btnSold').onclick = () => { selected = '__sales'; renderSets(); renderSet(); };
+$('btnRev').onclick = () => { selected = '__prices'; renderSets(); renderSet(); };
+$('btnBk').onclick = bkDialog;
 $('btnMore').onclick = () => {
   const all = Object.values(state.cm).flatMap(e => Object.values(e.cards));
   openDlg(`<h3>Altro</h3>
   <p class="row"><button id="bBackup">💾 Scarica backup</button><button id="bRestore">↩ Ripristina backup</button><button id="bWipe">🗑 Svuota carte in vendita</button></p>
   <p class="small">Controllo: ${tcgSets.length} set da TCGdex · ${all.length} carte dalle pagine Cardmarket · ${all.filter(c => c.i).length} con link immagine Cardmarket · ${all.filter(c => c.m != null).length} con il tuo prezzo attuale.</p>
-  <p class="small">I dati sono salvati in questo browser. Fai un backup ogni tanto: se pulisci i dati di Chrome o cambi PC, lo ripristini da qui.</p>
+  <p class="small">I dati sono salvati in questo browser. Attiva il <b>💾 Backup automatico</b> (pulsante in alto) oppure scarica un backup ogni tanto: se pulisci i dati di Chrome o cambi PC, lo ripristini da qui.</p>
   <p class="small">Pulsante per Cardmarket: <a href="../cardmarket/">pagina di installazione</a>.</p>
   <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
     $('dClose').onclick = closeDlg;
@@ -945,13 +1195,15 @@ $('fRestore').onchange = async e => {
 };
 document.addEventListener('dragover', e => e.preventDefault());
 document.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) importSales([...e.dataTransfer.files]); });
-window.addEventListener('hashchange', () => { const name = importFromHash(); if (name) selected = tcgIdFor(name) || selected; refresh(); });
+window.addEventListener('hashchange', () => { if (importPrices()) selected = '__prices'; const name = importFromHash(); if (name) selected = tcgIdFor(name) || selected; refresh(); });
 
 (async () => {
+  const prices = importPrices();
   const arrived = importFromHash();
+  bkInit();
   await loadSets();
   const bySet = listingsBySet();
-  selected = (arrived && tcgIdFor(arrived)) || Object.keys(bySet).sort((a, b) => bySet[b].length - bySet[a].length)[0] || (tcgSets[0] && tcgSets[0].id) || null;
+  selected = (prices && '__prices') || (arrived && tcgIdFor(arrived)) || Object.keys(bySet).sort((a, b) => bySet[b].length - bySet[a].length)[0] || (tcgSets[0] && tcgSets[0].id) || null;
   refresh();
 })();
 </script>

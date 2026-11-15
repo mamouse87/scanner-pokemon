@@ -16,13 +16,18 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <li>Se avevi già il pulsante, eliminalo (tasto destro → Elimina) e trascina di nuovo questo:</li></ol>
 <p><a class="bm" href="{html.escape(bm, quote=True)}">📋 Card Scanner → CM</a></p>
 <h2>2. Ogni set</h2>
-<ol><li>App: <b>Lista</b> → tocca il nome del set → scrivi l'eventuale commento → <b>Invia file</b> (Bluetooth, email, WhatsApp…).</li>
-<li>Cardmarket: <b>Vendite → Inserisci carte bulk</b> → scegli l'espansione.</li>
-<li>Premi <b>📋 Card Scanner → CM</b>, scegli il file ricevuto (o incolla il testo), imposta i centesimi da aggiungere e il tuo nome utente (la prima volta), poi <b>Compila la pagina</b>.</li>
-<li>Prezzo = offerta più bassa in quella lingua, Near Mint o migliore, escluse le tue + i centesimi scelti. Se non riesce a leggerlo usa la tendenza e lo segnala in arancione.</li>
-<li>Righe verdi = normali, viola = Reverse, arancione = nome o rarità diversi da quanto scansionato: controllale.</li>
-<li>Premi il pulsante di invio di Cardmarket. Se il set ha 2 pagine: invia, vai alla seconda e premi di nuovo il pulsante (la lista resta caricata).</li></ol>
-<p>Lo script non invia nulla da solo e non legge password.</p>
+<ol><li>Su Cardmarket apri <b>Inserisci carte bulk</b> dell'espansione e premi <b>📋 Card Scanner → CM</b>.</li>
+<li>Carica il file .txt dell'app: nel riquadro <b>📦 Lista</b> vedi tutte le carte (numero, nome, Reverse, quantità) e dove si trovano.</li>
+<li>Premi <b>Compila la pagina</b> e controlla.</li>
+<li>Premi il pulsante verde <b>📤 Invia al gestionale</b>: il <a href="../gestionale/" style="color:#ffcb05">gestionale</a> riceve le carte compilate con i prezzi, e nella lista dello script diventano "✔ inviata".
+<li>Metti in vendita su Cardmarket tu stesso (pulsante "Mettere in vendita le carte").</li>
+<li>Per le carte rimaste: vai alla pagina giusta, premi di nuovo il pulsante nei preferiti (la lista resta caricata) e ripeti.</li></ol>
+<p>Lo script non invia nulla a Cardmarket e non legge password.</p>
+<h2>3. Revisione prezzi</h2>
+<ol><li>Nel gestionale apri <b>💶 Revisione prezzi</b> e premi <b>🔍 Controlla su Cardmarket</b>: si apre una scheda di Cardmarket.</li>
+<li>In quella scheda premi <b>📋 Card Scanner → CM</b>: compare il riquadro <b>💶 Revisione prezzi</b>. Premi <b>▶ Avvia controllo</b>.</li>
+<li>Per ogni carta legge il <b>Da</b> (offerta più bassa nella lingua della carta, Near Mint o migliore, escluse le tue) e la <b>Tendenza di prezzo</b>. Va piano apposta (circa 1,5 secondi a carta) per non farti bloccare; puoi fermarlo e riprenderlo.</li>
+<li>Alla fine premi <b>📤 Invia prezzi al gestionale</b>: vedi quali carte ribassare o rialzare. I prezzi su Cardmarket li cambi tu.</li></ol>
 <h2>In alternativa</h2>
 <p>Se il pulsante non funziona: sulla pagina di Cardmarket premi <code>F12</code> → <b>Console</b>, incolla il codice e premi Invio.</p>
 <pre>{html.escape(code)}</pre>

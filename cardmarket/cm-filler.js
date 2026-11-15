@@ -3,6 +3,11 @@
 // e imposta il prezzo = offerta più bassa (lingua della lista, Near Mint o migliore,
 // escluse le tue offerte) + i centesimi scelti. Non invia nulla da solo.
 (() => {
+  // revisione prezzi chiesta dal gestionale (funziona su qualunque pagina di Cardmarket)
+  if (/#csrev=/.test(location.hash) || window.__csRev ||
+      (!document.getElementById('BulkListingForm') && (() => { try { return !!localStorage.getItem('cs_revlist'); } catch (e) { return false; } })())) {
+    priceReview(); return;
+  }
   if (window.__csPanel) { window.__csPanel.style.display = 'block'; return; }
 
   const form = document.getElementById('BulkListingForm');
@@ -268,7 +273,7 @@
       const myP = parseFloat((tr.querySelector('input[name="myPrice"]') || {}).value || '0');
       const num = n => { const v = parseFloat((tr.querySelector(`input[name="${n}"]`) || {}).value || ''); return isNaN(v) ? null : v; };
       if (cards.some(c => c.p === pid.value)) return; // righe duplicate
-      cards.push({ p: pid.value, n: m ? m[1].trim() : full, c: m ? m[2] : '', u: m ? m[3] : '', r: rar ? (rar.getAttribute('title') || rar.getAttribute('data-bs-original-title') || '') : '',
+      cards.push({ p: pid.value, n: m ? m[1].trim() : full, c: m ? m[2] : '', u: m ? m[3] : '', ur: a.getAttribute('href') || '', r: rar ? (rar.getAttribute('title') || rar.getAttribute('data-bs-original-title') || '') : '',
         i: img, h: revEl && !revEl.disabled ? 1 : 0, m: myP > 0 ? myP : null, t: num('trendPrice'), l: num('lowPrice'), a30: num('avg30Price') });
     });
     return cards;
@@ -475,5 +480,194 @@
     showGest();
     if (filled.length) log('Controlla la pagina, poi premi il pulsante verde "Invia al gestionale". La messa in vendita su Cardmarket la fai tu.', '#3ecf6e');
     if (blocked) log('Cardmarket ha bloccato le ricerche prezzi: per le carte restanti è stata usata la tendenza. Riprova tra qualche minuto.', '#ff9f43');
+  }
+
+  // ================= REVISIONE PREZZI =================
+  // Il gestionale apre Cardmarket con #csrev=<elenco delle carte in vendita>.
+  // Per ogni carta leggo: "Da" = offerta più bassa nella lingua della carta, Near Mint o migliore,
+  // escluse le tue; "Tendenza di prezzo" dal riquadro informazioni. Poi rimando tutto al gestionale.
+  // Legge soltanto: non modifica le tue offerte.
+  function priceReview() {
+    if (window.__csRev) { window.__csRev.style.display = 'block'; return; }
+    const GEST = 'https://mamouse87.github.io/scanner-pokemon/gestionale/';
+    const WAIT = 1300;
+    const LID = { it: 5, en: 1, fr: 2, de: 3, es: 4, pt: 8 };
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    const H = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const S = {
+      get: (k, d) => { try { const v = localStorage.getItem('cs_' + k); return v == null ? d : v; } catch (e) { return d; } },
+      set: (k, v) => { try { localStorage.setItem('cs_' + k, v); } catch (e) {} },
+      json: (k, d) => { try { return JSON.parse(S.get(k, '')) || d; } catch (e) { return d; } }
+    };
+    const eu = v => v == null ? '—' : v.toFixed(2).replace('.', ',') + ' €';
+
+    let job = null;
+    const hm = location.hash.match(/#csrev=([^&]+)/);
+    if (hm) {
+      try {
+        job = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(hm[1])))));
+        S.set('revlist', JSON.stringify(job)); S.set('revres', '{}');
+      } catch (e) { alert('Elenco dal gestionale non leggibile: riprova dal gestionale.'); }
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+    if (!job) job = S.json('revlist', null);
+    if (!job || !job.items || !job.items.length) { alert('Nessun elenco da controllare: parti dal gestionale, "Revisione prezzi" → "Controlla su Cardmarket".'); return; }
+    const res = S.json('revres', {});
+
+    const P = document.createElement('div');
+    window.__csRev = P;
+    P.style.cssText = 'position:fixed;top:12px;right:12px;width:470px;max-height:92vh;overflow:auto;z-index:99999;background:#1c2128;color:#e8eaed;' +
+      'font:14px/1.4 system-ui,sans-serif;border-radius:12px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.4)';
+    const ip = 'background:#0d1014;color:#e8eaed;border:1px solid #333a44;border-radius:6px;padding:5px';
+    const bt = c => `width:100%;margin-top:8px;padding:10px;border:0;border-radius:8px;background:${c};color:#111;font-weight:700;cursor:pointer`;
+    P.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <b style="color:#ffcb05">💶 Revisione prezzi</b>
+        <button id="rvX" style="background:none;border:0;color:#e8eaed;font-size:18px;cursor:pointer">✕</button></div>
+      <div id="rvInfo" style="font-size:13px;color:#9aa3ad"></div>
+      <div style="margin:8px 0">Tuo utente <input id="rvMe" style="${ip};width:60%" placeholder="per escludere le tue offerte"></div>
+      <div style="height:10px;background:#0d1014;border-radius:5px;overflow:hidden"><i id="rvBar" style="display:block;height:100%;width:0;background:#ffcb05"></i></div>
+      <button id="rvGo" style="${bt('#ffcb05')}">▶ Avvia controllo</button>
+      <button id="rvSend" style="${bt('#3ecf6e')};display:none"></button>
+      <div id="rvLog" style="margin-top:10px;font:12px/1.45 monospace;white-space:pre-wrap"></div>
+      <div style="margin-top:8px;text-align:right"><a href="#" id="rvDrop" style="color:#9aa3ad;font-size:11px">chiudi e dimentica questo elenco</a></div>`;
+    document.body.appendChild(P);
+    const q = id => P.querySelector('#' + id);
+    const log = (t, c) => { const d = document.createElement('div'); if (c) d.style.color = c; d.textContent = t; q('rvLog').appendChild(d); P.scrollTop = P.scrollHeight; };
+    q('rvMe').value = S.get('me', '');
+    q('rvMe').oninput = () => S.set('me', q('rvMe').value);
+    q('rvX').onclick = () => { stop = true; P.style.display = 'none'; };
+    q('rvDrop').onclick = e => {
+      e.preventDefault();
+      if (!confirm('Chiudere la revisione e dimenticare questo elenco? (i prezzi già inviati al gestionale restano lì)')) return;
+      stop = true; try { localStorage.removeItem('cs_revlist'); localStorage.removeItem('cs_revres'); } catch (er) {}
+      P.remove(); window.__csRev = null;
+    };
+
+    const items = job.items;
+    function status() {
+      const done = items.filter(it => res[it.k]).length;
+      const left = items.length - done;
+      q('rvBar').style.width = (done / items.length * 100) + '%';
+      q('rvInfo').innerHTML = `Elenco dal gestionale: <b>${items.length}</b> carte · controllate <b>${done}</b>` +
+        (left ? ` · mancano ${left} (circa ${Math.max(1, Math.ceil(left * WAIT * 1.15 / 60000))} min)` : ' ✔');
+      q('rvGo').textContent = running ? '⏸ Ferma' : done && left ? '▶ Riprendi controllo' : done ? '↻ Ricontrolla tutto' : '▶ Avvia controllo';
+      const b = q('rvSend');
+      b.style.display = done ? 'block' : 'none';
+      b.textContent = `📤 Invia prezzi al gestionale (${done} carte)`;
+    }
+
+    let blockedR = false;
+    async function getDoc(url) {
+      const r = await fetch(url, { credentials: 'include' });
+      if (r.status === 429 || r.status === 403) { blockedR = true; throw new Error('Cardmarket ha rallentato le richieste (' + r.status + ')'); }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = new DOMParser().parseFromString(await r.text(), 'text/html');
+      if (/just a moment|attention required/i.test(d.title)) { blockedR = true; throw new Error('controllo anti-bot di Cardmarket'); }
+      return d;
+    }
+
+    // indirizzo della pagina di ogni carta: se il gestionale non lo conosce lo cerco nella pagina "Inserisci carte bulk" del set
+    const hrefs = S.json('href', {});
+    const bulkTrend = {};
+    async function findHrefs(list) {
+      list.forEach(it => { if (it.h) hrefs[it.p] = it.h; });
+      const need = {};
+      list.forEach(it => { if (!hrefs[it.p] && it.e) (need[it.e] = need[it.e] || new Set()).add(String(it.p)); });
+      for (const [exp, set] of Object.entries(need)) {
+        for (let site = 1; site <= 12 && set.size && !stop; site++) {
+          const d = await getDoc(`/it/Pokemon/Stock/ListingMethods/BulkListing?sortBy=number&idExpansion=${encodeURIComponent(exp)}` + (site > 1 ? '&site=' + site : ''));
+          let found = 0;
+          d.querySelectorAll('input[name^="idProduct"]').forEach(inp => {
+            const tr = inp.closest('tr'), a = tr && tr.querySelector('.col-product a');
+            if (!inp.value || !a) return;
+            found++;
+            hrefs[inp.value] = a.getAttribute('href');
+            set.delete(inp.value);
+            const t = parseFloat((tr.querySelector('input[name="trendPrice"]') || {}).value || '');
+            if (!isNaN(t)) bulkTrend[inp.value] = t;
+          });
+          S.set('href', JSON.stringify(hrefs));
+          await wait(WAIT);
+          if (!found) break;
+        }
+      }
+    }
+
+    async function check(it, me) {
+      const u = new URL(hrefs[it.p], location.origin);
+      u.searchParams.set('language', String(LID[it.l] || 5));
+      u.searchParams.set('minCondition', '2');
+      u.searchParams.set('isReverseHolo', it.r ? 'Y' : 'N');
+      const d = await getDoc(u.href);
+      const meL = (me || '').trim().toLowerCase();
+      const prices = [];
+      let mine = 0;
+      [...new Set([...d.querySelectorAll('[id^="articleRow"], .article-row')])].forEach(ar => {
+        const s = ar.querySelector('a[href*="/Users/"]');
+        if (meL && s && s.textContent.trim().toLowerCase() === meL) { mine++; return; }
+        const p = parsePrice((ar.querySelector('.price-container') || ar.querySelector('.col-offer') || ar).textContent);
+        if (p != null) prices.push(p);
+      });
+      // riquadro informazioni: "Da", "Tendenza di prezzo"… (per le Reverse cerco la voce Reverse se c'è)
+      const info = [];
+      d.querySelectorAll('dt').forEach(dt => {
+        const dd = dt.nextElementSibling;
+        if (dd && dd.tagName === 'DD') info.push([dt.textContent.trim().toLowerCase(), parsePrice(dd.textContent)]);
+      });
+      const isTrend = l => /tendenza|trend/.test(l);
+      let t = null, tn = 0;
+      if (it.r) { const x = info.find(([l, v]) => isTrend(l) && /reverse/.test(l) && v != null); if (x) t = x[1]; }
+      if (t == null) {
+        const x = info.find(([l, v]) => isTrend(l) && !/reverse/.test(l) && v != null);
+        if (x) { t = x[1]; tn = it.r ? 1 : 0; }
+        else if (bulkTrend[it.p] != null) { t = bulkTrend[it.p]; tn = it.r ? 1 : 0; }
+      }
+      const da = info.find(([l, v]) => /^(da|from|disponibile da)$/.test(l) && v != null);
+      return { d: prices.length ? Math.min(...prices) : null, o: prices.length, mine, t, tn, a: da ? da[1] : null, at: new Date().toISOString() };
+    }
+
+    let running = false, stop = false;
+    async function go() {
+      if (running) { stop = true; return; }
+      const me = q('rvMe').value.trim();
+      if (!me && !confirm('Non hai scritto il tuo nome utente: le tue offerte verranno contate come concorrenti. Continuare?')) return;
+      if (items.every(it => res[it.k])) { Object.keys(res).forEach(k => delete res[k]); S.set('revres', '{}'); q('rvLog').textContent = ''; }
+      running = true; stop = false; blockedR = false; status();
+      try {
+        const todo = items.filter(it => !res[it.k]);
+        if (todo.some(it => !it.h && !hrefs[it.p])) { log('Cerco le pagine delle carte nei set…', '#9aa3ad'); await findHrefs(todo); }
+        for (const it of todo) {
+          if (stop) break;
+          const name = `${it.u} ${it.n || ''}${it.r ? ' (Reverse)' : ''} ${String(it.l || '').toUpperCase()}`;
+          if (!hrefs[it.p]) { log(`${name}: pagina della carta non trovata, saltata`, '#ff9f43'); res[it.k] = { err: 'pagina non trovata', at: new Date().toISOString() }; continue; }
+          try {
+            const r = await check(it, me);
+            res[it.k] = r;
+            const tuo = it.m != null ? it.m : null;
+            const diff = r.d != null && tuo != null ? tuo - r.d : null;
+            log(`${name}: tuo ${eu(tuo)} · Da ${eu(r.d)}${r.o ? ` (${r.o} off.)` : ' (nessun altro)'} · Tendenza ${eu(r.t)}`,
+              diff == null ? '#9aa3ad' : diff > 0.004 ? '#ff6b6b' : diff < -0.004 ? '#3ecf6e' : null);
+          } catch (e) {
+            log(`${name}: ${e.message}`, '#ff6b6b');
+            if (blockedR) { log('Cardmarket ha bloccato le richieste: aspetta qualche minuto e premi "Riprendi". Quelle già controllate restano salvate.', '#ff9f43'); break; }
+          }
+          S.set('revres', JSON.stringify(res));
+          status();
+          await wait(WAIT);
+        }
+      } catch (e) { log('Errore: ' + e.message, '#ff6b6b'); }
+      running = false; status();
+      if (items.every(it => res[it.k])) log('Controllo finito ✔ Premi il pulsante verde per mandare i prezzi al gestionale.', '#3ecf6e');
+    }
+    q('rvGo').onclick = go;
+    q('rvSend').onclick = () => {
+      const out = {};
+      items.forEach(it => { if (res[it.k]) out[it.k] = res[it.k]; });
+      const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, at: new Date().toISOString(), res: out }))));
+      window.open(GEST + '#cmprices=' + encodeURIComponent(enc), 'gestionaleCarte');
+      log(`Inviati al gestionale i prezzi di ${Object.keys(out).length} carte.`, '#3ecf6e');
+    };
+    status();
   }
 })();

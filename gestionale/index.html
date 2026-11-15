@@ -4,85 +4,122 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Gestionale carte in vendita</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
-:root{--bg:#f4f5f7;--card:#fff;--fg:#1c2128;--mut:#6b7280;--acc:#e3b500;--rev:#a64fd1;--ok:#2f9e5b;--line:#e1e4e8;--side:#fff}
-@media(prefers-color-scheme:dark){:root{--bg:#111418;--card:#1c2128;--fg:#e8eaed;--mut:#9aa3ad;--acc:#ffcb05;--rev:#cc5de8;--ok:#3ecf6e;--line:#2a313b;--side:#171b21}}
+:root{--bg:#f3f5f8;--card:#fff;--fg:#18223a;--mut:#687286;--line:#e3e7ee;--navy:#1d3d7a;--navy2:#16305f;--acc:#f2c230;--ok:#1f8f55;--rev:#7c4dcc;--sbc:#6e7c93;--var:#d9620f;--side:#fff;--red:#c8372d}
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;font:14px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--fg);display:flex;flex-direction:column}
-.top{background:var(--card);padding:10px 18px;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:3}
+body{margin:0;font:14px/1.45 "Atkinson Hyperlegible",system-ui,"Segoe UI",sans-serif;background:var(--bg);color:var(--fg);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+.top{background:var(--card);padding:12px 22px;border-bottom:1px solid var(--line);z-index:3}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-h1{margin:0;font-size:20px}
+h1{margin:0;font-size:19px;letter-spacing:-.01em;color:var(--navy)}
 .stats{color:var(--mut);font-size:13px}
-button,select,input{font:inherit;padding:6px 11px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
-button{cursor:pointer}
-button.pri{background:var(--acc);color:#111;border:0;font-weight:700}
-button.sm{padding:2px 8px;font-size:12px}
+button,select,input{font:inherit;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--fg)}
+button{cursor:pointer;font-weight:600;color:var(--navy)}
+button:hover{background:#eef2f8;border-color:#d3dae6}
+button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #9db7e6;outline-offset:1px}
+button.pri{background:var(--navy);color:#fff;border-color:var(--navy)}
+button.pri:hover{background:var(--navy2)}
+button.sm{padding:3px 9px;font-size:12px}
+button:disabled{opacity:.5;cursor:default}
+.tbsep{width:1px;height:26px;background:var(--line);margin:0 4px}
 .wrap{flex:1;display:flex;min-height:0}
-aside{width:310px;flex-shrink:0;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
-aside .head{padding:10px;border-bottom:1px solid var(--line)}
+aside{width:300px;flex-shrink:0;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+aside .head{padding:12px;border-bottom:1px solid var(--line)}
 aside input[type=search]{width:100%}
-#sets{overflow:auto;flex:1}
-#sets .grp{padding:8px 12px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
-#sets a{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 12px;color:var(--fg);text-decoration:none;border-left:3px solid transparent}
-#sets a:hover{background:var(--bg)}
-#sets a.sel{background:var(--bg);border-left-color:var(--acc);font-weight:600}
+#sets{overflow:auto;flex:1;padding:6px 0}
+#sets .grp{padding:14px 16px 4px;font-size:12px;font-weight:700;color:var(--mut)}
+#sets a{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 14px;margin:1px 8px;color:var(--fg);text-decoration:none;border-radius:8px}
+#sets a:hover{background:#f1f4f9}
+#sets a.sel{background:#e8eef9;color:var(--navy);font-weight:700;box-shadow:inset 3px 0 0 var(--navy)}
 #sets a img{width:22px;height:22px;object-fit:contain;flex-shrink:0}
 #sets a .nm{flex:1}
-#sets a .n{background:var(--ok);color:#fff;border-radius:99px;padding:0 8px;font-size:12px;font-weight:700;height:20px;line-height:20px}
-main{flex:1;overflow:auto;padding:16px 22px 60px}
-.sethead{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-.sethead .logo{height:54px;max-width:180px;object-fit:contain}
-.sethead h2{margin:0;font-size:22px}
+#sets a .n{background:#e3f3ea;color:var(--ok);border-radius:99px;padding:0 6px;font-size:11.5px;font-weight:700;height:19px;line-height:19px;white-space:nowrap}
+#sets a .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sets a .n.sb{background:#e9edf3;color:var(--sbc)}#sets a .n.v{background:#fdebdc;color:var(--var)}
+#sets a.dash{font-weight:600}
+main{flex:1;overflow:auto;padding:22px 28px 70px}
+.sethead{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.sethead .logo{height:52px;max-width:170px;object-fit:contain}
+.sethead h2{margin:0;font-size:26px;letter-spacing:-.015em;color:var(--fg)}
 .sub{color:var(--mut);font-size:13px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
-.card{position:relative;background:var(--card);border-radius:10px;padding:7px;box-shadow:0 1px 4px rgba(0,0,0,.12);cursor:pointer}
-.card .im{position:relative;width:100%;aspect-ratio:63/88;border-radius:6px;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:22px;overflow:hidden}
+.figs{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+.fig{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 16px;min-width:150px}
+.fig b{display:block;font-size:22px;line-height:1.2;font-variant-numeric:tabular-nums}
+.fig span{font-size:12.5px;color:var(--mut)}
+.fig.f-ok b{color:var(--ok)}.fig.f-sb b{color:var(--sbc)}.fig.f-var b{color:var(--var)}
+.notice{display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-radius:12px;padding:10px 14px;margin:0 0 14px;font-size:13.5px}
+.notice.var{background:#fff4ea;border:1px solid #f6d2b3;color:#8a3d06}
+.notice .row{margin-left:auto}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 16px}
+.chips{display:inline-flex;flex-wrap:wrap;gap:6px}
+.chip{border-radius:99px;padding:5px 12px;font-size:13px;font-weight:600;color:var(--fg);background:#fff;border:1px solid var(--line)}
+.chip i{font-style:normal;color:var(--mut);font-weight:400;margin-left:4px}
+.chip.on{background:var(--navy);border-color:var(--navy);color:#fff}.chip.on i{color:#c9d6ef}
+.toolbar input[type=search]{min-width:220px}
+details.menu{position:relative}
+details.menu summary{list-style:none;cursor:pointer;padding:7px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;font-weight:600;color:var(--navy)}
+details.menu summary::-webkit-details-marker{display:none}
+details.menu[open] summary{background:#eef2f8}
+details.menu .mn{position:absolute;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(24,34,58,.14);padding:6px;display:flex;flex-direction:column;min-width:240px;z-index:20}
+details.menu .mn button{border:0;text-align:left;border-radius:6px;font-weight:500;color:var(--fg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:14px}
+.card{position:relative;background:var(--card);border-radius:12px;padding:8px;border:1px solid var(--line);cursor:pointer;display:flex;flex-direction:column}
+.card:hover{border-color:#c5cfdf}
+.card .im{position:relative;width:100%;aspect-ratio:63/88;border-radius:7px;background:#eef1f5;display:flex;align-items:center;justify-content:center;color:#a2abba;font-size:22px;overflow:hidden}
 .card .im img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
-.card.no .im{filter:grayscale(1);opacity:.35}
-.card.no .info{opacity:.55}
-.card.yes{outline:3px solid var(--ok)}
-.card.yes.r{outline-color:var(--rev)}
-.info{font-size:12.5px;margin-top:5px}
-.info small{display:block;color:var(--mut)}
-.fs{display:inline-block;font-size:10px;font-weight:700;color:#111;background:var(--acc);border-radius:4px;padding:0 4px;margin-left:4px}
-.badges{position:absolute;top:11px;right:11px;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
-.badges span{font-weight:700;font-size:12px;border-radius:99px;padding:2px 8px;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.bn{background:var(--ok)}.br{background:var(--rev)}.cd{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.03em;background:var(--line);color:var(--fg);border-radius:4px;padding:0 4px;vertical-align:1px}
-.cd.big{font-size:13px;padding:1px 7px;cursor:pointer;vertical-align:3px}
-.bs{background:#7c8591}
-.card.sel{outline:4px solid var(--acc);outline-offset:2px}
-.selbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;margin:0 0 12px;border:2px solid var(--acc);border-radius:10px;background:var(--card);position:sticky;top:0;z-index:5}
-button.danger{background:#e5484d;color:#fff;border-color:#e5484d}
-.undobar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#1c2128;color:#fff;padding:10px 14px;border-radius:12px;display:flex;gap:14px;align-items:center;z-index:50;box-shadow:0 6px 20px rgba(0,0,0,.35)}
-.undobar button{background:var(--acc);color:#111;border:0;font-weight:700}.bs.bsr{background:#8a6aa0}.bv{background:#e8590c}
-.card.sb{outline:3px dashed #7c8591}
-.card.sb .im{filter:none;opacity:1}
-.card.vr{box-shadow:0 0 0 3px #e8590c,0 1px 4px rgba(0,0,0,.12)}
-.vtag{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:#e8590c;border-radius:5px;padding:0 5px;margin-left:4px}
-.est{font-size:11.5px;color:var(--mut)}
-#sets a .n.sb{background:#7c8591}#sets a .n.v{background:#e8590c}
-.vbox{border:2px solid #e8590c;border-radius:10px;padding:8px 12px;margin:8px 0}
-.price{font-weight:700;color:var(--ok)}
+.card.no{background:transparent;border-color:transparent}
+.card.no .im{filter:grayscale(1);opacity:.32}
+.card.no .info{opacity:.5}
+.band{margin:7px 0 0;border-radius:6px;padding:4px 8px;font-size:12px;font-weight:700;display:flex;flex-direction:column;gap:1px}
+.band .bl{display:flex;justify-content:space-between;gap:6px}
+.band .r{color:var(--rev)}
+.band.b-ok{background:#e6f4ec;color:var(--ok)}
+.band.b-sb{background:#eceff4;color:var(--sbc)}
+.card.yes{border-color:#bfe0cc}
+.card.sb{border:1.5px dashed #aab4c4}
+.card.vr{border-color:#f0b98d}
+.vtag{position:absolute;top:13px;left:13px;background:var(--var);color:#fff;font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 7px;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.info{font-size:13px;margin-top:6px;line-height:1.3}
+.info .nr{color:var(--mut);font-size:12px;font-variant-numeric:tabular-nums}
+.info b{display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.info small{display:block;color:var(--mut);font-size:11.5px}
+.fs{display:inline-block;font-size:10px;font-weight:700;color:#5d4500;background:#fbe7a6;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:1px}
+.badges{display:none}
+.bn,.br,.bs,.bv{}
+.cd{display:inline-block;font-size:10.5px;font-weight:800;background:var(--line);color:var(--fg);border-radius:4px;padding:0 4px}
+.card.sel{outline:3px solid var(--navy);outline-offset:2px}
+.card.sel::after{content:"✓";position:absolute;top:12px;right:12px;width:24px;height:24px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:700}
+.selbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;margin:0 0 14px;border:1px solid #c5d3ee;border-radius:12px;background:#eef3fc;position:sticky;top:-22px;z-index:5}
+button.danger{background:var(--red);color:#fff;border-color:var(--red)}
+button.danger:hover{background:#a92c23}
+.undobar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--fg);color:#fff;padding:10px 14px;border-radius:12px;display:flex;gap:14px;align-items:center;z-index:50;box-shadow:0 10px 26px rgba(24,34,58,.3)}
+.undobar button{background:var(--acc);color:#2a2000;border:0}
+.est{display:block;font-size:11.5px;color:var(--mut);margin-top:2px}
+.vbox{border:1px solid #f6d2b3;background:#fff4ea;border-radius:10px;padding:10px 12px;margin:8px 0}
+.price{font-weight:700;color:var(--fg);font-variant-numeric:tabular-nums}
+.info .pr{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-top:2px}
+
 .hide{display:none!important}
 .empty{text-align:center;color:var(--mut);margin-top:60px;line-height:1.7}
-.empty a{color:var(--acc)}
-dialog{border:0;border-radius:12px;background:var(--card);color:var(--fg);width:min(940px,94vw);max-height:90vh;padding:18px}
+.empty a{color:var(--navy)}
+dialog{border:0;border-radius:14px;background:var(--card);color:var(--fg);width:min(960px,94vw);max-height:90vh;padding:22px;box-shadow:0 24px 60px rgba(24,34,58,.25)}
+dialog::backdrop{background:rgba(24,34,58,.35)}
 dialog h3{margin-top:0}
 dialog table{width:100%;border-collapse:collapse}
 dialog td,dialog th{padding:6px;border-bottom:1px solid var(--line);text-align:left}
 td.line{font-size:12px;color:var(--mut);max-width:360px}
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ok);color:#fff;padding:10px 18px;border-radius:10px;z-index:40;font-weight:600}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--fg);color:#fff;padding:11px 18px;border-radius:10px;z-index:40;font-weight:600;max-width:80vw;box-shadow:0 10px 26px rgba(24,34,58,.3)}
 .small{font-size:12px;color:var(--mut)}
 .big{position:relative;min-height:80px}.big img{max-width:100%;max-height:58vh;border-radius:10px;display:block;margin:0 auto 10px}
-#sets a.dash{font-weight:700;border-bottom:1px solid var(--line)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:18px}
-.kpi{background:var(--card);border-radius:12px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.kpi{background:var(--card);border-radius:12px;padding:12px 16px;border:1px solid var(--line)}
 .kpi b{display:block;font-size:24px;margin-top:2px}
 .kpi span{font-size:12px;color:var(--mut)}
 .panels{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}
-.panel{background:var(--card);border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.panel{background:var(--card);border-radius:12px;padding:16px 18px;border:1px solid var(--line)}
 .panel h3{margin:0 0 10px;font-size:15px}
 .bars .br2{display:grid;grid-template-columns:150px 1fr 90px;gap:8px;align-items:center;font-size:12.5px;margin:4px 0}
 .bars .tr{height:14px;background:var(--bg);border-radius:4px;overflow:hidden}
@@ -98,11 +135,11 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
 .panel td,.panel th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left}
 .panel th{color:var(--mut);font-weight:600}
 .up{color:#e5484d}.down{color:var(--ok)}
-.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--card);padding:10px 12px;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:14px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--card);padding:10px 12px;border-radius:12px;border:1px solid var(--line);margin-bottom:14px}
 .filters label{font-size:12px;color:var(--mut)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{border:0;border-radius:0;padding:6px 10px;background:transparent}
-.seg button.on{background:var(--fg);color:var(--bg)}
+.seg button.on{background:var(--navy);color:#fff}
 .delta{font-size:12px;font-weight:700;margin-left:6px}
 .delta.pos{color:var(--ok)}.delta.neg{color:#e5484d}.delta.eq{color:var(--mut)}
 .kpi small{display:block;font-size:11px;color:var(--mut);margin-top:2px}
@@ -111,7 +148,7 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
 .tag{display:inline-block;font-size:11px;font-weight:700;border-radius:5px;padding:1px 6px;background:var(--bg)}
 .tag.cm{background:#1e4fa3;color:#fff}.tag.eb{background:#e53238;color:#fff}.tag.mn{background:var(--line)}
 .panel.wide{grid-column:1/-1}
-.rtable{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.rtable{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);border-radius:12px;overflow:hidden;border:1px solid var(--line)}
 .rtable th{position:sticky;top:-16px;background:var(--card);color:var(--mut);font-weight:600;text-align:left;padding:8px;border-bottom:1px solid var(--line);z-index:1}
 .rtable td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
 .rtable td.n{text-align:right;white-space:nowrap}
@@ -127,15 +164,17 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
 <body>
 <div class="top">
   <div class="row" style="justify-content:space-between">
-    <div><h1>Gestionale carte in vendita</h1><div class="stats" id="stats"></div></div>
+    <div><h1>Gestionale carte</h1><div class="stats" id="stats"></div></div>
     <div class="row">
-      <button class="pri" id="btnSale">🧾 Carica vendite</button>
-      <button id="btnSold">📈 Vendite</button>
-      <button id="btnCat" title="Carica il file .txt dell'app: le carte vanno in Standby">📥 Carica catalogo (.txt)</button>
+      <button id="btnCat" title="Carica le liste .txt dell'app: le carte vanno in Standby">📥 Carica liste dall'app</button>
+      <button id="btnSale" title="Carica i PDF degli ordini di Cardmarket: le carte vendute escono dal magazzino">🧾 Carica ordini venduti</button>
+      <span class="tbsep"></span>
       <button id="btnUpd">🔄 Aggiorna prezzi</button>
       <button id="btnEditCM" title="Cambia i prezzi delle carte in vendita su Cardmarket, per tutti i set o uno solo">✏️ Cambia prezzi su Cardmarket</button>
+      <span class="tbsep"></span>
       <button id="btnBk" title="Backup automatico">💾 Backup…</button>
-      <button id="btnMore">⚙ Altro</button>
+      <button id="btnMore" title="Backup manuale, ripristino, Price Guide…">⚙</button>
+      <button id="btnSold" class="hide">📈 Vendite</button>
     </div>
   </div>
 </div>
@@ -482,22 +521,38 @@ async function renderSet() {
   if (filter === 'var' && !vars.length) filter = 'all';
   if (filter === 'sb' && !sbList.length) filter = 'all';
   const extra = official && cards.length > official ? cards.length - official : 0;
-  let h = `<div class="sethead"><div class="row" style="gap:14px">${logo ? `<img class="logo" src="${esc(logo)}.png" alt="" onerror="if(!this.dataset.e){this.dataset.e=1;this.src=this.src.replace(/(assets\\.tcgdex\\.net\\/)[a-z-]+\\//,'$1en/')}else this.remove()">` : ''}
-    <div><h2>${esc(setName)}</h2>
-    <div class="sub">${cards.length} carte${extra ? ` (${official} + ${extra} fuoriserie)` : ''} · in vendita ${Object.keys(byNum).length} diverse, ${copies} copie · valore ${eur(value)}</div>
-    ${sbQ ? `<div class="sub">⏸ Standby (non ancora su Cardmarket): <b>${sbQ} copie</b> · stima con Da ${eur(sbEst('low'))} · con Tendenza ${eur(sbEst('trend'))}</div>` : ''}
-    ${vars.length ? `<div class="sub" style="color:#e8590c;font-weight:700">⚠ ${vars.length} carte in vendita con variazione del prezzo di mercato</div>` : ''}</div></div>
-    <div class="row"><input type="search" id="qCard" placeholder="Cerca carta…">
-    <select id="fShow"><option value="all">Mostra tutte le carte</option><option value="yes">Solo carte in vendita</option><option value="sb">Solo carte in Standby</option><option value="var">Solo con variazione di prezzo</option><option value="rev">Solo Reverse in vendita</option><option value="no">Solo carte che non ho</option></select>
-    ${vars.length ? `<button class="pri" id="bPdf">📄 PDF revisione prezzi (${vars.length})</button><button id="bConf">✔ Conferma prezzi</button>` : ''}
-    ${copies ? `<button id="bEditCM" title="Cambia i prezzi delle carte in vendita su Cardmarket (es. da Tendenza a prezzo minimo)">✏️ Cambia prezzi su Cardmarket</button>` : ''}
-    ${copies || sbQ ? `<button id="bSel" class="${selMode ? 'pri' : ''}" title="Seleziona più carte per toglierle dalla vendita, riportarle in Standby o toglierle dallo Standby">☑ Seleziona carte</button>` : ''}
-    ${sbQ ? `<button class="pri" id="bOpenCM" title="Scegli il prezzo e prepara le carte in Standby per lo script Card Scanner">Apri su Cardmarket ↗ (${sbQ} in Standby)</button>` : cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="_blank"><button>Apri su Cardmarket ↗</button></a>` : ''}</div></div>
+  // conteggi per i filtri
+  const cntF = { all: cards.length, yes: Object.keys(byNum).length, sb: Object.keys(sbByNum).length,
+    var: new Set(vars.map(x => norm(x.l.u))).size, rev: new Set(mine.filter(([, l]) => l.rev).map(([, l]) => norm(l.u))).size };
+  cntF.no = cards.filter(c => !byNum[norm(c.localId)] && !sbByNum[norm(c.localId)]).length;
+  if (filter !== 'all' && !cntF[filter]) filter = 'all';
+  const chip = (v, l) => `<button class="chip ${filter === v ? 'on' : ''}" data-f="${v}">${l}<i>${cntF[v]}</i></button>`;
+  let h = `<div class="sethead"><div class="row" style="gap:16px">${logo ? `<img class="logo" src="${esc(logo)}.png" alt="" onerror="if(!this.dataset.e){this.dataset.e=1;this.src=this.src.replace(/(assets\\.tcgdex\\.net\\/)[a-z-]+\\//,'$1en/')}else this.remove()">` : ''}
+      <div><h2>${esc(setName)}</h2><div class="sub">${cards.length} carte${extra ? `: ${official} + ${extra} fuoriserie` : ''}</div></div></div>
+    <div class="row">
+      ${copies ? `<button id="bEditCM" title="Cambia su Cardmarket i prezzi delle carte di questo set (es. da Tendenza a prezzo minimo)">✏️ Cambia prezzi di questo set</button>` : ''}
+      ${copies || sbQ ? `<details class="menu"><summary>Altro ▾</summary><div class="mn">
+        <button id="bSel">☑ Seleziona carte (togli, riporta in Standby…)</button>
+        ${vars.length ? `<button id="bPdf2">📄 PDF revisione prezzi</button>` : ''}
+        ${cmCat ? `<button id="bBulk">↗ Pagina "Inserisci carte bulk" del set</button>` : ''}</div></details>` : ''}
+      ${sbQ ? `<button class="pri" id="bOpenCM" title="Scegli il prezzo e prepara le carte in Standby per lo script Card Scanner">Metti in vendita su Cardmarket (${sbQ} in Standby)</button>` : cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="_blank"><button>Apri su Cardmarket ↗</button></a>` : ''}
+    </div></div>
+    <div class="figs">
+      <div class="fig f-ok"><b>${copies}</b><span>copie in vendita · ${Object.keys(byNum).length} carte</span></div>
+      <div class="fig"><b>${eur(value) || '0,00 €'}</b><span>valore ai tuoi prezzi</span></div>
+      ${sbQ ? `<div class="fig f-sb"><b>${sbQ}</b><span>in Standby · stima ${eur(sbEst('low'))}–${eur(sbEst('trend'))}</span></div>` : ''}
+      ${vars.length ? `<div class="fig f-var"><b>${vars.length}</b><span>variazioni di prezzo</span></div>` : ''}
+    </div>
+    ${vars.length ? `<div class="notice var"><span><b>${vars.length} ${vars.length === 1 ? 'carta ha' : 'carte hanno'} il prezzo di mercato cambiato</b> rispetto a quando l'hai messa in vendita.</span>
+      <span class="row"><button id="bPdf">📄 PDF revisione</button><button id="bConf">✔ Conferma prezzi</button></span></div>` : ''}
     ${selMode ? `<div class="selbar"><b id="selN">0 selezionate</b>
       <button id="sAll">Seleziona tutte quelle visibili</button><button id="sNone">Nessuna</button>
       <span style="flex:1"></span>
       <button id="sDel" class="danger">🗑 Togli dalla vendita</button><button id="sToSb">↩ Riporta in Standby</button><button id="sDelSb">🗑 Togli dallo Standby</button>
-      <button id="sDone">Fine</button></div>` : ''}<div class="grid">`;
+      <button id="sDone" class="pri">Fine</button></div>` : ''}
+    <div class="toolbar"><div class="chips" id="fChips">${chip('all', 'Tutte')}${chip('yes', 'In vendita')}${cntF.sb ? chip('sb', 'Standby') : ''}${cntF.var ? chip('var', 'Variazioni') : ''}${cntF.rev ? chip('rev', 'Reverse') : ''}${chip('no', 'Mancanti')}</div>
+      <input type="search" id="qCard" placeholder="Cerca per nome o numero…" style="margin-left:auto"></div>
+    <div class="grid">`;
   for (const c of cards) {
     const n0 = norm(c.localId);
     const ls = byNum[n0] || [], sb = sbByNum[n0] || [];
@@ -512,17 +567,25 @@ async function renderSet() {
     const rar = c.rarity ?? rc[n0] ?? rarIt(cm?.r) ?? '';
     const isExtra = official && /^\d+$/.test(c.localId) && +c.localId > official;
     const cls = ls.length ? 'yes' : sq ? 'sb' : 'no';
+    const sbM2 = sbM;
+    const band = [];
+    if (ls.length) band.push(`<div class="band b-ok"><span class="bl"><span>In vendita</span><span>${n ? '×' + n : ''}${r ? ` <span class="r">R ×${r}</span>` : ''}</span></span></div>`);
+    if (sq) band.push(`<div class="band b-sb"><span class="bl"><span>Standby</span><span>${sqN ? 'N ×' + sqN : ''}${sqR ? ` <span class="r">R ×${sqR}</span>` : ''}</span></span></div>`);
     h += `<div class="card ${cls}${r ? ' r' : ''}${sq ? ' hassb' : ''}${vv.length ? ' vr' : ''}${selMode && sel.has(n0) ? ' sel' : ''}" data-n="${esc(n0)}" data-s="${esc(`${c.name} ${c.localId} ${n0} ${rar} ${cm?.n || ''}`.toLowerCase())}">
       <div class="im"><span>${esc(c.localId)}</span>${imgTag(imgSrcs(c.image, cm, c.localId), true)}</div>
-      ${ls.length || sq || vv.length ? `<div class="badges">${vv.length ? `<span class="bv" title="variazione del prezzo di mercato">⚠ ${vv.map(v => (v.d > 0 ? '▲' : '▼') + eur(Math.abs(v.d))).join(' ')}</span>` : ''}${n ? `<span class="bn">×${n}</span>` : ''}${r ? `<span class="br">R ×${r}</span>` : ''}${sqN ? `<span class="bs" title="Normali in Standby">SB N ×${sqN}</span>` : ''}${sqR ? `<span class="bs bsr" title="Reverse in Standby">SB R ×${sqR}</span>` : ''}</div>` : ''}
-      <div class="info"><b>${esc(c.localId)}${official ? '/' + official : ''}</b> ${esc(c.name)}${isExtra ? '<span class="fs">FS</span>' : ''}
-      <small class="rar">${esc(rar)}</small>${prices.length ? `<span class="price">${prices.map(eur).join(' / ')}</span>` : ''}
-      ${!ls.length && sbM ? `<span class="est">stima: Da ${eur(sbM.lo) || '—'} · Tend. ${eur(sbM.t) || '—'}</span>` : ''}</div></div>`;
+      ${vv.length ? `<span class="vtag" title="Prezzo di mercato cambiato">${vv.map(v => (v.d > 0 ? '▲ ' : '▼ ') + eur(Math.abs(v.d))).join(' ')}</span>` : ''}
+      ${band.join('')}
+      <div class="info"><span class="nr">${esc(c.localId)}${official ? '/' + official : ''}${isExtra ? '<span class="fs">FS</span>' : ''}${rar ? ' · ' : ''}<span class="rar">${esc(rar)}</span></span>
+      <b title="${esc(c.name)}">${esc(c.name)}</b>
+      ${prices.length ? `<span class="pr"><span class="price">${prices.map(eur).join(' / ')}</span></span>` : ''}
+      ${!ls.length && sbM2 ? `<span class="est">Stima: Da ${eur(sbM2.lo) || '—'} · Tendenza ${eur(sbM2.t) || '—'}</span>` : ''}</div></div>`;
   }
   main.innerHTML = h + '</div>';
-  $('qCard').value = filterText; $('fShow').value = filter;
+  $('qCard').value = filterText;
   $('qCard').oninput = () => { filterText = $('qCard').value; applyCardFilter(); };
-  $('fShow').onchange = () => { filter = $('fShow').value; applyCardFilter(); };
+  $('fChips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; filter = b.dataset.f; $('fChips').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); applyCardFilter(); };
+  if ($('bPdf2')) $('bPdf2').onclick = () => pdfVariations(vars, setName);
+  if ($('bBulk')) $('bBulk').onclick = () => window.open(CMBULK + encodeURIComponent(cmCat.id), '_blank');
   if ($('bPdf')) $('bPdf').onclick = () => pdfVariations(vars, setName);
   if ($('bOpenCM')) $('bOpenCM').onclick = () => openOnCardmarket(selected, setName, cmCat);
   if ($('bConf')) $('bConf').onclick = () => varDialog(vars, `Conferma prezzi · ${setName}`);
@@ -606,7 +669,7 @@ function bulkAction(kind, sid, setName) {
       <label><input type="radio" name="bv" value="N"> Solo Normali (${count('N')})</label>
       <label><input type="radio" name="bv" value="R"> Solo Reverse (${count('R')})</label></p>
     <p class="small">${kind === 'del' ? 'Le copie spariscono dal magazzino vendite del gestionale (non vengono contate come vendute). Su Cardmarket toglile tu.'
-      : kind === 'toSb' ? 'Le copie tornano in Standby, pronte per essere ricaricate su Cardmarket con "Apri su Cardmarket". Su Cardmarket toglile tu.'
+      : kind === 'toSb' ? 'Le copie tornano in Standby, pronte per essere ricaricate su Cardmarket con "Metti in vendita su Cardmarket". Su Cardmarket toglile tu.'
       : 'Le copie spariscono dallo Standby.'} Subito dopo puoi premere <b>↶ Annulla</b>.</p>
     <p class="row" style="justify-content:flex-end"><button id="dClose">Annulla</button><button class="pri danger" id="bGo">${what}</button></p>`, () => {
     $('dClose').onclick = closeDlg;
@@ -1483,7 +1546,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
   // prezzi di mercato freschi prima di decidere
   await tcg('/sets/' + encodeURIComponent(setId), 24 * 7); await tcg('@en/sets/' + encodeURIComponent(setId), 24 * 7); // per la sigla
   if (list.some(([k]) => { const M = sbmOf(k); return !M || Date.now() - new Date(M.at) > AUTO_H * 3600e3; })) {
-    openDlg('<h3>Apri su Cardmarket</h3><p>Aggiorno i prezzi di mercato delle carte in Standby…</p>');
+    openDlg('<h3>Metti in vendita su Cardmarket</h3><p>Aggiorno i prezzi di mercato delle carte in Standby…</p>');
     await updatePrices(false);
   }
   const cfg = upCfg(), over = {};
@@ -1513,7 +1576,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
       draw();
     });
   };
-  openDlg(`<h3>Apri su Cardmarket · ${esc(setName)}</h3>
+  openDlg(`<h3>Metti in vendita su Cardmarket · ${esc(setName)}</h3>
     <p class="small">Scegli il prezzo: lo script Card Scanner lo userà così com'è, con i valori giusti per le <b>Normali</b> e per le <b>Reverse</b>.
     Se serve puoi cambiare il prezzo di una singola carta nella tabella.</p>
     <div class="filters"><label>Prezzo = <select id="upBase"><option value="low">"Da" (prezzo minimo)</option><option value="trend">Tendenza</option></select>

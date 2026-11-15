@@ -4,6 +4,73 @@
 // I due valori li legge dalla pagina stessa (campi nascosti di ogni riga): nessuna richiesta a Cardmarket.
 // Non invia nulla da solo.
 (() => {
+  // ---------- grafica comune dei riquadri (isolata dalla grafica di Cardmarket con lo Shadow DOM) ----------
+  const CS_CSS = `
+    :host{all:initial}
+    *{box-sizing:border-box}
+    .pn{position:fixed;top:14px;right:14px;width:440px;max-height:calc(100vh - 28px);display:flex;flex-direction:column;z-index:2147483000;
+      background:#fff;color:#1d2433;font:14px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif;border-radius:14px;overflow:hidden;
+      box-shadow:0 18px 50px rgba(18,40,76,.28),0 0 0 1px rgba(18,40,76,.12)}
+    .hd{background:#12284c;color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px}
+    .hd .t{font-weight:700;font-size:15px}.hd .m{color:#ffcb05;font-weight:600;font-size:13px}
+    .hd .x{margin-left:auto;background:none;border:0;color:#c8d3e6;font-size:20px;cursor:pointer;line-height:1;padding:2px 4px}
+    .hd .x:hover{color:#fff}
+    .steps{display:flex;border-bottom:1px solid #e3e8f0;background:#f6f8fb}
+    .st{flex:1;padding:9px 6px 8px;text-align:center;font-size:12px;color:#7a8599;border-bottom:3px solid transparent}
+    .st b{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#dfe5ee;color:#5b6678;font-size:11px;margin-right:5px}
+    .st.on{color:#12284c;font-weight:700;border-bottom-color:#ffcb05}.st.on b{background:#12284c;color:#fff}
+    .st.ok{color:#1c7c47}.st.ok b{background:#1f9d57;color:#fff}
+    .bd{padding:14px 16px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+    .card{border:1px solid #e3e8f0;border-radius:10px;padding:10px 12px;background:#fbfcfe}
+    .card.info{background:#eef4ff;border-color:#cfdcf5}
+    .card.warn{background:#fff7e6;border-color:#f3d79a}
+    .card.okc{background:#ecf8f1;border-color:#bfe5cf}
+    .nm{font-weight:700;color:#12284c;word-break:break-all}
+    .mut{color:#6b7587;font-size:12.5px}
+    .big{width:100%;border:0;border-radius:10px;padding:12px 14px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;background:#ffcb05;color:#1d2433}
+    .big:hover{filter:brightness(.96)}.big:disabled{opacity:.5;cursor:default}
+    .big.go{background:#1f9d57;color:#fff}.big.navy{background:#12284c;color:#fff}
+    .big.ghost{background:#fff;color:#12284c;border:1px solid #cdd5e1;font-size:14px;padding:9px 14px}
+    .msg div{margin-top:2px}.msg .err{color:#b42318}.msg .warn{color:#b4541c}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .sec{border:1px solid #cdd5e1;background:#fff;color:#12284c;border-radius:8px;padding:6px 11px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+    .sec:hover{background:#f1f4f9}
+    a{color:#1f5fbf}
+    input[type=text],input:not([type]){border:1px solid #cdd5e1;border-radius:8px;padding:7px 9px;font:inherit;width:100%;color:#1d2433;background:#fff}
+    label.sw{display:flex;gap:10px;align-items:flex-start;cursor:pointer;color:#1d2433;font-size:13px}
+    label.sw input{margin-top:3px;width:16px;height:16px;accent-color:#12284c}
+    .bar{height:8px;background:#e6ebf2;border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;background:#1f9d57;border-radius:6px;transition:width .3s}
+    .stat{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+    .tabs{display:flex;gap:4px;border-bottom:1px solid #e3e8f0}
+    .tab{border:0;background:none;padding:7px 10px;font:inherit;font-size:13px;color:#6b7587;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+    .tab.on{color:#12284c;font-weight:700;border-bottom-color:#12284c}
+    .list{max-height:34vh;overflow:auto;margin-top:4px}
+    .li{display:grid;grid-template-columns:78px 1fr auto;gap:8px;align-items:center;padding:6px 2px;border-bottom:1px solid #f0f2f6;font-size:13px}
+    .li .c{color:#6b7587;font-variant-numeric:tabular-nums}.li .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .li .p{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+    .li .why{grid-column:2/4;color:#b4541c;font-size:12px;margin-top:-4px}
+    .rv{color:#8b3fc4;font-weight:700}
+    .pill{display:inline-block;border-radius:99px;padding:1px 8px;font-size:11.5px;font-weight:600;background:#eef1f6;color:#5b6678}
+    .pill.ok{background:#e3f5ea;color:#1c7c47}.pill.todo{background:#fff4cc;color:#7a5b00}.pill.err{background:#fde8e8;color:#b42318}.pill.oth{background:#ffeedd;color:#b4541c}
+    .msg{font-size:13px;color:#12284c;font-weight:600}
+    .log{font-size:12.5px;line-height:1.5;max-height:26vh;overflow:auto}
+    .log div{padding:1px 0}.log .warn{color:#b4541c}.log .err{color:#b42318;font-weight:600}.log .ok{color:#1c7c47;font-weight:600}.log .mutd{color:#6b7587}
+    .ft{padding:9px 16px;border-top:1px solid #e3e8f0;background:#f6f8fb;font-size:12px;display:flex;gap:14px;justify-content:flex-end;white-space:nowrap;align-items:center}
+    .ft a{color:#5b6678;text-decoration:none}.ft a:hover{color:#12284c;text-decoration:underline}
+    .hide{display:none!important}
+  `;
+  /** crea un riquadro isolato: restituisce l'elemento ospite e la radice in cui cercare gli elementi */
+  function csPanel(mode) {
+    const host = document.createElement('div');
+    const root = host.attachShadow({ mode: 'open' });
+    root.innerHTML = `<style>${CS_CSS}</style><div class="pn"><div class="hd"><span class="t">Card Scanner</span><span class="m">${mode}</span><button class="x" id="pnX" title="Chiudi (premi di nuovo il pulsante per riaprirlo)">✕</button></div><div id="pnIn" style="display:flex;flex-direction:column;min-height:0;flex:1"></div></div>`;
+    document.body.appendChild(host);
+    root.getElementById('pnX').onclick = () => { host.style.display = 'none'; };
+    return { host, root };
+  }
+  const stepsHtml = (names, cur, okUpTo) => `<div class="steps">${names.map((n, i) =>
+    `<div class="st ${i < okUpTo ? 'ok' : i === cur ? 'on' : ''}"><b>${i < okUpTo ? '✓' : i + 1}</b>${n}</div>`).join('')}</div>`;
+
   // ---------- elenco preparato dal gestionale ("Apri su Cardmarket") ----------
   // arriva nel nome della scheda (window.name = "csjob=…") e resta salvato in cardmarket.com finché non è tutto inviato
   const JKEY = 'cs_job';
@@ -41,7 +108,7 @@
   // ("Cambia prezzi su Cardmarket") e apre una carta alla volta il riquadro "Modifica", scrivendo il nuovo prezzo.
   // "MODIFICA ARTICOLO" lo premi tu, a meno di scegliere la conferma automatica (lenta).
   function offersMode() {
-    if (window.__csOffers) { window.__csOffers.style.display = 'block'; return; }
+    if (window.__csOffers) { window.__csOffers.style.display = ''; return; }
     const EKEY = 'cs_edit', DKEY = 'cs_edit_done', OKEY = 'cs_offers';
     const GEST = 'https://mamouse87.github.io/scanner-pokemon/gestionale/';
     const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
@@ -57,49 +124,59 @@
     let offers = ls.get(OKEY, null);           // {at, list:[…]} ultima lettura delle offerte
     let running = false, stopReq = false;
 
-    const P = document.createElement('div');
+    const { host: P, root: R } = csPanel('Cambia prezzi');
     window.__csOffers = P;
-    P.style.cssText = 'position:fixed;top:12px;right:12px;width:480px;max-height:92vh;overflow:auto;z-index:99999;background:#14181d;color:#e8eaed;' +
-      'font:13px/1.45 system-ui,sans-serif;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.5);padding:14px';
-    document.body.appendChild(P);
-    const $o = id => P.querySelector('#' + id);
-    const btn = 'border:0;border-radius:8px;padding:7px 12px;font-weight:700;cursor:pointer';
+    const $o = id => R.getElementById(id);
+    let tab = 'todo', msg = '';
+    const ruleTxt = j => `${j.base === 'trend' ? 'Tendenza' : '"Da" (prezzo minimo)'}${j.plus ? ` ${j.plus > 0 ? '+' : '−'} ${eur(Math.abs(j.plus) / 100)}` : ''}`;
 
     function render() {
-      const items = job ? job.items : [];
       const m = matchAll();
-      const nOk = m.filter(x => x.st === 'ok' || x.st === 'same').length;
-      P.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <b style="color:#ffcb05">Card Scanner → cambio prezzi</b><a href="#" id="oX" style="color:#9aa3ad;font-size:18px;text-decoration:none">✕</a></div>
-        ${job ? `<div style="background:#12324a;border-radius:8px;padding:8px;margin-bottom:8px">📋 <b>${escH(job.name)}</b><br>${items.length} offerte da cambiare · nuovo prezzo <b>${job.base === 'trend' ? 'Tendenza' : '"Da"'}${job.plus ? ` ${job.plus > 0 ? '+' : '−'} ${eur(Math.abs(job.plus) / 100)}` : ''}</b> (calcolato dal gestionale per Normali e Reverse)</div>`
-          : `<div style="background:#3a2a12;border-radius:8px;padding:8px;margin-bottom:8px">Nessun elenco dal gestionale. Nel gestionale premi <b>✏️ Cambia prezzi su Cardmarket</b>, poi torna qui e premi di nuovo il pulsante. <a href="#" id="oClip" style="color:#ffcb05">Incolla elenco dal gestionale</a></div>`}
-        <div style="margin-bottom:8px">${offers ? `Offerte lette: <b>${offers.list.length}</b> (${new Date(offers.at).toLocaleString('it-IT')})` : 'Offerte non ancora lette.'}
-          <button id="oRead" style="${btn};background:#2a313b;color:#e8eaed;margin-left:6px">🔎 ${offers ? 'Rileggi' : 'Leggi'} le mie offerte</button></div>
-        <div id="oProg" style="color:#9aa3ad;margin-bottom:6px"></div>
-        ${job && offers ? `<div style="margin-bottom:8px">Trovate <b>${m.filter(x => x.o).length}</b> su ${items.length} · fatte <b style="color:#3ecf6e">${nOk}</b>${m.filter(x => !x.o).length ? ` · <span style="color:#ff6b6b">${m.filter(x => !x.o).length} non trovate</span>` : ''}</div>
-          <label style="display:block;margin-bottom:8px"><input type="checkbox" id="oAuto" ${ls.get('cs_edit_auto', false) ? 'checked' : ''}> Conferma automatica (preme lui "MODIFICA ARTICOLO", una carta ogni 3 secondi)</label>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-            <button id="oGo" style="${btn};background:#ffcb05;color:#111">${running ? '⏸ Pausa' : '▶ Inizia'}</button>
-            <button id="oVer" style="${btn};background:#2a313b;color:#e8eaed">🔁 Verifica</button>
-            <button id="oSend" style="${btn};background:#3ecf6e;color:#111">📤 Invia al gestionale (${nOk})</button></div>
-          <div style="max-height:40vh;overflow:auto;background:#0d1014;border-radius:8px;padding:6px">${m.map(x => `<div style="display:flex;gap:6px;padding:2px 0;${x.st === 'ok' || x.st === 'same' ? 'opacity:.6' : ''}">
-            <span style="width:84px;color:#9aa3ad">${escH((x.it.code || '') + ' ' + x.it.u)}${x.it.rev ? ' <b style="color:#cc5de8">R</b>' : ''}</span>
-            <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escH(x.it.n || '')}</span>
-            <span>${eur(x.o ? x.o.price : x.it.old)} → <b>${eur(x.it.price)}</b></span>
-            <span style="width:96px;text-align:right;${x.st === 'ok' || x.st === 'same' ? 'color:#3ecf6e' : x.st === 'skip' ? 'color:#ff9f43' : !x.o ? 'color:#ff6b6b' : 'color:#9aa3ad'}">${!x.o ? 'non trovata' : x.st === 'ok' ? '✓ fatto' + (x.ver ? ' ✓' : '') : x.st === 'same' ? '✓ già così' : x.st === 'skip' ? 'saltata' : x.st === 'err' ? '⚠ errore' : 'da fare'}</span></div>`).join('')}</div>` : ''}`;
-      $o('oX').onclick = e => { e.preventDefault(); P.style.display = 'none'; };
-      if ($o('oClip')) $o('oClip').onclick = async e => {
+      const found = m.filter(x => x.o), miss = m.filter(x => !x.o);
+      const fatte = m.filter(x => x.o && (x.st === 'ok' || x.st === 'same'));
+      const todo = m.filter(x => x.o && x.st !== 'ok' && x.st !== 'same');
+      const step = !job ? 0 : !offers ? 0 : todo.length ? 1 : 2;
+      const sentOk = job && done.__sent;
+      const pct = found.length ? Math.round(fatte.length / found.length * 100) : 0;
+      const listOf = tab === 'todo' ? todo : tab === 'done' ? fatte : miss;
+      const auto = ls.get('cs_edit_auto', false);
+      let primary = '';
+      if (job && !offers) primary = `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`;
+      else if (job && todo.length) primary = `<button class="big" id="oGo">${running ? '⏸ Metti in pausa' : `▶ Cambia i prezzi (${todo.length})`}</button>`;
+      else if (job) primary = `<button class="big go" id="oSend">📤 Invia al gestionale (${fatte.length})</button>`;
+      R.getElementById('pnIn').innerHTML = (job ? stepsHtml(['Leggi le offerte', 'Cambia i prezzi', 'Invia al gestionale'], step, sentOk ? 3 : step) : '') + `<div class="bd">
+        ${job ? `<div class="card info"><div class="nm">${escH(job.name)}</div>
+            <div>${job.items.length} offerte da cambiare · nuovo prezzo <b>${ruleTxt(job)}</b></div>
+            <div class="mut">Il gestionale ha calcolato il prezzo di ogni carta, Normali e Reverse separate.</div></div>`
+          : `<div class="card warn"><b>Nessun elenco di prezzi.</b><br>Nel gestionale premi <b>✏️ Cambia prezzi su Cardmarket</b>, scegli il prezzo e premi "Apri le mie offerte": poi premi di nuovo questo pulsante.</div>`}
+        ${msg ? `<div class="msg" id="oProg">${escH(msg)}</div>` : '<div class="msg" id="oProg"></div>'}
+        ${primary}
+        ${job && offers ? `
+          <div><div class="stat"><span>Cambiate <b>${fatte.length}</b> di ${found.length}</span><span class="mut">${miss.length ? `${miss.length} non trovate su Cardmarket` : 'tutte trovate'}</span></div>
+            <div class="bar"><i style="width:${pct}%"></i></div></div>
+          ${todo.length ? `<label class="sw"><input type="checkbox" id="oAuto" ${auto ? 'checked' : ''}><span><b>Conferma automatica</b><br><span class="mut">Lo script preme da solo "MODIFICA ARTICOLO", una carta ogni 3 secondi. Senza spunta lo premi tu, carta per carta.</span></span></label>` : ''}
+          <div><div class="tabs"><button class="tab ${tab === 'todo' ? 'on' : ''}" data-t="todo">Da fare (${todo.length})</button><button class="tab ${tab === 'done' ? 'on' : ''}" data-t="done">Fatte (${fatte.length})</button><button class="tab ${tab === 'miss' ? 'on' : ''}" data-t="miss">Non trovate (${miss.length})</button></div>
+            <div class="list">${listOf.length ? listOf.map(x => `<div class="li"><span class="c">${escH((x.it.code || '') + ' ' + x.it.u)}${x.it.rev ? ' <span class="rv">R</span>' : ''}</span>
+              <span class="n">${escH(x.it.n || x.o?.name || '')}</span>
+              <span class="p">${x.o ? eur(x.o.price) : eur(x.it.old)} → <b>${eur(x.it.price)}</b> ${!x.o ? '' : x.st === 'ok' ? '<span class="pill ok">fatto</span>' : x.st === 'same' ? '<span class="pill ok">già così</span>' : x.st === 'skip' ? '<span class="pill oth">saltata</span>' : x.st === 'err' ? '<span class="pill err">errore</span>' : ''}</span>
+              ${!x.o ? `<span class="why">${escH(x.why || '')}</span>` : ''}</div>`).join('')
+              : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
+          ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
+          : !job ? '' : ''}
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}<a href="#" id="oClip">Incolla elenco</a></div>`;
+      $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
         if (intakeAny(t)) { job = ls.get(EKEY, null); done = { __job: job.name }; ls.set(DKEY, done); render(); } else alert('Negli appunti non c\'è un elenco di prezzi del gestionale.');
       };
-      $o('oRead').onclick = () => readAll();
+      R.querySelectorAll('#oRead').forEach(b => b.onclick = e => { e.preventDefault(); readAll(); });
+      R.querySelectorAll('#oSend').forEach(b => b.onclick = () => send());
       if ($o('oGo')) $o('oGo').onclick = () => { if (running) { stopReq = true; prog('Mi fermo dopo questa carta…'); } else run(); };
       if ($o('oAuto')) $o('oAuto').onchange = () => ls.set('cs_edit_auto', $o('oAuto').checked);
-      if ($o('oVer')) $o('oVer').onclick = () => verify();
-      if ($o('oSend')) $o('oSend').onclick = () => send();
+      if ($o('oVer')) $o('oVer').onclick = e => { e.preventDefault(); verify(); };
+      R.querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.t; render(); });
     }
-    const prog = t => { const e = $o('oProg'); if (e) e.textContent = t; };
+    const prog = t => { msg = t; const e = $o('oProg'); if (e) e.textContent = t; };
 
     // ---- lettura di tutte le pagine delle offerte ----
     function parseRows(doc, rev) {
@@ -164,7 +241,15 @@
       job.items.forEach(it => {
         const tail = `|${nrm(it.u)}|${it.rev ? 'R' : 'N'}|${it.lang || 'it'}`;
         const os = (it.code && byCode[it.code.toUpperCase() + tail]) || byExp[smp(it.exp) + tail] || [];
-        if (!os.length) { out.push({ it, o: null, st: '' }); return; }
+        if (!os.length) {
+          // perché non c'è? cerco la stessa carta con un'altra variante o lingua
+          const same = offers.list.filter(o => nrm(o.num) === nrm(it.u) && ((it.code && o.code === it.code.toUpperCase()) || smp(o.exp) === smp(it.exp)));
+          const LN = Object.fromEntries(Object.entries(LANGS).map(([k, v]) => [v, k]));
+          const why = !same.length ? 'Su Cardmarket non è in vendita (nel gestionale sì: controlla la quantità o toglila dal gestionale).'
+            : 'Su Cardmarket c\'è come ' + [...new Set(same.map(o => `${o.rev ? 'Reverse' : 'Normale'}${o.lang !== (it.lang || 'it') ? ' in ' + (LN[o.lang] || o.lang) : ''}`))].join(' e ') +
+              `, nel gestionale come ${it.rev ? 'Reverse' : 'Normale'}${(it.lang || 'it') !== 'it' ? ' in ' + (LN[it.lang] || it.lang) : ''}.`;
+          out.push({ it, o: null, st: '', why }); return;
+        }
         os.forEach(o => {
           const d = done[it.k + '#' + o.id] || {};
           const same = o.price != null && Math.abs(o.price - it.price) < 0.005;
@@ -302,7 +387,9 @@
       if (!res.length) { alert('Nessun prezzo cambiato da inviare.'); return; }
       const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, name: job.name, res }))));
       window.open(GEST + '#cmedit=' + encodeURIComponent(enc), 'gestionaleCarte');
+      done.__sent = 1; ls.set(DKEY, done);
       prog(`Inviati ${res.length} prezzi al gestionale ✓`);
+      render();
     }
 
     render();
@@ -311,7 +398,7 @@
 
   // pagina "Le mie offerte": cambio prezzi
   if (/\/Stock\/Offers\//i.test(location.pathname)) { offersMode(); return; }
-  if (window.__csPanel) { window.__csPanel.style.display = 'block'; return; }
+  if (window.__csPanel) { window.__csPanel.style.display = ''; return; }
 
   const form = document.getElementById('BulkListingForm');
   if (!form) {
@@ -327,7 +414,7 @@
     }
     let ej = null; try { ej = JSON.parse(localStorage.getItem('cs_edit')); } catch (e) {}
     if (ej && confirm(`Il gestionale ha preparato "${ej.name}" (${ej.items.length} prezzi da cambiare).\n\nVado alla pagina delle tue offerte? Quando si apre, premi di nuovo il pulsante Card Scanner.`)) { location.href = '/it/Pokemon/Stock/Offers/Singles'; return; }
-    alert('Apri prima la pagina "Inserisci carte bulk" di Cardmarket per un\'espansione, poi premi di nuovo il pulsante.\n\nSe hai preparato le carte nel gestionale ("Apri su Cardmarket"), apri Cardmarket da lì.');
+    alert('Apri prima la pagina "Inserisci carte bulk" di Cardmarket per un\'espansione, poi premi di nuovo il pulsante.\n\nSe hai preparato le carte nel gestionale ("Metti in vendita su Cardmarket"), apri Cardmarket da lì.');
     return;
   }
 
@@ -352,41 +439,44 @@
   };
 
   // ---------- pannello ----------
-  const panel = document.createElement('div');
+  const { host: panel, root: PR } = csPanel('Metti in vendita');
   window.__csPanel = panel;
-  panel.style.cssText = 'position:fixed;top:12px;right:12px;width:460px;max-height:92vh;overflow:auto;z-index:99999;' +
-    'background:#1c2128;color:#e8eaed;font:14px/1.4 system-ui,sans-serif;border-radius:12px;padding:14px;' +
-    'box-shadow:0 8px 30px rgba(0,0,0,.4)';
-  const inp = 'background:#0d1014;color:#e8eaed;border:1px solid #333a44;border-radius:6px;padding:5px';
-  panel.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <b style="color:#ffcb05">Card Scanner → Cardmarket</b>
-      <button id="csClose" style="background:none;border:0;color:#e8eaed;font-size:18px;cursor:pointer">✕</button>
+  PR.getElementById('pnIn').innerHTML = `
+    <div id="csSteps"></div>
+    <div class="bd" id="csBody">
+      <div id="csJob" class="card info"></div>
+      <!-- la lista e il prezzo arrivano dal gestionale ("Apri su Cardmarket"): qui non si scelgono più -->
+      <div class="hide"><input type="file" id="csFile"><input type="checkbox" id="csPrice" checked>
+        <select id="csBase"><option value="low">Da</option><option value="trend">Tendenza</option></select>
+        <select id="csSign"><option value="1">+</option><option value="-1">−</option></select><input id="csPlus" type="number">
+        <textarea id="csInput" readonly></textarea></div>
+      <div class="msg" id="csMsg"></div>
+      <button class="big go hide" id="csGest"></button>
+      <button class="big" id="csGo">Compila la pagina</button>
+      <div id="csProg" class="hide"></div>
+      <div><label class="mut" for="csComment">Commento sulle offerte</label><input id="csComment" placeholder="es. Collezione privata"></div>
+      <details id="csDet" class="hide"><summary class="mut" style="cursor:pointer">Dettagli della compilazione</summary><div id="csLog" class="log"></div></details>
     </div>
-    <div id="csJob" style="display:none;margin-bottom:8px;padding:8px;border-radius:8px;background:#12324a;font-size:12.5px"></div>
-    <!-- la lista e il prezzo arrivano dal gestionale ("Apri su Cardmarket"): qui non si scelgono più -->
-    <div style="display:none"><input type="file" id="csFile"><input type="checkbox" id="csPrice" checked>
-      <select id="csBase"><option value="low">Da</option><option value="trend">Tendenza</option></select>
-      <select id="csSign"><option value="1">+</option><option value="-1">−</option></select><input id="csPlus" type="number"></div>
-    <textarea id="csInput" readonly style="display:none;width:100%;height:110px;box-sizing:border-box;${inp};font:12px monospace"></textarea>
-    <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin:8px 0">
-      <span>Commento</span><input id="csComment" style="${inp}" placeholder="es. Collezione privata">
-    </div>
-    <div id="csProg" style="margin:0 0 8px;padding:8px;border-radius:8px;background:#0d1014;font-size:12.5px;display:none;max-height:38vh;overflow:auto"></div>
-    <button id="csGo" style="width:100%;padding:10px;border:0;border-radius:8px;background:#ffcb05;color:#111;font-weight:700;cursor:pointer">Compila la pagina</button>
-    <div id="csLog" style="margin-top:10px;font:12px/1.45 monospace;white-space:pre-wrap"></div>
-    <button id="csGest" style="display:none;width:100%;margin-top:10px;padding:10px;border:0;border-radius:8px;background:#3ecf6e;color:#111;font-weight:700;cursor:pointer"></button>
-    <div style="margin-top:8px;text-align:right"><a href="#" id="csClip" style="color:#9aa3ad;font-size:12px">Incolla elenco dal gestionale</a> · <a href="#" id="csCat" style="color:#9aa3ad;font-size:12px">Invia solo l'elenco di questo set al gestionale</a></div>`;
-  document.body.appendChild(panel);
-  const $ = id => panel.querySelector('#' + id);
+    <div class="ft"><a href="#" id="csClip">Incolla elenco dal gestionale</a><a href="#" id="csCat" title="Manda al gestionale l'elenco delle carte e delle sigle di questo set (senza metterle in vendita)">Aggiorna i dati del set nel gestionale</a></div>`;
+  const $ = id => PR.getElementById(id);
+  const LOGC = { '#ff9f43': 'warn', '#ff3b3b': 'err', '#ff6b6b': 'err', '#3ecf6e': 'ok', '#9aa3ad': 'mutd' };
   const log = (t, color) => {
     const d = document.createElement('div');
-    if (color) d.style.color = color;
+    if (color) d.className = LOGC[color] || '';
     d.textContent = t;
     $('csLog').appendChild(d);
-    panel.scrollTop = panel.scrollHeight;
+    $('csDet').classList.remove('hide');
+    // i messaggi importanti (esito, errori) anche in evidenza sopra
+    if (/^\s*(Compilate|⚠|Inviate|Nessuna|Errore)/.test(t)) { const m = document.createElement('div'); m.className = d.className; m.textContent = t.trim(); $('csMsg').appendChild(m); }
   };
-  $('csClose').onclick = () => { panel.style.display = 'none'; };
+  function steps() {
+    const j = jobGet(), act = activeJob();
+    const compiled = snapshot().length > 0, sent = $('csGest').dataset.sent === '1';
+    const st = !act ? 0 : sent ? 3 : compiled ? 2 : 1;
+    $('csSteps').innerHTML = j ? stepsHtml(['Elenco dal gestionale', 'Compila la pagina', 'Invia al gestionale'], Math.min(st, 2), st) : '';
+    $('csGo').classList.toggle('hide', !act);
+  }
+
 
   function syncComment(force) {
     const m = $('csInput').value.match(/^COMMENTO\s+(.*)$/mi);
@@ -656,7 +746,7 @@
   function showProgress() {
     const box = $('csProg');
     const list = parseInput($('csInput').value).items;
-    if (!list.length) { box.style.display = 'none'; return; }
+    if (!list.length) { box.classList.add('hide'); steps(); return; }
     const done = Object.assign({}, doneGet()), here = pageRows();
     let tot = 0, sent = 0, hereLeft = 0, otherLeft = 0;
     const rowsHtml = list.map(it => {
@@ -667,17 +757,17 @@
       const left = it.qty - d;
       const isHere = here.has(norm(it.num));
       if (left) { if (isHere) hereLeft += left; else otherLeft += left; }
-      const st = !left ? '<span style="color:#3ecf6e">✔ inviata</span>'
-        : isHere ? '<span style="color:#ffcb05">da compilare qui</span>' : '<span style="color:#ff9f43">in un\'altra pagina</span>';
-      return `<tr style="${left ? '' : 'opacity:.5'}"><td>${esc(it.num)}</td><td>${esc(it.name || '')}${it.rev ? ' <b style="color:#cc5de8">R</b>' : ''}</td>` +
-        `<td style="text-align:right">${left ? '×' + left : '×' + it.qty}</td><td>${st}</td></tr>`;
+      const st = !left ? '<span class="pill ok">inviata</span>'
+        : isHere ? '<span class="pill todo">da compilare qui</span>' : '<span class="pill oth">altra pagina</span>';
+      return `<div class="li" style="${left ? '' : 'opacity:.55'}"><span class="c">${esc(it.num)}${it.rev ? ' <span class="rv">R</span>' : ''}</span><span class="n">${esc(it.name || '')}</span><span class="p">×${left || it.qty} ${st}</span></div>`;
     }).join('');
-    box.style.display = 'block';
-    box.innerHTML = `<b style="color:${sent >= tot ? '#3ecf6e' : '#ffcb05'}">📦 Lista: ${sent}/${tot} copie inviate al gestionale</b>` +
-      `<div style="color:#9aa3ad">Da compilare: ${hereLeft} in questa pagina · ${otherLeft} in altre pagine</div>` +
-      `<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px">${rowsHtml}</table>` +
-      `<div style="text-align:right"><a href="#" id="csReset" style="color:#9aa3ad;font-size:11px">azzera avanzamento</a></div>`;
+    box.classList.remove('hide');
+    box.innerHTML = `<div class="stat"><span>Inviate al gestionale <b>${sent}</b> di ${tot} copie</span><span class="mut">${hereLeft} da compilare qui · ${otherLeft} in altre pagine</span></div>
+      <div class="bar"><i style="width:${tot ? Math.round(sent / tot * 100) : 0}%"></i></div>
+      <details style="margin-top:8px"><summary class="mut" style="cursor:pointer">Elenco delle carte (${list.length})</summary><div class="list">${rowsHtml}</div></details>
+      <div style="text-align:right;margin-top:4px"><a href="#" id="csReset" class="mut">Azzera l'avanzamento</a></div>`;
     $('csReset').onclick = e => { e.preventDefault(); if (confirm('Azzerare l\'avanzamento di questa lista?')) { doneSet({}); showProgress(); } };
+    steps();
   }
   $('csInput').addEventListener('input', showProgress);
   $('csFile').addEventListener('change', () => setTimeout(showProgress, 300));
@@ -685,10 +775,11 @@
   function showGest(state) {
     const b = $('csGest');
     const n = snapshot().reduce((a, r) => a + r.q, 0);
-    if (state === 'sent') { b.style.display = 'block'; b.disabled = true; b.style.opacity = '.6'; b.textContent = '✔ Inviate al gestionale'; return; }
-    b.disabled = false; b.style.opacity = '1';
-    b.style.display = n ? 'block' : 'none';
-    b.textContent = `📤 Invia al gestionale le carte compilate (${n})`;
+    if (state === 'sent') { b.classList.remove('hide'); b.disabled = true; b.dataset.sent = '1'; b.textContent = '✓ Inviate al gestionale'; steps(); return; }
+    b.disabled = false; b.dataset.sent = '';
+    b.classList.toggle('hide', !n);
+    b.textContent = `📤 Ho messo in vendita: invia al gestionale (${n} copie)`;
+    steps();
   }
   function sendCompiled() {
     const rows = snapshot();
@@ -736,15 +827,16 @@
   }
   function showJob() {
     const j = jobGet(), box = $('csJob');
+    box.className = 'card info';
     if (!j) {
-      box.style.display = 'block';
-      box.innerHTML = 'Nessun elenco dal gestionale. Nel gestionale apri il set, premi <b>Apri su Cardmarket</b> e scegli il prezzo: poi torna qui e premi di nuovo il pulsante.';
-      return;
+      box.className = 'card warn';
+      box.innerHTML = '<b>Nessun elenco dal gestionale.</b><br>Nel gestionale apri il set, premi <b>Metti in vendita su Cardmarket</b> e scegli il prezzo: poi torna qui e premi di nuovo questo pulsante.';
+      steps(); return;
     }
     if (j.done) {
-      box.style.display = 'block';
-      box.innerHTML = `✔ Elenco <b>${esc(j.name || j.set)}</b> tutto inviato al gestionale. Per caricare altre carte premi di nuovo <b>Apri su Cardmarket</b> nel gestionale.`;
-      return;
+      box.className = 'card okc';
+      box.innerHTML = `<b>✓ Elenco completato</b><div class="nm">${esc(j.name || j.set)}</div><div class="mut">Tutte le carte sono state inviate al gestionale. Per caricarne altre premi di nuovo <b>Metti in vendita su Cardmarket</b> nel gestionale.</div>`;
+      steps(); return;
     }
     const copies = j.items.reduce((a, it) => a + it.q, 0);
     const eurS = v => Math.abs(v / 100).toFixed(2).replace('.', ',') + ' €';
@@ -755,9 +847,11 @@
       const sel = document.querySelector('select[name="idExpansion"]');
       const opt = sel && [...sel.options].find(o => sameSet(o.textContent, j.set));
       const id = j.cm || (opt ? opt.value : '');
-      box.innerHTML = `📋 Il gestionale ha preparato <b>${esc(j.set)}</b> (${copies} copie), ma questa pagina è <b>${esc(exp.name || '?')}</b>.` +
-        (id ? ` <a href="#" id="csJobGo" style="color:#ffcb05">Vai a ${esc(j.set)} →</a>` : ' Scegli il set giusto in alto e premi di nuovo il pulsante.');
+      box.className = 'card warn';
+      box.innerHTML = `<div class="nm">${esc(j.name || j.set)}</div><div>Il gestionale ha preparato <b>${esc(j.set)}</b> (${copies} copie), ma questa pagina è <b>${esc(exp.name || '?')}</b>.</div>` +
+        (id ? `<button class="big navy" id="csJobGo" style="margin-top:10px">Vai a ${esc(j.set)}</button><div class="mut" style="margin-top:6px">Quando la pagina si apre, premi di nuovo il pulsante Card Scanner.</div>` : '<div class="mut">Scegli il set giusto in "Edizione" e premi di nuovo il pulsante.</div>');
       if (id) $('csJobGo').onclick = e => { e.preventDefault(); location.href = location.pathname + '?idExpansion=' + encodeURIComponent(id); };
+      $('csGo').classList.add('hide'); $('csSteps').innerHTML = stepsHtml(['Elenco dal gestionale', 'Compila la pagina', 'Invia al gestionale'], 0, 0);
       return;
     }
     if (!activeJob()) {
@@ -769,26 +863,30 @@
     $('csPlus').value = String(Math.abs(j.plus || 0)); store.set('plus', $('csPlus').value);
     $('csPrice').checked = true;
     const nM = j.items.filter(it => it.mp != null).length, nMiss = j.items.filter(it => it.mp == null && it.lo == null && it.t == null).length;
-    box.innerHTML = `📋 <b>${esc(j.name || 'Elenco dal gestionale')}</b><br>${esc(j.set)} · ${j.items.length} righe, ${copies} copie · prezzo <b>${rule}</b>, calcolato a parte per Normali e Reverse` +
-      (nM ? ` · ${nM} prezzi scritti da te` : '') + (nMiss ? ` · <span style="color:#ff6b6b">${nMiss} senza prezzo di mercato</span>` : '') +
-      `<div style="color:#9aa3ad;margin-top:3px">Preparato il ${new Date(j.at).toLocaleString('it-IT')}. Premi "Compila la pagina".</div>`;
+    box.innerHTML = `<div class="nm">${esc(j.name || 'Elenco dal gestionale')}</div>
+      <div>${esc(j.set)} · ${copies} copie (${j.items.length} righe) · prezzo <b>${rule}</b></div>
+      <div class="mut">Prezzi calcolati dal gestionale, Normali e Reverse separate${nM ? ` · ${nM} scritti da te` : ''}.</div>` +
+      (nMiss ? `<div style="color:#b42318;font-size:12.5px;margin-top:4px">${nMiss} carte senza prezzo di mercato: dopo la compilazione hanno il bordo rosso, scrivi tu il prezzo.</div>` : '');
+    steps();
   }
   $('csClip').onclick = async e => {
     e.preventDefault();
     let t = '';
     try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csjob=)') || ''; }
     if (intake(t)) { showJob(); showProgress(); showGest(); log('Elenco dal gestionale caricato ✔', '#3ecf6e'); }
-    else alert('Negli appunti non c\'è un elenco del gestionale. Nel gestionale premi "Apri su Cardmarket".');
+    else alert('Negli appunti non c\'è un elenco del gestionale. Nel gestionale premi "Metti in vendita su Cardmarket".');
   };
   showJob();
   showGest();
   showProgress();
 
   $('csGo').onclick = async () => {
-    $('csGo').disabled = true;
-    $('csLog').textContent = '';
+    $('csGo').disabled = true; $('csGo').textContent = 'Compilo…';
+    $('csLog').textContent = ''; $('csMsg').textContent = '';
     try { await run(); } catch (e) { log('Errore: ' + e.message, '#ff6b6b'); }
-    $('csGo').disabled = false;
+    $('csGo').disabled = false; $('csGo').textContent = 'Compila di nuovo';
+    $('csGo').classList.toggle('ghost', snapshot().length > 0);
+    steps();
   };
 
   async function run() {

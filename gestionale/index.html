@@ -49,7 +49,7 @@ main{flex:1;overflow:auto;padding:16px 22px 60px}
 .fs{display:inline-block;font-size:10px;font-weight:700;color:#111;background:var(--acc);border-radius:4px;padding:0 4px;margin-left:4px}
 .badges{position:absolute;top:11px;right:11px;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
 .badges span{font-weight:700;font-size:12px;border-radius:99px;padding:2px 8px;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.bn{background:var(--ok)}.br{background:var(--rev)}.bs{background:#7c8591}.bv{background:#e8590c}
+.bn{background:var(--ok)}.br{background:var(--rev)}.bs{background:#7c8591}.bs.bsr{background:#8a6aa0}.bv{background:#e8590c}
 .card.sb{outline:3px dashed #7c8591}
 .card.sb .im{filter:none;opacity:1}
 .card.vr{box-shadow:0 0 0 3px #e8590c,0 1px 4px rgba(0,0,0,.12)}
@@ -441,7 +441,7 @@ async function renderSet() {
     <select id="fShow"><option value="all">Mostra tutte le carte</option><option value="yes">Solo carte in vendita</option><option value="sb">Solo carte in Standby</option><option value="var">Solo con variazione di prezzo</option><option value="rev">Solo Reverse in vendita</option><option value="no">Solo carte che non ho</option></select>
     ${vars.length ? `<button class="pri" id="bPdf">📄 PDF revisione prezzi (${vars.length})</button><button id="bConf">✔ Conferma prezzi</button>` : ''}
     ${sbQ ? `<button id="bSbDel" title="Toglie tutte le carte in Standby di questo set">🗑 Svuota Standby</button>` : ''}
-    ${cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="_blank"><button>Apri su Cardmarket ↗</button></a>` : ''}</div></div><div class="grid">`;
+    ${sbQ ? `<button class="pri" id="bOpenCM" title="Scegli il prezzo e prepara le carte in Standby per lo script Card Scanner">Apri su Cardmarket ↗ (${sbQ} in Standby)</button>` : cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="_blank"><button>Apri su Cardmarket ↗</button></a>` : ''}</div></div><div class="grid">`;
   for (const c of cards) {
     const n0 = norm(c.localId);
     const ls = byNum[n0] || [], sb = sbByNum[n0] || [];
@@ -449,6 +449,7 @@ async function renderSet() {
     const n = ls.filter(([, l]) => !l.rev).reduce((a, [, l]) => a + l.q, 0);
     const r = ls.filter(([, l]) => l.rev).reduce((a, [, l]) => a + l.q, 0);
     const sq = sb.reduce((a, [, x]) => a + x.q, 0);
+    const sqN = sb.filter(([, x]) => !x.rev).reduce((a, [, x]) => a + x.q, 0), sqR = sq - sqN;
     const vv = ls.map(([k, l]) => varOf(k, l)).filter(Boolean);
     const prices = [...new Set(ls.map(([, l]) => l.price).filter(v => v != null))].sort((a, b) => a - b);
     const sbM = sb.map(([k]) => sbmOf(k)).find(M => M && (M.lo != null || M.t != null));
@@ -457,7 +458,7 @@ async function renderSet() {
     const cls = ls.length ? 'yes' : sq ? 'sb' : 'no';
     h += `<div class="card ${cls}${r ? ' r' : ''}${sq ? ' hassb' : ''}${vv.length ? ' vr' : ''}" data-n="${esc(n0)}" data-s="${esc(`${c.name} ${c.localId} ${n0} ${rar} ${cm?.n || ''}`.toLowerCase())}">
       <div class="im"><span>${esc(c.localId)}</span>${imgTag(imgSrcs(c.image, cm, c.localId), true)}</div>
-      ${ls.length || sq || vv.length ? `<div class="badges">${vv.length ? `<span class="bv" title="variazione del prezzo di mercato">⚠ ${vv.map(v => (v.d > 0 ? '▲' : '▼') + eur(Math.abs(v.d))).join(' ')}</span>` : ''}${n ? `<span class="bn">×${n}</span>` : ''}${r ? `<span class="br">R ×${r}</span>` : ''}${sq ? `<span class="bs" title="in Standby">SB ×${sq}</span>` : ''}</div>` : ''}
+      ${ls.length || sq || vv.length ? `<div class="badges">${vv.length ? `<span class="bv" title="variazione del prezzo di mercato">⚠ ${vv.map(v => (v.d > 0 ? '▲' : '▼') + eur(Math.abs(v.d))).join(' ')}</span>` : ''}${n ? `<span class="bn">×${n}</span>` : ''}${r ? `<span class="br">R ×${r}</span>` : ''}${sqN ? `<span class="bs" title="Normali in Standby">SB N ×${sqN}</span>` : ''}${sqR ? `<span class="bs bsr" title="Reverse in Standby">SB R ×${sqR}</span>` : ''}</div>` : ''}
       <div class="info"><b>${esc(c.localId)}${official ? '/' + official : ''}</b> ${esc(c.name)}${isExtra ? '<span class="fs">FS</span>' : ''}
       <small class="rar">${esc(rar)}</small>${prices.length ? `<span class="price">${prices.map(eur).join(' / ')}</span>` : ''}
       ${!ls.length && sbM ? `<span class="est">stima: Da ${eur(sbM.lo) || '—'} · Tend. ${eur(sbM.t) || '—'}</span>` : ''}</div></div>`;
@@ -467,6 +468,7 @@ async function renderSet() {
   $('qCard').oninput = () => { filterText = $('qCard').value; applyCardFilter(); };
   $('fShow').onchange = () => { filter = $('fShow').value; applyCardFilter(); };
   if ($('bPdf')) $('bPdf').onclick = () => pdfVariations(vars, setName);
+  if ($('bOpenCM')) $('bOpenCM').onclick = () => openOnCardmarket(selected, setName, cmCat);
   if ($('bConf')) $('bConf').onclick = () => varDialog(vars, `Conferma prezzi · ${setName}`);
   if ($('bSbDel')) $('bSbDel').onclick = () => { if (confirm(`Togliere dallo Standby le ${sbQ} copie di ${setName}?`)) { sbList.forEach(([k]) => { delete state.standby[k]; delete (state.sbMarket || {})[k]; }); save(); refresh(); } };
   applyCardFilter();
@@ -514,6 +516,8 @@ $('main').addEventListener('click', e => {
       <td>${mk(sbmOf(k))}</td><td class="small">${fmtD(x.date)}<br>${esc(x.file || '')}</td></tr>`).join('')}</table>
       <p class="small">Passano "in vendita" quando le carichi su Cardmarket con il pulsante Card Scanner e premi "Invia al gestionale".</p>` : ''}
     ${!ls.length && !sb.length ? '<p class="small">Non in vendita.</p>' : ''}
+    ${[...ls.map(([, l]) => l), ...sb.map(([, x]) => x)].filter((l, i, arr) => arr.findIndex(y => histKey(y) === histKey(l)) === i)
+      .map(l => histChart(l, `${l.rev ? 'Reverse' : 'Normale'} · ${LANGN[l.lang] || l.lang}`)).join('')}
     <p class="small">${srcs.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noreferrer">immagine ${i + 1}</a>`).join(' · ') || 'nessun link immagine'}</p>
     <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
     $('dClose').onclick = closeDlg;
@@ -1011,7 +1015,9 @@ const ruleTxt = L => `${BASEN[L.rb || 'low']}${L.ro ? ` ${L.ro > 0 ? '+' : '−'
 /** variazione del prezzo di mercato per una carta in vendita (null = nessuna) */
 function varOf(k, L) {
   if (!L) return null;
-  const M = mOf(k), cur = baseOf(M, L.rb || 'low');
+  const M = mOf(k);
+  if (M && L.rev && !M.rv) return null; // per una Reverse confronto solo con valori Reverse
+  const cur = baseOf(M, L.rb || 'low');
   if (cur == null || L.ref == null || r2(cur) === r2(L.ref)) return null;
   const sugg = r2(Math.max(0.02, cur + (L.ro || 0) / 100));
   return { cur, ref: L.ref, d: r2(cur - L.ref), sugg, diff: L.price != null ? r2(sugg - L.price) : null, M };
@@ -1127,10 +1133,11 @@ async function updatePrices(force) {
         if (!force && old && old.v === 2 && Date.now() - new Date(old.at) < AUTO_H * 3600e3) { prog.done++; continue; }
         const M = await readMarket(l, sb ? sbPid(l) : l.p);
         store[k] = Object.assign(M || { v: 2, src: '', lo: null, t: null }, { at: today() });
+        if (M && (!l.rev || M.rv)) histAdd(l, M);
         if (!sb) {
           // carte messe in vendita prima di questa versione: il primo valore letto diventa il riferimento
           const cur = baseOf(M, l.rb || 'low');
-          if (l.ref == null && cur != null) { l.ref = cur; l.refAt = M.upd || today(); if (!l.rb) l.rb = 'low'; if (l.ro == null) l.ro = 0; }
+          if (l.ref == null && cur != null && (!l.rev || M.rv)) { l.ref = cur; l.refAt = M.upd || today(); if (!l.rb) l.rb = 'low'; if (l.ro == null) l.ro = 0; }
           if (varOf(k, l)) nNew++;
         }
         prog.done++;
@@ -1261,6 +1268,117 @@ async function pdfVariations(rows, setName) {
     }
   });
   doc.save(`${code}-${String(setName).trim().replace(/\s+/g, '_').replace(/[\\/:*?"<>|]/g, '')}_Revisioneprezzi.pdf`);
+}
+
+// ---------- "Apri su Cardmarket": prezzi calcolati qui (Normali e Reverse separati) e passati allo script ----------
+function upCfg() { return state.upCfg || (state.upCfg = { base: 'trend', plus: 0 }); }
+/** riga dell'elenco per lo script: Da e Tendenza della variante giusta. Per una Reverse senza valori Reverse → niente (mai quelli della normale) */
+function jobVals(k) {
+  const M = sbmOf(k), X = state.standby[k];
+  if (!M || (X.rev && !M.rv)) return { lo: null, t: null };
+  return { lo: M.lo ?? null, t: M.t ?? null };
+}
+async function openOnCardmarket(setId, setName, cmCat) {
+  const list = Object.entries(state.standby || {}).filter(([, x]) => x.s === setId)
+    .sort((a, b) => (parseInt(a[1].u) || 0) - (parseInt(b[1].u) || 0) || String(a[1].u).localeCompare(String(b[1].u)) || a[1].rev - b[1].rev);
+  if (!list.length) { if (cmCat) window.open(CMBULK + encodeURIComponent(cmCat.id), '_blank'); else window.open('https://www.cardmarket.com/it/Pokemon', '_blank'); return; }
+  // prezzi di mercato freschi prima di decidere
+  if (list.some(([k]) => { const M = sbmOf(k); return !M || Date.now() - new Date(M.at) > AUTO_H * 3600e3; })) {
+    openDlg('<h3>Apri su Cardmarket</h3><p>Aggiorno i prezzi di mercato delle carte in Standby…</p>');
+    await updatePrices(false);
+  }
+  const cfg = upCfg(), over = {};
+  const priceOf = (k, b, plus) => {
+    if (over[k] != null) return { p: over[k], m: 1 };
+    const v = jobVals(k), key = b === 'trend' ? 't' : 'lo', other = b === 'trend' ? 'lo' : 't';
+    const x = v[key] ?? v[other];
+    return x == null ? { p: null } : { p: r2(Math.max(0.02, x + plus)), alt: v[key] == null };
+  };
+  const draw = () => {
+    const b = $('upBase').value, plus = (+$('upSign').value || 1) * Math.abs(parseInt($('upPlus').value || '0', 10) || 0) / 100;
+    let miss = 0, tot = 0;
+    $('upBody').innerHTML = list.map(([k, x]) => {
+      const v = jobVals(k), M = sbmOf(k), r = priceOf(k, b, plus);
+      if (r.p == null) miss++; else tot += r.p * x.q;
+      return `<tr data-k="${esc(k)}" style="${r.p == null ? 'background:rgba(229,72,77,.12)' : ''}"><td><b>${esc(x.u)}</b> ${esc(x.n)}</td>
+        <td>${x.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale'}</td><td class="n">${x.q}</td>
+        <td class="n">${eur(v.lo) || '—'}</td><td class="n">${eur(v.t) || '—'}</td>
+        <td class="n"><input type="number" min="0.02" step="0.01" class="upP" value="${r.p != null ? r.p.toFixed(2) : ''}" placeholder="scrivilo" style="${r.m ? 'border-color:var(--acc);font-weight:700' : ''}">
+          <small>${r.m ? 'scritto da te' : r.p == null ? (x.rev && M && !M.rv ? 'manca il prezzo Reverse' : 'manca il prezzo') : r.alt ? `da ${BASEN[b === 'trend' ? 'low' : 'trend']}` : ''}</small></td></tr>`;
+    }).join('');
+    $('upInfo').innerHTML = `${list.length} righe · ${list.reduce((a, [, x]) => a + x.q, 0)} copie · valore ${eur(tot)}` +
+      (miss ? ` · <b style="color:#e5484d">${miss} senza prezzo: scrivilo qui o lo scrivi tu su Cardmarket</b>` : '');
+    $('upBody').querySelectorAll('.upP').forEach(inp => inp.onchange = () => {
+      const k = inp.closest('tr').dataset.k, val = parseFloat(String(inp.value).replace(',', '.'));
+      if (isNaN(val) || val <= 0) delete over[k]; else over[k] = r2(val);
+      draw();
+    });
+  };
+  openDlg(`<h3>Apri su Cardmarket · ${esc(setName)}</h3>
+    <p class="small">Scegli il prezzo: lo script Card Scanner lo userà così com'è, con i valori giusti per le <b>Normali</b> e per le <b>Reverse</b>.
+    Se serve puoi cambiare il prezzo di una singola carta nella tabella.</p>
+    <div class="filters"><label>Prezzo = <select id="upBase"><option value="low">"Da" (prezzo minimo)</option><option value="trend">Tendenza</option></select>
+      <select id="upSign"><option value="1">+</option><option value="-1">−</option></select>
+      <input type="number" id="upPlus" min="0" step="1" style="width:70px"> cent.</label><span class="small" id="upInfo"></span></div>
+    <div style="max-height:46vh;overflow:auto"><table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n">Prezzo</th></tr></thead><tbody id="upBody"></tbody></table></div>
+    <ol class="small" style="line-height:1.7"><li>Premi <b>Apri Cardmarket</b>: si apre una scheda di Cardmarket${cmCat ? ' sulla pagina "Inserisci carte bulk" del set' : ''}.</li>
+    <li>Premi il pulsante <b>Card Scanner</b> nei preferiti${cmCat ? '' : ': ti porta alla pagina "Inserisci carte bulk" del set; lì premilo di nuovo'}. L'elenco e i prezzi sono già caricati.</li>
+    <li>Premi <b>Compila la pagina</b>, controlla, metti in vendita su Cardmarket e premi <b>📤 Invia al gestionale</b>.</li></ol>
+    <p class="small">Se lo script non trova l'elenco (per esempio se usi una scheda di Cardmarket già aperta), nel riquadro dello script clicca "Incolla elenco dal gestionale": l'elenco è anche negli appunti.</p>
+    <p class="row" style="justify-content:flex-end"><button id="dClose">Annulla</button><button class="pri" id="upGo">Apri Cardmarket ↗</button></p>`, () => {
+    $('upBase').value = cfg.base; $('upSign').value = (+cfg.plus || 0) < 0 ? '-1' : '1'; $('upPlus').value = Math.abs(+cfg.plus || 0);
+    ['upBase', 'upSign', 'upPlus'].forEach(id => { $(id).onchange = draw; $(id).oninput = draw; });
+    draw();
+    $('dClose').onclick = closeDlg;
+    $('upGo').onclick = () => {
+      const b = $('upBase').value, plusC = (+$('upSign').value || 1) * Math.abs(parseInt($('upPlus').value || '0', 10) || 0);
+      cfg.base = b; cfg.plus = plusC; save();
+      const lang = list[0][1].lang || 'it';
+      const job = {
+        v: 1, at: today(), set: cmCat?.name || setName, sid: setId, cm: cmCat?.id || '', lang, com: list.find(([, x]) => x.com)?.[1].com || '',
+        base: b, plus: plusC,
+        items: list.map(([k, x]) => Object.assign({ u: x.u, rev: !!x.rev, q: x.q, n: x.n || '', r: x.r || '' }, jobVals(k), over[k] != null ? { mp: over[k] } : {}))
+      };
+      const enc = 'csjob=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
+      try { navigator.clipboard.writeText(enc); } catch (e) {}
+      const win = window.open(cmCat ? CMBULK + encodeURIComponent(cmCat.id) : 'https://www.cardmarket.com/it/Pokemon', enc);
+      if (!win) { alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.'); return; }
+      closeDlg();
+      toast(`Elenco di ${setName} pronto per lo script Card Scanner`);
+    };
+  });
+}
+
+// ---------- storico prezzi (per il grafico degli ultimi 10 giorni) ----------
+// state.hist["setTcgdex|numero|N/R|lingua"] = [[AAAA-MM-GG, Da, Tendenza], …] un valore al giorno, ultimi 30 giorni
+const histKey = l => l.s ? sbKey(l.s, l.u, l.rev, l.lang) : sbKey(tcgIdFor(l.expName || state.cm[l.exp]?.name) || ('cm:' + l.exp), l.u, l.rev, l.lang);
+function histAdd(l, M) {
+  if (!M || (M.lo == null && M.t == null)) return;
+  const day = String(M.upd || today()).slice(0, 10);
+  const H = (state.hist = state.hist || {}), k = histKey(l);
+  const a = H[k] || (H[k] = []);
+  const i = a.findIndex(x => x[0] === day);
+  if (i >= 0) a[i] = [day, M.lo, M.t]; else a.push([day, M.lo, M.t]);
+  a.sort((x, y) => x[0].localeCompare(y[0]));
+  if (a.length > 30) a.splice(0, a.length - 30);
+}
+function histChart(l, title) {
+  const a = ((state.hist || {})[histKey(l)] || []).slice(-10);
+  if (a.length < 2) return `<div class="small" style="margin:6px 0">📈 ${esc(title)}: l'andamento si costruisce giorno per giorno${a.length ? ` (finora 1 giorno: Da ${eur(a[0][1]) || '—'}, Tendenza ${eur(a[0][2]) || '—'})` : ''}. Apri il gestionale ogni giorno per raccogliere i prezzi.</div>`;
+  const W = 420, H = 130, pl = 44, pr = 10, pt = 18, pb = 22;
+  const vals = a.flatMap(x => [x[1], x[2]]).filter(v => v != null);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (hi - lo < 0.02) { hi += 0.01; lo = Math.max(0, lo - 0.01); }
+  const X = i => pl + i * (W - pl - pr) / (a.length - 1), Y = v => pt + (hi - v) * (H - pt - pb) / (hi - lo);
+  const line = (j, col) => { const pts = a.map((x, i) => x[j] == null ? null : [X(i), Y(x[j])]).filter(Boolean);
+    return `<polyline fill="none" stroke="${col}" stroke-width="2" points="${pts.map(p => p.join(',')).join(' ')}"/>` + pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="2.5" fill="${col}"/>`).join(''); };
+  const lab = d => d.slice(8, 10) + '/' + d.slice(5, 7);
+  return `<div style="margin:8px 0"><div class="small"><b>📈 ${esc(title)}</b> · ultimi ${a.length} giorni · <span style="color:#2f7fd8">● Da</span> <span style="color:#e8590c">● Tendenza</span></div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;height:auto;display:block">
+    <line x1="${pl}" y1="${Y(hi)}" x2="${W - pr}" y2="${Y(hi)}" stroke="var(--line)"/><line x1="${pl}" y1="${Y(lo)}" x2="${W - pr}" y2="${Y(lo)}" stroke="var(--line)"/>
+    <text x="${pl - 4}" y="${Y(hi) + 4}" font-size="10" text-anchor="end" fill="var(--mut)">${eur(hi)}</text><text x="${pl - 4}" y="${Y(lo) + 4}" font-size="10" text-anchor="end" fill="var(--mut)">${eur(lo)}</text>
+    ${a.map((x, i) => `<text x="${X(i)}" y="${H - 6}" font-size="9.5" text-anchor="middle" fill="var(--mut)">${lab(x[0])}</text>`).join('')}
+    ${line(1, '#2f7fd8')}${line(2, '#e8590c')}</svg></div>`;
 }
 
 // ---------- catalogo dall'app (.txt) → Standby ----------

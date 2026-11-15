@@ -15,13 +15,14 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <ol><li>Mostra la barra dei preferiti di Chrome: <code>Ctrl+Shift+B</code>.</li>
 <li>Se avevi già il pulsante, eliminalo (tasto destro → Elimina) e trascina di nuovo questo:</li></ol>
 <p><a class="bm" href="{html.escape(bm, quote=True)}">📋 Card Scanner → CM</a></p>
-<h2>2. Ogni set</h2>
-<ol><li>Su Cardmarket apri <b>Inserisci carte bulk</b> dell'espansione e premi <b>📋 Card Scanner → CM</b>.</li>
-<li>Carica il file .txt dell'app: nel riquadro <b>📦 Lista</b> vedi tutte le carte (numero, nome, Reverse, quantità) e dove si trovano.</li>
-<li>Scegli il prezzo ("Da" o Tendenza, ± centesimi), premi <b>Compila la pagina</b> e controlla.</li>
-<li>Premi il pulsante verde <b>📤 Invia al gestionale</b>: nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a> le carte passano da <b>Standby</b> a <b>In vendita</b>, con il prezzo, la regola scelta ("Da" o Tendenza ± centesimi) e la data. Da lì il gestionale controlla ogni giorno il mercato e segnala ogni variazione. Nella lista dello script diventano "✔ inviata".
-<li>Metti in vendita su Cardmarket tu stesso (pulsante "Mettere in vendita le carte").</li>
-<li>Per le carte rimaste: vai alla pagina giusta, premi di nuovo il pulsante nei preferiti (la lista resta caricata) e ripeti.</li></ol>
+<h2>2. Ogni set (consigliato: dal gestionale)</h2>
+<ol><li>Nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a> carica il file .txt dell'app (<b>📥 Carica catalogo</b>): le carte vanno in <b>Standby</b>.</li>
+<li>Apri il set e premi <b>Apri su Cardmarket</b>: scegli il prezzo ("Da" o Tendenza, ± centesimi). Il gestionale calcola il prezzo di ogni carta, <b>Normali e Reverse separate</b>; se serve puoi cambiarne uno a mano.</li>
+<li>Si apre Cardmarket: premi <b>📋 Card Scanner → CM</b>. Se non sei già sulla pagina "Inserisci carte bulk" del set ti ci porta; lì premilo di nuovo. L'elenco e i prezzi sono già caricati.</li>
+<li>Premi <b>Compila la pagina</b> e controlla. Le righe con il <b>bordo rosso</b> non hanno un prezzo (per esempio una Reverse senza prezzo Reverse): scrivilo tu. Lo script non usa mai il prezzo della versione normale per una Reverse.</li>
+<li>Metti in vendita su Cardmarket tu stesso, poi premi il pulsante verde <b>📤 Invia al gestionale</b>: le carte passano da Standby a In vendita.</li>
+<li>Se il set ha più pagine: vai alla pagina successiva, premi di nuovo il pulsante (l'elenco resta caricato) e ripeti.</li></ol>
+<p>Puoi ancora caricare il file .txt direttamente nello script (📄): in quel caso i prezzi delle Normali li prende dalla pagina, e le Reverse restano vuote se non trova il loro prezzo.</p>
 <p>Lo script non invia nulla a Cardmarket e non legge password.</p>
 <h2>Prezzo</h2>
 <p>Nel riquadro scegli la base: <b>"Da" (prezzo minimo)</b> oppure <b>Tendenza</b>, poi <b>+</b> o <b>−</b> e quanti centesimi (es. 150 = 1,50 €). Il prezzo non scende mai sotto 0,02 €.

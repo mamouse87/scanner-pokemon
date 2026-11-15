@@ -4,11 +4,39 @@
 // I due valori li legge dalla pagina stessa (campi nascosti di ogni riga): nessuna richiesta a Cardmarket.
 // Non invia nulla da solo.
 (() => {
+  // ---------- elenco preparato dal gestionale ("Apri su Cardmarket") ----------
+  // arriva nel nome della scheda (window.name = "csjob=…") e resta salvato in cardmarket.com finché non è tutto inviato
+  const JKEY = 'cs_job';
+  const jobGet = () => { try { return JSON.parse(localStorage.getItem(JKEY)) || null; } catch (e) { return null; } };
+  function intake(txt) {
+    const m = String(txt || '').trim().match(/^csjob=(.+)$/);
+    if (!m) return false;
+    try {
+      const j = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));
+      if (!j || !Array.isArray(j.items)) return false;
+      localStorage.setItem(JKEY, JSON.stringify(j));
+      return true;
+    } catch (e) { return false; }
+  }
+  if (intake(window.name)) {
+    try { window.name = ''; } catch (e) {}
+    if (window.__csPanel) { window.__csPanel.remove(); window.__csPanel = null; } // elenco nuovo: rifaccio il pannello
+  }
   if (window.__csPanel) { window.__csPanel.style.display = 'block'; return; }
 
   const form = document.getElementById('BulkListingForm');
   if (!form) {
-    alert('Apri prima la pagina "Inserisci carte bulk" di Cardmarket per un\'espansione, poi premi di nuovo il pulsante.\n\n(La revisione prezzi ora si fa direttamente nel gestionale.)');
+    const j = jobGet();
+    const sel = document.querySelector('select[name="idExpansion"]');
+    const simp0 = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (j && !j.done) {
+      const opt = sel && [...sel.options].find(o => simp0(o.textContent) === simp0(j.set));
+      const id = j.cm || (opt ? opt.value : '');
+      if (confirm(`Il gestionale ha preparato ${j.items.reduce((a, it) => a + it.q, 0)} copie di "${j.set}".\n\nVado alla pagina "Inserisci carte bulk"${id ? ' del set' : ''}? Quando si apre, premi di nuovo il pulsante Card Scanner.`))
+        location.href = '/it/Pokemon/Stock/ListingMethods/BulkListing' + (id ? '?idExpansion=' + encodeURIComponent(id) : '');
+      return;
+    }
+    alert('Apri prima la pagina "Inserisci carte bulk" di Cardmarket per un\'espansione, poi premi di nuovo il pulsante.\n\nSe hai preparato le carte nel gestionale ("Apri su Cardmarket"), apri Cardmarket da lì.');
     return;
   }
 
@@ -44,6 +72,7 @@
       <b style="color:#ffcb05">Card Scanner → Cardmarket</b>
       <button id="csClose" style="background:none;border:0;color:#e8eaed;font-size:18px;cursor:pointer">✕</button>
     </div>
+    <div id="csJob" style="display:none;margin-bottom:8px;padding:8px;border-radius:8px;background:#12324a;font-size:12.5px"></div>
     <div style="margin-bottom:6px">📄 <input type="file" id="csFile" accept=".txt,.html,.htm,text/*" style="font-size:12px;width:85%"></div>
     <textarea id="csInput" placeholder="…oppure incolla qui la lista dell'app"
       style="width:100%;height:110px;box-sizing:border-box;${inp};font:12px monospace"></textarea>
@@ -59,7 +88,7 @@
     <button id="csGo" style="width:100%;padding:10px;border:0;border-radius:8px;background:#ffcb05;color:#111;font-weight:700;cursor:pointer">Compila la pagina</button>
     <div id="csLog" style="margin-top:10px;font:12px/1.45 monospace;white-space:pre-wrap"></div>
     <button id="csGest" style="display:none;width:100%;margin-top:10px;padding:10px;border:0;border-radius:8px;background:#3ecf6e;color:#111;font-weight:700;cursor:pointer"></button>
-    <div style="margin-top:8px;text-align:right"><a href="#" id="csCat" style="color:#9aa3ad;font-size:12px">Invia solo l'elenco di questo set al gestionale</a></div>`;
+    <div style="margin-top:8px;text-align:right"><a href="#" id="csClip" style="color:#9aa3ad;font-size:12px">Incolla elenco dal gestionale</a> · <a href="#" id="csCat" style="color:#9aa3ad;font-size:12px">Invia solo l'elenco di questo set al gestionale</a></div>`;
   document.body.appendChild(panel);
   const $ = id => panel.querySelector('#' + id);
   const log = (t, color) => {
@@ -165,11 +194,12 @@
     if (rev && !rev.disabled) { rev.checked = o.rev; rev.dispatchEvent(new Event('change', { bubbles: true })); }
     setVal(field(tr, 'amount'), String(o.qty));
     if (o.price != null) setVal(field(tr, 'price'), o.price.toFixed(2));
+    else if (o.err) setVal(field(tr, 'price'), ''); // la riga duplicata per la Reverse non deve tenere il prezzo della normale
     if (o.comment) setVal(field(tr, 'comments'), o.comment);
     // regola del prezzo (per il controllo giornaliero nel gestionale)
-    if (o.rule) { tr.dataset.csB = o.rule.b; tr.dataset.csO = String(o.rule.o); tr.dataset.csRef = String(o.rule.ref); tr.dataset.csP = o.price != null ? o.price.toFixed(2) : ''; }
-    else { delete tr.dataset.csB; delete tr.dataset.csO; delete tr.dataset.csRef; delete tr.dataset.csP; }
-    tr.style.outline = '3px solid ' + (o.warn ? '#ff9f43' : o.rev ? '#cc5de8' : '#3ecf6e');
+    if (o.rule) { tr.dataset.csB = o.rule.b; tr.dataset.csO = String(o.rule.o); tr.dataset.csRef = o.rule.ref != null ? String(o.rule.ref) : ''; tr.dataset.csP = o.price != null ? o.price.toFixed(2) : ''; tr.dataset.csM = o.rule.m ? '1' : ''; }
+    else { delete tr.dataset.csB; delete tr.dataset.csO; delete tr.dataset.csRef; delete tr.dataset.csP; delete tr.dataset.csM; }
+    tr.style.outline = '3px solid ' + (o.err ? '#ff3b3b' : o.warn ? '#ff9f43' : o.rev ? '#cc5de8' : '#3ecf6e');
   }
   async function duplicate(tr) {
     const btn = tr.querySelector('.copy-row-button');
@@ -207,10 +237,20 @@
       pg = {};
       list.forEach(x => { if (pids.has(String(x.idProduct))) pg[x.idProduct] = x; });
       log(`Price Guide di Cardmarket scaricata (${d.createdAt ? new Date(d.createdAt).toLocaleDateString('it-IT') : 'oggi'}): uso i prezzi Reverse.`, '#9aa3ad');
-    } catch (e) { pg = null; log('Price Guide non scaricabile da qui (' + (e.message || e) + '): per le Reverse uso i valori della versione normale.', '#9aa3ad'); }
+    } catch (e) { pg = null; log('Price Guide non scaricabile da qui (' + (e.message || e) + '): le Reverse senza prezzo restano VUOTE, da scrivere a mano.', '#ff9f43'); }
     return pg;
   }
   const BASE_NAME = { low: 'Da', trend: 'Tendenza' };
+  /** valore dall'elenco del gestionale (Da e Tendenza della variante giusta, Normale o Reverse); null = non c'è */
+  function jobValue(ji, rev, base) {
+    const other = base === 'low' ? 'trend' : 'low';
+    const val = { low: ji.lo, trend: ji.t };
+    const tag = rev ? ' Reverse' : '';
+    if (ji.mp != null) return { fixed: +ji.mp, v: val[base] ?? val[other] ?? null, used: val[base] != null ? base : other, src: 'prezzo scritto da te nel gestionale' };
+    if (val[base] != null) return { v: +val[base], used: base, src: `${BASE_NAME[base]}${tag} (gestionale)` };
+    if (val[other] != null) return { v: +val[other], used: other, src: `${BASE_NAME[other]}${tag} (gestionale, manca ${BASE_NAME[base]})`, warn: true };
+    return null;
+  }
   /** valore base per la riga: {v, src, warn} */
   function baseValue(tr, rev, base) {
     const pid = (field(tr, 'idProduct') || {}).value;
@@ -223,9 +263,11 @@
       const w = pick(other);
       if (w != null) return { v: w, used: other, src: `${BASE_NAME[other]} Reverse (manca ${BASE_NAME[base]})`, warn: true };
     }
+    // per una Reverse NON uso mai i valori della pagina (sono della versione normale)
+    if (rev) return { v: null, src: 'MANCA il prezzo Reverse: scrivilo a mano', warn: true };
     const val = { low: hidden(tr, 'lowPrice'), trend: hidden(tr, 'trendPrice') };
-    const tag = rev ? ' della normale' : '';
-    if (val[base] != null) return { v: val[base], used: base, src: BASE_NAME[base] + tag, warn: rev };
+    const tag = '';
+    if (val[base] != null) return { v: val[base], used: base, src: BASE_NAME[base] + ' (pagina Cardmarket)' };
     if (val[other] != null) return { v: val[other], used: other, src: `${BASE_NAME[other]}${tag} (manca ${BASE_NAME[base]})`, warn: true };
     return { v: null, src: 'nessun prezzo sulla pagina', warn: true };
   }
@@ -292,7 +334,7 @@
         com: (field(tr, 'comments') || {}).value || '',
         // regola e valore di mercato al caricamento; se hai cambiato il prezzo a mano la regola resta ma vale il tuo prezzo
         b: tr.dataset.csB || null, o: tr.dataset.csO != null ? +tr.dataset.csO : null, ref: tr.dataset.csRef ? +tr.dataset.csRef : null,
-        man: tr.dataset.csP != null && !isNaN(p) && tr.dataset.csP !== p.toFixed(2) ? 1 : 0 });
+        man: tr.dataset.csM === '1' || (tr.dataset.csP != null && !isNaN(p) && tr.dataset.csP !== p.toFixed(2)) ? 1 : 0 });
     });
     return rows;
   }
@@ -369,6 +411,8 @@
     showProgress();
     showGest('sent');
     const left = [...w.entries()].reduce((a, [k, x]) => a + Math.max(0, x.qty - (done[k] || 0)), 0);
+    const aj = activeJob();
+    if (aj && !left) { aj.done = true; try { localStorage.setItem(JKEY, JSON.stringify(aj)); } catch (e) {} }
     log(`Inviate al gestionale ${rows.reduce((a, r) => a + r.q, 0)} copie. Ora puoi metterle in vendita su Cardmarket.` +
       (left ? ` Restano ${left} copie della lista da compilare in altre pagine.` : ' Tutta la lista è stata inviata ✔'), left ? '#ff9f43' : '#3ecf6e');
   }
@@ -386,6 +430,56 @@
   $('csGest').onclick = sendCompiled;
   $('csCat').onclick = e => { e.preventDefault(); sendToGest([]); };
   form.addEventListener('input', () => { if (!$('csGest').disabled) showGest(); });
+  // ---------- elenco dal gestionale ----------
+  function jobText(j) {
+    return ['CARDSCANNER 2', `SET ${j.set} | ${j.lang || 'it'}${j.sid ? ' | ' + j.sid : ''}`, j.com ? 'COMMENTO ' + j.com : '',
+      ...j.items.map(it => `${it.u} | x${it.q} | ${it.rev ? 'R' : 'N'} | ${it.n || ''} | ${it.r || ''}`)].filter(Boolean).join('\n');
+  }
+  const simpN = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const sameSet = (a, b) => { a = simpN(a); b = simpN(b); return !!a && !!b && (a === b || a.includes(b) || b.includes(a)); };
+  /** l'elenco del gestionale vale se la lista nel riquadro è proprio quella */
+  function activeJob() {
+    const j = jobGet();
+    return j && !j.done && $('csInput').value.trim() === jobText(j).trim() ? j : null;
+  }
+  function showJob() {
+    const j = jobGet(), box = $('csJob');
+    if (!j || j.done) { box.style.display = 'none'; return; }
+    const copies = j.items.reduce((a, it) => a + it.q, 0);
+    const eurS = v => Math.abs(v / 100).toFixed(2).replace('.', ',') + ' €';
+    const rule = `${BASE_NAME[j.base] || j.base}${j.plus ? ` ${j.plus > 0 ? '+' : '−'} ${eurS(j.plus)}` : ''}`;
+    box.style.display = 'block';
+    const exp = expansion();
+    if (!sameSet(j.set, exp.name)) {
+      const sel = document.querySelector('select[name="idExpansion"]');
+      const opt = sel && [...sel.options].find(o => sameSet(o.textContent, j.set));
+      const id = j.cm || (opt ? opt.value : '');
+      box.innerHTML = `📋 Il gestionale ha preparato <b>${esc(j.set)}</b> (${copies} copie), ma questa pagina è <b>${esc(exp.name || '?')}</b>.` +
+        (id ? ` <a href="#" id="csJobGo" style="color:#ffcb05">Vai a ${esc(j.set)} →</a>` : ' Scegli il set giusto in alto e premi di nuovo il pulsante.');
+      if (id) $('csJobGo').onclick = e => { e.preventDefault(); location.href = location.pathname + '?idExpansion=' + encodeURIComponent(id); };
+      return;
+    }
+    if (!activeJob()) {
+      $('csInput').value = jobText(j); store.set('list', $('csInput').value);
+      $('csComment').value = j.com || ''; store.set('comment', $('csComment').value);
+    }
+    $('csBase').value = j.base === 'trend' ? 'trend' : 'low'; store.set('base', $('csBase').value);
+    $('csSign').value = j.plus < 0 ? '-1' : '1'; store.set('sign', $('csSign').value);
+    $('csPlus').value = String(Math.abs(j.plus || 0)); store.set('plus', $('csPlus').value);
+    $('csPrice').checked = true;
+    const nM = j.items.filter(it => it.mp != null).length, nMiss = j.items.filter(it => it.mp == null && it.lo == null && it.t == null).length;
+    box.innerHTML = `📋 <b>Elenco dal gestionale</b>: ${esc(j.set)} · ${j.items.length} righe, ${copies} copie · prezzo <b>${rule}</b>, calcolato a parte per Normali e Reverse` +
+      (nM ? ` · ${nM} prezzi scritti da te` : '') + (nMiss ? ` · <span style="color:#ff6b6b">${nMiss} senza prezzo di mercato</span>` : '') +
+      `<div style="color:#9aa3ad;margin-top:3px">Preparato il ${new Date(j.at).toLocaleString('it-IT')}. Premi "Compila la pagina".</div>`;
+  }
+  $('csClip').onclick = async e => {
+    e.preventDefault();
+    let t = '';
+    try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csjob=)') || ''; }
+    if (intake(t)) { showJob(); showProgress(); showGest(); log('Elenco dal gestionale caricato ✔', '#3ecf6e'); }
+    else alert('Negli appunti non c\'è un elenco del gestionale. Nel gestionale premi "Apri su Cardmarket".');
+  };
+  showJob();
   showGest();
   showProgress();
 
@@ -431,12 +525,17 @@
     if (missing.length) log('Non in questa pagina (altra pagina del set o set sbagliato): ' + missing.join(', '), '#ff9f43');
     if (byNum.size > 100) log('Attenzione: più di 100 carte diverse, Cardmarket potrebbe non inserirle tutte in un solo invio.', '#ff9f43');
 
-    let total = 0, warnings = 0;
-    if (wantPrice && [...byNum.values()].some(g => g.rev)) {
+    let total = 0, warnings = 0, noPrice = 0;
+    const job = activeJob();
+    const jobMap = job ? new Map(job.items.map(it => [norm(it.u) + '|' + (it.rev ? 'R' : 'N'), it])) : null;
+    if (job) log(`Prezzi dall'elenco del gestionale (${job.items.length} righe, calcolati per Normali e Reverse).`, '#9aa3ad');
+    // la Price Guide serve solo per le Reverse che l'elenco del gestionale non copre
+    const revNoJob = [...byNum.entries()].some(([gk, g]) => g.rev && !(jobMap && (() => { const ji = jobMap.get(gk + '|R'); return ji && (ji.mp != null || ji.lo != null || ji.t != null); })()));
+    if (wantPrice && revNoJob) {
       const pids = new Set([...byNum.values()].map(g => String((field(g.row.tr, 'idProduct') || {}).value)));
       await priceGuide(pids);
     }
-    for (const [, g] of byNum) {
+    for (const [gk, g] of byNum) {
       const checks = [];
       if (sameName(g.name, g.row.name) === false) checks.push(`NOME diverso: app "${g.name}" / Cardmarket "${g.row.name}"`);
       if (sameRarity(g.rarity, g.row.rarity) === false) checks.push(`RARITÀ diversa: app "${g.rarity}" / Cardmarket "${g.row.rarity}"`);
@@ -455,13 +554,18 @@
         }
         let price = null, src = '', pwarn = false, rule = null;
         if (wantPrice) {
-          const b = baseValue(g.row.tr, v.rev, base);
+          const ji = jobMap && jobMap.get(gk + '|' + (v.rev ? 'R' : 'N'));
+          const b = (ji && jobValue(ji, v.rev, base)) || baseValue(g.row.tr, v.rev, base);
           src = b.src; pwarn = !!b.warn;
-          if (b.v != null) {
+          if (b.fixed != null) {
+            price = Math.max(MIN_PRICE, Math.round(b.fixed * 100) / 100);
+            rule = { b: b.used, o: Math.round(plus * 100), ref: b.v, m: 1 };
+            src += `: ${price.toFixed(2)}`;
+          } else if (b.v != null) {
             price = Math.max(MIN_PRICE, Math.round((b.v + plus) * 100) / 100);
             rule = { b: b.used, o: Math.round(plus * 100), ref: b.v };
             src += `: ${b.v.toFixed(2)}${fmtPlus}`;
-          }
+          } else noPrice++;
         }
         let tr = g.row.tr;
         if (!first) {
@@ -469,7 +573,7 @@
           if (!tr) { log(`${g.row.label}: non riesco a duplicare la riga per la Reverse, inseriscila a mano.`, '#ff6b6b'); continue; }
         }
         first = false;
-        fillRow(tr, { lang, rev: v.rev, qty: v.qty, price, comment, rule, warn: warn || (wantPrice && (price == null || pwarn)) });
+        fillRow(tr, { lang, rev: v.rev, qty: v.qty, price, comment, rule, err: wantPrice && price == null, warn: warn || (wantPrice && (price == null || pwarn)) });
         filled.push({ num: g.row.num.replace(/^0+(?=\d)/, ''), rev: v.rev, qty: v.qty, price, name: g.name || g.row.name, rarity: g.rarity || '' });
         total += v.qty;
         if (!warn && wantPrice && (price == null || pwarn)) warnings++;
@@ -478,6 +582,7 @@
       }
       checks.forEach(c => log('   ⚠ ' + c, '#ff9f43'));
     }
+    if (noPrice) log(`\n⚠ ${noPrice} righe SENZA PREZZO (bordo rosso): scrivi tu il prezzo prima di metterle in vendita.`, '#ff3b3b');
     log(`\nCompilate ${total} copie. Verde = normali, viola = Reverse, arancione = da controllare (${warnings}).`, '#3ecf6e');
     showGest();
     if (filled.length) log('Controlla la pagina, poi premi il pulsante verde "Invia al gestionale". La messa in vendita su Cardmarket la fai tu.', '#3ecf6e');

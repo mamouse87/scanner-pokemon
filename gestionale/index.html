@@ -18,6 +18,28 @@ h1{margin:0;font-size:17px;letter-spacing:-.005em;color:#fff;white-space:nowrap}
 .top{display:flex;align-items:center;gap:22px;background:var(--navy)!important;color:#fff;padding:0 18px!important;height:58px;border-bottom:0!important}
 .brand{display:flex;align-items:center;gap:10px}
 .brand .mark{width:20px;height:28px;border-radius:4px;background:linear-gradient(160deg,#f2c230 0 46%,#fff 46% 54%,#e9eef7 54%);box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.tabs{display:flex;gap:2px;background:#fff;border-bottom:1px solid var(--line);padding:0 18px}
+.tabs .tb{border:0;border-radius:0;background:none;padding:12px 16px 10px;font-size:14px;font-weight:600;color:var(--mut);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs .tb:hover{color:var(--navy);background:none}
+.tabs .tb.on{color:var(--navy);border-bottom-color:var(--navy)}
+.tabs .tb i{font-style:normal;font-size:11.5px;font-weight:700;background:#e3f3ea;color:var(--ok);border-radius:99px;padding:1px 7px;margin-left:6px}
+.tabs .tb i.w{background:#fde7e4;color:var(--red)}
+.wrap.nosets aside{display:none}
+.setgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;max-width:1240px}
+.sc{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+.sc.attn{border-color:#f3c3bd;box-shadow:inset 4px 0 0 var(--red)}
+.sc.danger{border-color:#f3c3bd}
+.sc h3{margin:0;font-size:16px;display:flex;align-items:center;gap:10px}
+.sc p{margin:0;line-height:1.5}
+.stp{font-size:12px;font-weight:700;border-radius:99px;padding:2px 10px;margin-left:auto}
+.stp.ok{background:#e3f3ea;color:var(--ok)}.stp.bad{background:#fde7e4;color:var(--red)}.stp.mid{background:#eef1f5;color:var(--mut)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;margin:0;font-size:13px}
+.kv dt{color:var(--mut)}.kv dd{margin:0;font-weight:600}
+.row.sep{border-top:1px solid var(--line);padding-top:10px}
+.rule{display:flex;flex-direction:column;gap:6px;padding:8px 0;border-top:1px solid var(--line)}
+.rule .row{flex-wrap:nowrap}.rule select:first-child{flex:1;min-width:0}.rule select{padding:7px 8px}
+.links{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.links li{display:flex;flex-direction:column}.links a{color:var(--navy);font-weight:700}
 .tstats{display:flex;gap:18px;font-size:13px;color:#c9d6ef;white-space:nowrap;overflow:hidden}
 .tstats b{color:#fff;font-size:15px;margin-right:4px;font-variant-numeric:tabular-nums}
 .tstats .w{color:#ffd28a}
@@ -193,10 +215,11 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
       <button id="btnEditCM"><b>Cambia prezzi su Cardmarket</b><small>Tutti i set, es. da Tendenza a prezzo minimo</small></button>
     </div></details>
     <button id="btnBk" class="ticon" title="Backup automatico">💾</button>
-    <button id="btnMore" class="ticon" title="Impostazioni: backup manuale, ripristino, Price Guide">⚙</button>
+    <button id="btnMore" class="ticon" title="Impostazioni">⚙</button>
     <button id="btnSold" class="hide">📈 Vendite</button>
   </div>
 </div>
+<nav class="tabs" id="tabs"></nav>
 <div class="wrap">
   <aside>
     <div class="head">
@@ -443,10 +466,8 @@ function renderSets() {
   const items = all.filter(s => (!q || simp(s.name).includes(q)) && (!only || cnt(s.id)));
   const mine = items.filter(s => cnt(s.id)), rest = items.filter(s => !cnt(s.id));
   const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}">${s.symbol ? `<img src="${esc(s.symbol)}.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<span style="width:22px"></span>'}<span class="nm">${esc(s.name)}</span>${vBy[s.id] ? `<span class="n v" title="${vBy[s.id]} carte con variazione di prezzo">⚠ ${vBy[s.id]}</span>` : ''}${sbBy[s.id] ? `<span class="n sb" title="copie in Standby (non ancora su Cardmarket)">SB ${sbBy[s.id]}</span>` : ''}${cnt0(s.id) ? `<span class="n" title="copie in vendita">${cnt0(s.id)}</span>` : ''}</a>`;
-  $('sets').innerHTML = `<a href="#" data-id="__dash" class="dash ${selected === '__dash' ? 'sel' : ''}"><span style="width:22px;text-align:center">📊</span><span class="nm">Statistiche magazzino</span></a>` +
-    `<a href="#" data-id="__log" class="dash ${selected === '__log' ? 'sel' : ''}"><span style="width:22px;text-align:center">📜</span><span class="nm">Registro operazioni</span></a>` +
-    `<a href="#" data-id="__sales" class="dash ${selected === '__sales' ? 'sel' : ''}"><span style="width:22px;text-align:center">📈</span><span class="nm">Vendite</span>${state.sold.length ? `<span class="n" style="background:var(--acc);color:#111">${state.sold.reduce((a, x) => a + x.q, 0)}</span>` : ''}</a>` +
-    ((mine.length ? `<div class="grp">I tuoi set (in vendita / Standby)</div>${mine.map(link).join('')}` : '') +
+  renderTabs();
+  $('sets').innerHTML = ((mine.length ? `<div class="grp">I tuoi set (in vendita / Standby)</div>${mine.map(link).join('')}` : '') +
     (rest.length ? `<div class="grp">${mine.length ? 'Tutti gli altri set' : 'Tutti i set'} · dal più recente (${rest.length})</div>${rest.map(link).join('')}` : '')) ||
     '<p class="small" style="padding:12px">Nessun set trovato.</p>';
 }
@@ -454,7 +475,7 @@ $('sets').addEventListener('click', e => {
   const a = e.target.closest('a[data-id]');
   if (!a) return;
   e.preventDefault();
-  selected = a.dataset.id;
+  selected = a.dataset.id; lastSet = selected;
   renderSets(); renderSet();
   $('main').scrollTop = 0;
 });
@@ -493,6 +514,8 @@ async function renderSet() {
   if (selected === '__dash') { renderDash(); return; }
   if (selected === '__sales') { renderSales(); return; }
   if (selected === '__log') { renderLog(); return; }
+  if (selected === '__set') { renderSettings(); return; }
+  if (selected) lastSet = selected;
   if (!selected) {
     main.innerHTML = `<div class="empty">Scegli un set dalla lista a sinistra.<br>
       Le carte in vendita arrivano da Cardmarket con il pulsante <b>Card Scanner → CM</b>: dopo "Mettere in vendita le carte" premi il pulsante verde dello script.</div>`;
@@ -623,6 +646,98 @@ async function renderSet() {
   applyCardFilter();
   if (setId) loadRarities(setId, cards.filter(c => c.id));
 }
+// ---------- schede in alto e impostazioni ----------
+let lastSet = null;   // ultimo set aperto nella scheda "Carte"
+const TABS = [['cards', 'Carte'], ['__dash', 'Statistiche'], ['__sales', 'Vendite'], ['__log', 'Registro'], ['__set', 'Impostazioni']];
+function renderTabs() {
+  const cur = selected && selected.startsWith('__') ? selected : 'cards';
+  const sold = state.sold.reduce((a, x) => a + x.q, 0);
+  $('tabs').innerHTML = TABS.map(([id, l]) => `<button class="tb ${cur === id ? 'on' : ''}" data-tab="${id}">${l}${id === '__sales' && sold ? `<i>${sold}</i>` : ''}${id === '__set' && bkState !== 'ok' && bkState !== 'nosupport' ? '<i class="w" title="Backup non attivo">!</i>' : ''}</button>`).join('');
+  document.querySelector('.wrap').classList.toggle('nosets', cur !== 'cards');
+}
+function goTab(id) {
+  if (id === 'cards') selected = lastSet && !lastSet.startsWith('__') ? lastSet : (Object.keys(listingsBySet())[0] || Object.values(state.standby || {})[0]?.s || null);
+  else selected = id;
+  renderSets(); renderSet();
+  $('main').scrollTop = 0;
+}
+function renderSettings() {
+  const at = localStorage.getItem('gestionaleBackupAt');
+  const up = upCfg(), ed = editCfg();
+  const ruleSel = (id, c) => `<select id="${id}B"><option value="low" ${c.base === 'low' ? 'selected' : ''}>"Da" (prezzo minimo)</option><option value="trend" ${c.base === 'trend' ? 'selected' : ''}>Tendenza</option></select>
+    <select id="${id}S"><option value="1">+</option><option value="-1" ${(+c.plus || 0) < 0 ? 'selected' : ''}>−</option></select>
+    <input type="number" id="${id}P" min="0" step="1" value="${Math.abs(+c.plus || 0)}" style="width:76px"> cent.`;
+  const size = new Blob([JSON.stringify(state)]).size;
+  const nCards = Object.values(state.cm).reduce((a, e) => a + Object.keys(e.cards || {}).length, 0);
+  const bkTxt = { ok: ['Attivo', 'ok'], off: ['Non attivo', 'bad'], paused: ['In pausa', 'bad'], err: ['Errore', 'bad'], nosupport: ['Non disponibile in questo browser', 'mid'] }[bkState] || ['—', 'mid'];
+  $('main').innerHTML = `<div class="sethead"><div><h2>Impostazioni</h2><div class="sub">Backup, prezzi, regole predefinite e strumenti.</div></div></div>
+  <div class="setgrid">
+    <section class="sc ${bkState === 'ok' ? '' : 'attn'}">
+      <h3>💾 Backup automatico <span class="stp ${bkTxt[1]}">${bkTxt[0]}</span></h3>
+      <p class="small">Tutti i dati del gestionale sono solo in questo browser. Con il backup attivo, a ogni modifica il gestionale salva una copia in una cartella del PC (più una copia al giorno, ultimi ${BK_KEEP} giorni). Consiglio: una cartella di Google Drive o OneDrive.</p>
+      <dl class="kv"><dt>Cartella</dt><dd>${bkDir ? esc(bkDir.name) : '—'}</dd><dt>Ultimo salvataggio</dt><dd>${at ? new Date(at).toLocaleString('it-IT') : '—'}</dd>${bkState === 'err' ? `<dt>Errore</dt><dd>${esc(bkErr)}</dd>` : ''}</dl>
+      <div class="row">${bkState === 'nosupport' ? '' : bkState === 'paused' ? '<button class="pri" id="sBkRes">Riattiva il backup</button>' : `<button class="pri" id="sBkPick">📁 ${bkDir ? 'Cambia cartella' : 'Scegli la cartella'}</button>`}
+        ${bkDir && bkState === 'ok' ? '<button id="sBkNow">Salva adesso</button><button id="sBkLoad">Ripristina dall\'ultimo backup</button><button id="sBkOff">Disattiva</button>' : ''}</div>
+      <div class="row sep"><button id="sBkDl">⬇ Scarica un backup</button><button id="sBkUp">↩ Ripristina da file…</button></div>
+    </section>
+    <section class="sc">
+      <h3>📈 Prezzi di mercato</h3>
+      <p class="small">"Da" (prezzo minimo) e Tendenza di Cardmarket, letti da TCGdex per tutte le carte in vendita e in Standby. Si aggiornano da soli all'apertura se hanno più di ${AUTO_H} ore, poi ogni ora.</p>
+      <dl class="kv"><dt>Ultimo aggiornamento</dt><dd>${state.revAt ? fmtDT(state.revAt) : 'mai'}</dd>
+        <dt>Price Guide di Cardmarket</dt><dd>${state.pg ? `caricata il ${fmtDT(state.pg.at)}` : 'non caricata (facoltativa)'}${state.pgAuto ? ' · si scarica da sola' : ''}</dd></dl>
+      <div class="row"><button class="pri" id="sUpd">🔄 Aggiorna adesso</button><button id="sPg">📂 Carica Price Guide…</button><a class="small" href="${PG_PAGE}" target="_blank" rel="noreferrer">dove si scarica</a></div>
+    </section>
+    <section class="sc">
+      <h3>⚖️ Regole di prezzo predefinite</h3>
+      <p class="small">Le scelte proposte all'apertura dei due dialoghi; lì puoi sempre cambiarle.</p>
+      <div class="rule"><b>Metti in vendita su Cardmarket</b><div class="row">${ruleSel('rU', up)}</div></div>
+      <div class="rule"><b>Cambia prezzi su Cardmarket</b><div class="row">${ruleSel('rE', ed)}</div></div>
+    </section>
+    <section class="sc">
+      <h3>🧰 Strumenti</h3>
+      <ul class="links">
+        <li><a href="../cardmarket/" target="_blank">Pulsante Card Scanner per Cardmarket</a><span class="small">pagina di installazione e istruzioni</span></li>
+        <li><a href="https://github.com/mamouse87/scanner-pokemon/releases" target="_blank" rel="noreferrer">App Card Scanner per Android</a><span class="small">ultima versione da installare sul telefono</span></li>
+        <li><a href="https://www.cardmarket.com/it/Pokemon/Stock/Offers/Singles" target="_blank" rel="noreferrer">Le mie offerte su Cardmarket</a><span class="small">per cambiare i prezzi con lo script</span></li>
+      </ul>
+    </section>
+    <section class="sc">
+      <h3>🗂 Dati salvati</h3>
+      <dl class="kv"><dt>In vendita</dt><dd>${Object.keys(state.listings).length} righe · ${Object.values(state.listings).reduce((a, l) => a + l.q, 0)} copie</dd>
+        <dt>Standby</dt><dd>${Object.values(state.standby || {}).reduce((a, x) => a + x.q, 0)} copie</dd>
+        <dt>Vendite</dt><dd>${state.sold.length} righe</dd><dt>Registro</dt><dd>${(state.log || []).length} operazioni</dd>
+        <dt>Carte di Cardmarket conosciute</dt><dd>${nCards} (${Object.keys(state.cm).length} set) · ${tcgSets.length} set da TCGdex</dd>
+        <dt>Spazio usato</dt><dd>${(size / 1024).toFixed(0)} KB di circa 5.000 KB</dd></dl>
+    </section>
+    <section class="sc danger">
+      <h3>⚠️ Zona pericolosa</h3>
+      <p class="small">Cancella tutte le carte in vendita e lo storico delle vendite (Standby e registro restano). Prima scarica un backup.</p>
+      <div class="row"><button class="danger" id="sWipe">🗑 Svuota carte in vendita e vendite</button></div>
+    </section>
+  </div>`;
+  const reload = () => { bkShow(); renderTabs(); renderSettings(); };
+  if ($('sBkPick')) $('sBkPick').onclick = async () => { await bkChoose(); reload(); };
+  if ($('sBkRes')) $('sBkRes').onclick = async () => { await bkResume(); reload(); };
+  if ($('sBkNow')) $('sBkNow').onclick = async () => { await bkWrite(); toast('Backup salvato'); reload(); };
+  if ($('sBkOff')) $('sBkOff').onclick = async () => { if (!confirm('Disattivare il backup automatico? I file già salvati restano nella cartella.')) return; await bkDb('del'); bkDir = null; bkState = 'off'; reload(); };
+  if ($('sBkLoad')) $('sBkLoad').onclick = async () => {
+    try {
+      const s = JSON.parse(await (await (await bkDir.getFileHandle(BK_FILE)).getFile()).text());
+      if (!s.listings) throw new Error('file non valido');
+      if (confirm(`Sostituire i dati attuali con il backup della cartella (${Object.keys(s.listings).length} righe in vendita, ${(s.sold || []).length} vendite)?`)) { state = Object.assign({ cm: {}, sold: [], standby: {} }, s); logOp('dati', '', 'Ripristinato l\'ultimo backup della cartella'); save(); refresh(); }
+    } catch (e) { alert('Non riesco a leggere il backup: ' + e.message); }
+  };
+  $('sBkDl').onclick = downloadBackup;
+  $('sBkUp').onclick = () => $('fRestore').click();
+  $('sUpd').onclick = async () => { $('sUpd').disabled = true; $('sUpd').textContent = 'Aggiorno…'; const r = await updatePrices(true); if (r) toast(`Prezzi aggiornati: ${r.tot} carte · ${r.nNew ? r.nNew + ' con variazione' : 'nessuna variazione'}`); if (selected === '__set') renderSettings(); };
+  $('sPg').onclick = () => $('fPg').click();
+  const bindRule = (id, cfg) => ['B', 'S', 'P'].forEach(x => $(id + x).onchange = () => {
+    cfg.base = $(id + 'B').value; cfg.plus = (+$(id + 'S').value || 1) * Math.abs(parseInt($(id + 'P').value || '0', 10) || 0); save(); toast('Regola salvata');
+  });
+  bindRule('rU', up); bindRule('rE', ed);
+  $('sWipe').onclick = () => { if (confirm('Cancellare tutte le carte in vendita e le vendite? Fai prima un backup.')) { state = { cm: state.cm, listings: {}, sold: [], standby: state.standby || {}, log: state.log || [] }; logOp('dati', '', 'Svuotate tutte le carte in vendita e le vendite'); save(); refresh(); } };
+}
+
 // ---------- registro delle operazioni ----------
 // state.log = [{at, t: tipo, set, txt, q}] le più recenti in fondo, al massimo 3000
 const LOGT = { standby: '📥 Standby', vendita: '🛒 In vendita', venduta: '💶 Venduta', prezzo: '✏️ Prezzo', quantita: '🔢 Quantità', tolta: '🗑 Tolta', riportata: '↩ In Standby', mercato: '⚠ Mercato', dati: '💾 Dati' };
@@ -2003,28 +2118,8 @@ $('btnUpd').onclick = async () => {
     Object.entries(r.bySet).map(([n, c]) => `${n} ${c}`).join(' · ') + ` · ${r.nNew ? r.nNew + ' con variazione' : 'nessuna variazione'}`);
 };
 $('btnBk').onclick = bkDialog;
-$('btnMore').onclick = () => {
-  const all = Object.values(state.cm).flatMap(e => Object.values(e.cards));
-  openDlg(`<h3>Altro</h3>
-  <p class="row"><button id="bBackup">💾 Scarica backup</button><button id="bRestore">↩ Ripristina backup</button><button id="bWipe">🗑 Svuota carte in vendita</button></p>
-  <p class="row"><button id="bPg">📂 Carica Price Guide di Cardmarket</button><span class="small">${state.pg ? `caricata il ${fmtDT(state.pg.at)}` : 'non caricata'} · ${state.pgAuto ? 'si scarica da sola ✔' : 'il browser non la scarica da solo: uso TCGdex'}</span></p>
-  <p class="small">La Price Guide è facoltativa: se c'è, abbina i prezzi alla carta esatta di Cardmarket. Si scarica dalla <a href="${PG_PAGE}" target="_blank" rel="noreferrer">pagina Price Guide</a> (file Pokémon).</p>
-  <p class="small">Controllo: ${tcgSets.length} set da TCGdex · ${all.length} carte dalle pagine Cardmarket · ${all.filter(c => c.i).length} con link immagine Cardmarket · ${all.filter(c => c.m != null).length} con il tuo prezzo attuale.</p>
-  <p class="small">I dati sono salvati in questo browser. Attiva il <b>💾 Backup automatico</b> (pulsante in alto) oppure scarica un backup ogni tanto: se pulisci i dati di Chrome o cambi PC, lo ripristini da qui.</p>
-  <p class="small">Pulsante per Cardmarket: <a href="../cardmarket/">pagina di installazione</a>.</p>
-  <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
-    $('dClose').onclick = closeDlg;
-    $('bBackup').onclick = () => {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([JSON.stringify(state)], { type: 'application/json' }));
-      a.download = `gestionale-carte-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-    };
-    $('bRestore').onclick = () => $('fRestore').click();
-    $('bPg').onclick = () => $('fPg').click();
-    $('bWipe').onclick = () => { if (confirm('Cancellare tutte le carte in vendita e le vendite? Fai prima un backup.')) { state = { cm: state.cm, listings: {}, sold: [], standby: state.standby || {}, log: state.log || [] }; logOp('dati', '', 'Svuotate tutte le carte in vendita e le vendite'); save(); closeDlg(); refresh(); } };
-  });
-};
+$('btnMore').onclick = () => goTab('__set');
+$('tabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) goTab(b.dataset.tab); };
 $('fRestore').onchange = async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;

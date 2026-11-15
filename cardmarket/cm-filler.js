@@ -166,6 +166,9 @@
     setVal(field(tr, 'amount'), String(o.qty));
     if (o.price != null) setVal(field(tr, 'price'), o.price.toFixed(2));
     if (o.comment) setVal(field(tr, 'comments'), o.comment);
+    // regola del prezzo (per il controllo giornaliero nel gestionale)
+    if (o.rule) { tr.dataset.csB = o.rule.b; tr.dataset.csO = String(o.rule.o); tr.dataset.csRef = String(o.rule.ref); tr.dataset.csP = o.price != null ? o.price.toFixed(2) : ''; }
+    else { delete tr.dataset.csB; delete tr.dataset.csO; delete tr.dataset.csRef; delete tr.dataset.csP; }
     tr.style.outline = '3px solid ' + (o.warn ? '#ff9f43' : o.rev ? '#cc5de8' : '#3ecf6e');
   }
   async function duplicate(tr) {
@@ -216,14 +219,14 @@
       const x = pg[pid];
       const pick = k => { const v = +x[k + '-holo']; return v > 0 ? v : null; };
       const v = pick(base);
-      if (v != null) return { v, src: `${BASE_NAME[base]} Reverse` };
+      if (v != null) return { v, used: base, src: `${BASE_NAME[base]} Reverse` };
       const w = pick(other);
-      if (w != null) return { v: w, src: `${BASE_NAME[other]} Reverse (manca ${BASE_NAME[base]})`, warn: true };
+      if (w != null) return { v: w, used: other, src: `${BASE_NAME[other]} Reverse (manca ${BASE_NAME[base]})`, warn: true };
     }
     const val = { low: hidden(tr, 'lowPrice'), trend: hidden(tr, 'trendPrice') };
     const tag = rev ? ' della normale' : '';
-    if (val[base] != null) return { v: val[base], src: BASE_NAME[base] + tag, warn: rev };
-    if (val[other] != null) return { v: val[other], src: `${BASE_NAME[other]}${tag} (manca ${BASE_NAME[base]})`, warn: true };
+    if (val[base] != null) return { v: val[base], used: base, src: BASE_NAME[base] + tag, warn: rev };
+    if (val[other] != null) return { v: val[other], used: other, src: `${BASE_NAME[other]}${tag} (manca ${BASE_NAME[base]})`, warn: true };
     return { v: null, src: 'nessun prezzo sulla pagina', warn: true };
   }
 
@@ -286,7 +289,10 @@
       const lab = ((tr.querySelector('.col-product a') || {}).textContent || '').trim().match(/\(([A-Z0-9-]+)\s+([A-Z]*\d+[a-z]?)\)\s*$/i);
       rows.push({ p: pid.value, u: lab ? lab[2] : '', rev: !!(field(tr, 'isReverseHolo') || {}).checked, q: amt, price: isNaN(p) ? null : p,
         lang: LANG_CODE[(field(tr, 'idLanguage') || {}).value] || 'it', cond: +((field(tr, 'idCondition') || {}).value || 2),
-        com: (field(tr, 'comments') || {}).value || '' });
+        com: (field(tr, 'comments') || {}).value || '',
+        // regola e valore di mercato al caricamento; se hai cambiato il prezzo a mano la regola resta ma vale il tuo prezzo
+        b: tr.dataset.csB || null, o: tr.dataset.csO != null ? +tr.dataset.csO : null, ref: tr.dataset.csRef ? +tr.dataset.csRef : null,
+        man: tr.dataset.csP != null && !isNaN(p) && tr.dataset.csP !== p.toFixed(2) ? 1 : 0 });
     });
     return rows;
   }
@@ -447,12 +453,13 @@
           log(`${g.row.label}: non esiste in versione Reverse su Cardmarket, saltata (controlla la carta).`, '#ff6b6b');
           continue;
         }
-        let price = null, src = '', pwarn = false;
+        let price = null, src = '', pwarn = false, rule = null;
         if (wantPrice) {
           const b = baseValue(g.row.tr, v.rev, base);
           src = b.src; pwarn = !!b.warn;
           if (b.v != null) {
             price = Math.max(MIN_PRICE, Math.round((b.v + plus) * 100) / 100);
+            rule = { b: b.used, o: Math.round(plus * 100), ref: b.v };
             src += `: ${b.v.toFixed(2)}${fmtPlus}`;
           }
         }
@@ -462,7 +469,7 @@
           if (!tr) { log(`${g.row.label}: non riesco a duplicare la riga per la Reverse, inseriscila a mano.`, '#ff6b6b'); continue; }
         }
         first = false;
-        fillRow(tr, { lang, rev: v.rev, qty: v.qty, price, comment, warn: warn || (wantPrice && (price == null || pwarn)) });
+        fillRow(tr, { lang, rev: v.rev, qty: v.qty, price, comment, rule, warn: warn || (wantPrice && (price == null || pwarn)) });
         filled.push({ num: g.row.num.replace(/^0+(?=\d)/, ''), rev: v.rev, qty: v.qty, price, name: g.name || g.row.name, rarity: g.rarity || '' });
         total += v.qty;
         if (!warn && wantPrice && (price == null || pwarn)) warnings++;

@@ -19,7 +19,7 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <ol><li>Su Cardmarket apri <b>Inserisci carte bulk</b> dell'espansione e premi <b>📋 Card Scanner → CM</b>.</li>
 <li>Carica il file .txt dell'app: nel riquadro <b>📦 Lista</b> vedi tutte le carte (numero, nome, Reverse, quantità) e dove si trovano.</li>
 <li>Scegli il prezzo ("Da" o Tendenza, ± centesimi), premi <b>Compila la pagina</b> e controlla.</li>
-<li>Premi il pulsante verde <b>📤 Invia al gestionale</b>: il <a href="../gestionale/" style="color:#ffcb05">gestionale</a> riceve le carte compilate con i prezzi, e nella lista dello script diventano "✔ inviata".
+<li>Premi il pulsante verde <b>📤 Invia al gestionale</b>: nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a> le carte passano da <b>Standby</b> a <b>In vendita</b>, con il prezzo, la regola scelta ("Da" o Tendenza ± centesimi) e la data. Da lì il gestionale controlla ogni giorno il mercato e segnala ogni variazione. Nella lista dello script diventano "✔ inviata".
 <li>Metti in vendita su Cardmarket tu stesso (pulsante "Mettere in vendita le carte").</li>
 <li>Per le carte rimaste: vai alla pagina giusta, premi di nuovo il pulsante nei preferiti (la lista resta caricata) e ripeti.</li></ol>
 <p>Lo script non invia nulla a Cardmarket e non legge password.</p>
@@ -27,7 +27,7 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <p>Nel riquadro scegli la base: <b>"Da" (prezzo minimo)</b> oppure <b>Tendenza</b>, poi <b>+</b> o <b>−</b> e quanti centesimi (es. 150 = 1,50 €). Il prezzo non scende mai sotto 0,02 €.
 I valori li legge direttamente dalla pagina "Inserisci carte bulk", senza aprire altre pagine di Cardmarket. Per le Reverse prova a usare la Price Guide di Cardmarket; se non riesce usa i valori della versione normale e colora la riga di arancione.</p>
 <h2>Revisione prezzi</h2>
-<p>Si fa nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a> (💶 Revisione prezzi): i prezzi di Cardmarket si aggiornano da soli, non serve più questo pulsante.</p>
+<p>Si fa nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a>: i prezzi di mercato si aggiornano da soli e le carte con una variazione (anche di 0,01 €) vengono segnalate nel set, con il PDF della revisione e la conferma dei nuovi prezzi.</p>
 <h2>In alternativa</h2>
 <p>Se il pulsante non funziona: sulla pagina di Cardmarket premi <code>F12</code> → <b>Console</b>, incolla il codice e premi Invio.</p>
 <pre>{html.escape(code)}</pre>

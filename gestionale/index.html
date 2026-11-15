@@ -49,7 +49,14 @@ main{flex:1;overflow:auto;padding:16px 22px 60px}
 .fs{display:inline-block;font-size:10px;font-weight:700;color:#111;background:var(--acc);border-radius:4px;padding:0 4px;margin-left:4px}
 .badges{position:absolute;top:11px;right:11px;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
 .badges span{font-weight:700;font-size:12px;border-radius:99px;padding:2px 8px;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.bn{background:var(--ok)}.br{background:var(--rev)}
+.bn{background:var(--ok)}.br{background:var(--rev)}.bs{background:#7c8591}.bv{background:#e8590c}
+.card.sb{outline:3px dashed #7c8591}
+.card.sb .im{filter:none;opacity:1}
+.card.vr{box-shadow:0 0 0 3px #e8590c,0 1px 4px rgba(0,0,0,.12)}
+.vtag{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:#e8590c;border-radius:5px;padding:0 5px;margin-left:4px}
+.est{font-size:11.5px;color:var(--mut)}
+#sets a .n.sb{background:#7c8591}#sets a .n.v{background:#e8590c}
+.vbox{border:2px solid #e8590c;border-radius:10px;padding:8px 12px;margin:8px 0}
 .price{font-weight:700;color:var(--ok)}
 .hide{display:none!important}
 .empty{text-align:center;color:var(--mut);margin-top:60px;line-height:1.7}
@@ -117,7 +124,8 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
     <div class="row">
       <button class="pri" id="btnSale">🧾 Carica vendite</button>
       <button id="btnSold">📈 Vendite</button>
-      <button id="btnRev">💶 Revisione prezzi</button>
+      <button id="btnCat" title="Carica il file .txt dell'app: le carte vanno in Standby">📥 Carica catalogo (.txt)</button>
+      <button id="btnUpd">🔄 Aggiorna prezzi</button>
       <button id="btnBk" title="Backup automatico">💾 Backup…</button>
       <button id="btnMore">⚙ Altro</button>
     </div>
@@ -127,7 +135,7 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
   <aside>
     <div class="head">
       <input type="search" id="qSet" placeholder="Cerca set…">
-      <label class="small" style="display:block;margin-top:6px"><input type="checkbox" id="onlyMine"> solo set con carte in vendita</label>
+      <label class="small" style="display:block;margin-top:6px"><input type="checkbox" id="onlyMine"> solo i miei set (in vendita o Standby)</label>
     </div>
     <div id="sets"><p class="small" style="padding:12px">Carico l'elenco dei set…</p></div>
   </aside>
@@ -135,7 +143,7 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
 </div>
 
 <input type="file" id="fSale" accept=".pdf,.csv,.txt,.html,.htm" multiple hidden>
-<input type="file" id="fPg" accept=".json,application/json" hidden><input type="file" id="fRestore" accept=".json" hidden>
+<input type="file" id="fCat" accept=".txt,.html,.htm,text/*" multiple hidden><input type="file" id="fPg" accept=".json,application/json" hidden><input type="file" id="fRestore" accept=".json" hidden>
 <dialog id="dlg"><div id="dlgBody"></div></dialog>
 
 <script>
@@ -167,8 +175,8 @@ if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.clo
 // sold = [...]
 let state = load();
 function load() {
-  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.listings) return Object.assign({ cm: {}, sold: [] }, s); } catch (e) {}
-  const s = { cm: {}, listings: {}, sold: [] };
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.listings) return Object.assign({ cm: {}, sold: [], standby: {} }, s); } catch (e) {}
+  const s = { cm: {}, listings: {}, sold: [], standby: {} };
   // dalla versione precedente tengo gli elenchi Cardmarket, le carte in vendita e le vendite
   try {
     const o = JSON.parse(localStorage.getItem('gestionaleCarte_v2'));
@@ -272,7 +280,7 @@ function importFromHash() {
   let d;
   try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Dati da Cardmarket non leggibili.'); return null; }
   mergeCatalog(d.exp);
-  let n = 0, last = d.exp;
+  let n = 0, last = d.exp, fromSb = 0;
   for (const sub of d.listed || []) {
     mergeCatalog({ id: sub.exp, name: sub.name, cards: sub.cards });
     last = { id: sub.exp, name: sub.name };
@@ -284,11 +292,24 @@ function importFromHash() {
       if (r.price != null) L.price = r.price;
       L.date = sub.at; L.com = r.com || L.com; L.expName = sub.name || L.expName;
       if (!L.u) L.u = r.u || c.u || '';
+      // regola del prezzo scelta nello script e valore di mercato al caricamento: da qui parte il controllo giornaliero
+      if (r.b) { L.rb = r.b; L.ro = r.o || 0; }
+      if (r.ref != null) { L.ref = r2(r.ref); L.refAt = sub.at; }
+      else if (r.price != null) { L.ref = null; } // prezzo senza regola: il riferimento arriva col primo aggiornamento
+      if (r.price != null) L.pAt = sub.at;
       n += r.q;
+      // le copie caricate su Cardmarket escono dallo Standby
+      // (all'avvio l'elenco dei set TCGdex può non essere ancora caricato: abbino anche per nome del set)
+      const sid = tcgIdFor(sub.name), un = norm(r.u || c.u || '');
+      const sk = Object.keys(state.standby || {}).find(k => { const x = state.standby[k];
+        return (x.s === sid || simp(x.sn) === simp(sub.name)) && norm(x.u) === un && !!x.rev === !!r.rev && (x.lang || 'it') === (r.lang || 'it'); });
+      const X = sk && state.standby[sk];
+      if (X) { const m = Math.min(X.q, r.q); X.q -= m; fromSb += m; if (X.q <= 0) { delete state.standby[sk]; delete (state.sbMarket || {})[sk]; } }
     }
   }
   save();
-  setTimeout(() => toast(n ? `Aggiornato: ${n} carte in vendita su Cardmarket` : `Dati del set "${last?.name || ''}" aggiornati (immagini e prezzi attuali)`), 300);
+  if (n) setTimeout(() => updatePrices(false), 1500);
+  setTimeout(() => toast(n ? `Aggiornato: ${n} carte in vendita su Cardmarket` + (fromSb ? ` (${fromSb} tolte dallo Standby)` : '') : `Dati del set "${last?.name || ''}" aggiornati (immagini e prezzi attuali)`), 300);
   return last ? last.name : null;
 }
 
@@ -309,18 +330,20 @@ function cmCatalogFor(setName) {
 let selected = null;
 function renderSets() {
   const bySet = listingsBySet();
-  const cnt = id => (bySet[id] || []).reduce((a, [, l]) => a + l.q, 0);
+  const cnt0 = id => (bySet[id] || []).reduce((a, [, l]) => a + l.q, 0);
+  const sbBy = {}; Object.values(state.standby || {}).forEach(x => { sbBy[x.s] = (sbBy[x.s] || 0) + x.q; });
+  const vBy = {}; Object.entries(bySet).forEach(([id, ls]) => { vBy[id] = ls.filter(([k, l]) => varOf(k, l)).length; });
+  const cnt = id => cnt0(id) + (sbBy[id] || 0);
   const q = simp($('qSet').value), only = $('onlyMine').checked;
   const all = tcgSets.map(s => ({ id: s.id, name: s.name, symbol: s.symbol }));
   // espansioni Cardmarket con carte in vendita ma senza corrispondenza in TCGdex
   Object.keys(bySet).filter(id => id.startsWith('cm:')).forEach(id => all.push({ id, name: state.cm[id.slice(3)]?.name || bySet[id][0][1].expName || id }));
   const items = all.filter(s => (!q || simp(s.name).includes(q)) && (!only || cnt(s.id)));
   const mine = items.filter(s => cnt(s.id)), rest = items.filter(s => !cnt(s.id));
-  const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}">${s.symbol ? `<img src="${esc(s.symbol)}.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<span style="width:22px"></span>'}<span class="nm">${esc(s.name)}</span>${cnt(s.id) ? `<span class="n">${cnt(s.id)}</span>` : ''}</a>`;
+  const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}">${s.symbol ? `<img src="${esc(s.symbol)}.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<span style="width:22px"></span>'}<span class="nm">${esc(s.name)}</span>${vBy[s.id] ? `<span class="n v" title="${vBy[s.id]} carte con variazione di prezzo">⚠ ${vBy[s.id]}</span>` : ''}${sbBy[s.id] ? `<span class="n sb" title="copie in Standby (non ancora su Cardmarket)">SB ${sbBy[s.id]}</span>` : ''}${cnt0(s.id) ? `<span class="n" title="copie in vendita">${cnt0(s.id)}</span>` : ''}</a>`;
   $('sets').innerHTML = `<a href="#" data-id="__dash" class="dash ${selected === '__dash' ? 'sel' : ''}"><span style="width:22px;text-align:center">📊</span><span class="nm">Statistiche magazzino</span></a>` +
     `<a href="#" data-id="__sales" class="dash ${selected === '__sales' ? 'sel' : ''}"><span style="width:22px;text-align:center">📈</span><span class="nm">Vendite</span>${state.sold.length ? `<span class="n" style="background:var(--acc);color:#111">${state.sold.reduce((a, x) => a + x.q, 0)}</span>` : ''}</a>` +
-    (() => { const todo = revRows().filter(r => r.st === 'down' || r.st === 'up').length;
-      return `<a href="#" data-id="__prices" class="dash ${selected === '__prices' ? 'sel' : ''}"><span style="width:22px;text-align:center">💶</span><span class="nm">Revisione prezzi</span>${todo ? `<span class="n" style="background:#e5484d">${todo}</span>` : ''}</a>`; })() + ((mine.length ? `<div class="grp">Con carte in vendita</div>${mine.map(link).join('')}` : '') +
+    ((mine.length ? `<div class="grp">I tuoi set (in vendita / Standby)</div>${mine.map(link).join('')}` : '') +
     (rest.length ? `<div class="grp">${mine.length ? 'Tutti gli altri set' : 'Tutti i set'} · dal più recente (${rest.length})</div>${rest.map(link).join('')}` : '')) ||
     '<p class="small" style="padding:12px">Nessun set trovato.</p>';
 }
@@ -363,7 +386,6 @@ async function renderSet() {
   current = null;
   if (selected === '__dash') { renderDash(); return; }
   if (selected === '__sales') { renderSales(); return; }
-  if (selected === '__prices') { renderPrices(); return; }
   if (!selected) {
     main.innerHTML = `<div class="empty">Scegli un set dalla lista a sinistra.<br>
       Le carte in vendita arrivano da Cardmarket con il pulsante <b>Card Scanner → CM</b>: dopo "Mettere in vendita le carte" premi il pulsante verde dello script.</div>`;
@@ -371,6 +393,7 @@ async function renderSet() {
   }
   const bySet = listingsBySet();
   const mine = bySet[selected] || [];
+  const sbList = Object.entries(state.standby || {}).filter(([, x]) => x.s === selected);
   let cards, setName, logo = '', official = 0, setId = null;
   if (selected.startsWith('cm:')) {
     // set non presente in TCGdex: uso l'elenco di Cardmarket
@@ -387,43 +410,65 @@ async function renderSet() {
   const cmCat = cmCatalogFor(setName);
   const cmByNum = {};
   Object.values(cmCat?.cards || {}).forEach(c => { cmByNum[norm(c.u)] = c; });
-  // carte in vendita che il set TCGdex non elenca: le aggiungo comunque
-  const byNum = {};
+  // carte in vendita o in Standby che il set TCGdex non elenca: le aggiungo comunque
+  const byNum = {}, sbByNum = {};
   mine.forEach(([k, l]) => (byNum[norm(l.u)] = byNum[norm(l.u)] || []).push([k, l]));
+  sbList.forEach(([k, x]) => (sbByNum[norm(x.u)] = sbByNum[norm(x.u)] || []).push([k, x]));
   const known = new Set(cards.map(c => norm(c.localId)));
-  Object.keys(byNum).forEach(n => { if (!known.has(n)) { const c = cmByNum[n]; cards.push({ localId: byNum[n][0][1].u, name: c?.n || '', image: '', rarity: rarIt(c?.r) }); } });
+  [...new Set([...Object.keys(byNum), ...Object.keys(sbByNum)])].forEach(n => {
+    if (known.has(n)) return;
+    const c = cmByNum[n], l0 = byNum[n]?.[0]?.[1] || sbByNum[n]?.[0]?.[1];
+    cards.push({ localId: l0.u, name: c?.n || l0.n || '', image: '', rarity: rarIt(c?.r || l0.r) });
+  });
   cards.sort((a, b) => (parseInt(a.localId) || 99999) - (parseInt(b.localId) || 99999) || String(a.localId).localeCompare(String(b.localId)));
   const rc = setId ? rarCache(setId) : {};
-  current = { setName, cards, byNum, cmByNum };
+  current = { setName, cards, byNum, sbByNum, cmByNum };
 
   const copies = mine.reduce((a, [, l]) => a + l.q, 0);
   const value = mine.reduce((a, [, l]) => a + (l.price || 0) * l.q, 0);
+  const sbQ = sbList.reduce((a, [, x]) => a + x.q, 0);
+  const sbEst = b => sbList.reduce((a, [k, x]) => a + (baseOf(sbmOf(k), b) || 0) * x.q, 0);
+  const vars = mine.map(([k, l]) => ({ k, l, v: varOf(k, l) })).filter(x => x.v);
+  if (filter === 'var' && !vars.length) filter = 'all';
+  if (filter === 'sb' && !sbList.length) filter = 'all';
   const extra = official && cards.length > official ? cards.length - official : 0;
   let h = `<div class="sethead"><div class="row" style="gap:14px">${logo ? `<img class="logo" src="${esc(logo)}.png" alt="" onerror="if(!this.dataset.e){this.dataset.e=1;this.src=this.src.replace(/(assets\\.tcgdex\\.net\\/)[a-z-]+\\//,'$1en/')}else this.remove()">` : ''}
     <div><h2>${esc(setName)}</h2>
-    <div class="sub">${cards.length} carte${extra ? ` (${official} + ${extra} fuoriserie)` : ''} · in vendita ${Object.keys(byNum).length} diverse, ${copies} copie · valore ${eur(value)}</div></div></div>
+    <div class="sub">${cards.length} carte${extra ? ` (${official} + ${extra} fuoriserie)` : ''} · in vendita ${Object.keys(byNum).length} diverse, ${copies} copie · valore ${eur(value)}</div>
+    ${sbQ ? `<div class="sub">⏸ Standby (non ancora su Cardmarket): <b>${sbQ} copie</b> · stima con Da ${eur(sbEst('low'))} · con Tendenza ${eur(sbEst('trend'))}</div>` : ''}
+    ${vars.length ? `<div class="sub" style="color:#e8590c;font-weight:700">⚠ ${vars.length} carte in vendita con variazione del prezzo di mercato</div>` : ''}</div></div>
     <div class="row"><input type="search" id="qCard" placeholder="Cerca carta…">
-    <select id="fShow"><option value="all">Tutte le carte del set</option><option value="yes">Solo in vendita</option><option value="no">Solo non in vendita</option><option value="rev">Solo Reverse in vendita</option></select>
+    <select id="fShow"><option value="all">Mostra tutte le carte</option><option value="yes">Solo carte in vendita</option><option value="sb">Solo carte in Standby</option><option value="var">Solo con variazione di prezzo</option><option value="rev">Solo Reverse in vendita</option><option value="no">Solo carte che non ho</option></select>
+    ${vars.length ? `<button class="pri" id="bPdf">📄 PDF revisione prezzi (${vars.length})</button><button id="bConf">✔ Conferma prezzi</button>` : ''}
+    ${sbQ ? `<button id="bSbDel" title="Toglie tutte le carte in Standby di questo set">🗑 Svuota Standby</button>` : ''}
     ${cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="_blank"><button>Apri su Cardmarket ↗</button></a>` : ''}</div></div><div class="grid">`;
   for (const c of cards) {
     const n0 = norm(c.localId);
-    const ls = byNum[n0] || [];
+    const ls = byNum[n0] || [], sb = sbByNum[n0] || [];
     const cm = cmByNum[n0];
     const n = ls.filter(([, l]) => !l.rev).reduce((a, [, l]) => a + l.q, 0);
     const r = ls.filter(([, l]) => l.rev).reduce((a, [, l]) => a + l.q, 0);
+    const sq = sb.reduce((a, [, x]) => a + x.q, 0);
+    const vv = ls.map(([k, l]) => varOf(k, l)).filter(Boolean);
     const prices = [...new Set(ls.map(([, l]) => l.price).filter(v => v != null))].sort((a, b) => a - b);
+    const sbM = sb.map(([k]) => sbmOf(k)).find(M => M && (M.lo != null || M.t != null));
     const rar = c.rarity ?? rc[n0] ?? rarIt(cm?.r) ?? '';
     const isExtra = official && /^\d+$/.test(c.localId) && +c.localId > official;
-    h += `<div class="card ${ls.length ? 'yes' : 'no'}${r ? ' r' : ''}" data-n="${esc(n0)}" data-s="${esc(`${c.name} ${c.localId} ${n0} ${rar} ${cm?.n || ''}`.toLowerCase())}">
+    const cls = ls.length ? 'yes' : sq ? 'sb' : 'no';
+    h += `<div class="card ${cls}${r ? ' r' : ''}${sq ? ' hassb' : ''}${vv.length ? ' vr' : ''}" data-n="${esc(n0)}" data-s="${esc(`${c.name} ${c.localId} ${n0} ${rar} ${cm?.n || ''}`.toLowerCase())}">
       <div class="im"><span>${esc(c.localId)}</span>${imgTag(imgSrcs(c.image, cm, c.localId), true)}</div>
-      ${ls.length ? `<div class="badges">${n ? `<span class="bn">×${n}</span>` : ''}${r ? `<span class="br">R ×${r}</span>` : ''}</div>` : ''}
+      ${ls.length || sq || vv.length ? `<div class="badges">${vv.length ? `<span class="bv" title="variazione del prezzo di mercato">⚠ ${vv.map(v => (v.d > 0 ? '▲' : '▼') + eur(Math.abs(v.d))).join(' ')}</span>` : ''}${n ? `<span class="bn">×${n}</span>` : ''}${r ? `<span class="br">R ×${r}</span>` : ''}${sq ? `<span class="bs" title="in Standby">SB ×${sq}</span>` : ''}</div>` : ''}
       <div class="info"><b>${esc(c.localId)}${official ? '/' + official : ''}</b> ${esc(c.name)}${isExtra ? '<span class="fs">FS</span>' : ''}
-      <small class="rar">${esc(rar)}</small>${prices.length ? `<span class="price">${prices.map(eur).join(' / ')}</span>` : ''}</div></div>`;
+      <small class="rar">${esc(rar)}</small>${prices.length ? `<span class="price">${prices.map(eur).join(' / ')}</span>` : ''}
+      ${!ls.length && sbM ? `<span class="est">stima: Da ${eur(sbM.lo) || '—'} · Tend. ${eur(sbM.t) || '—'}</span>` : ''}</div></div>`;
   }
   main.innerHTML = h + '</div>';
   $('qCard').value = filterText; $('fShow').value = filter;
   $('qCard').oninput = () => { filterText = $('qCard').value; applyCardFilter(); };
   $('fShow').onchange = () => { filter = $('fShow').value; applyCardFilter(); };
+  if ($('bPdf')) $('bPdf').onclick = () => pdfVariations(vars, setName);
+  if ($('bConf')) $('bConf').onclick = () => varDialog(vars, `Conferma prezzi · ${setName}`);
+  if ($('bSbDel')) $('bSbDel').onclick = () => { if (confirm(`Togliere dallo Standby le ${sbQ} copie di ${setName}?`)) { sbList.forEach(([k]) => { delete state.standby[k]; delete (state.sbMarket || {})[k]; }); save(); refresh(); } };
   applyCardFilter();
   if (setId) loadRarities(setId, cards.filter(c => c.id));
 }
@@ -432,6 +477,8 @@ function applyCardFilter() {
   document.querySelectorAll('.card').forEach(el => {
     let ok = !t || el.dataset.s.includes(t);
     if (filter === 'yes') ok = ok && el.classList.contains('yes');
+    if (filter === 'sb') ok = ok && el.classList.contains('hassb');
+    if (filter === 'var') ok = ok && el.classList.contains('vr');
     if (filter === 'no') ok = ok && el.classList.contains('no');
     if (filter === 'rev') ok = ok && el.classList.contains('r');
     el.classList.toggle('hide', !ok);
@@ -444,25 +491,47 @@ $('main').addEventListener('click', e => {
   const n0 = el.dataset.n;
   const c = current.cards.find(x => norm(x.localId) === n0);
   const cm = current.cmByNum[n0];
-  const ls = current.byNum[n0] || [];
+  const ls = current.byNum[n0] || [], sb = current.sbByNum[n0] || [];
   const srcs = imgSrcs(c.image, cm, c.localId);
+  const mk = M => M ? `Da ${eur(M.lo) || '—'} · Tendenza ${eur(M.t) || '—'}${M.rn ? ' (della normale)' : ''}<br><span class="small">${M.src === 'pg' ? 'Price Guide' : M.src === 'tcgdex' ? 'TCGdex' : 'nessun dato'}${M.upd ? ' · ' + fmtD(M.upd) : ''}${M.x ? ' · ⚠ abbinamento da verificare' : ''}</span>` : '<span class="small">non ancora letto</span>';
+  const vs = ls.map(([k, l]) => ({ k, l, v: varOf(k, l) })).filter(x => x.v);
   openDlg(`<div class="big">${imgTag(srcs, false)}</div>
     <h3>${esc(c.localId)} ${esc(c.name)} <span class="small">${esc(el.querySelector('.rar').textContent)} · ${esc(current.setName)}</span></h3>
-    ${ls.length ? `<table><tr><th>Variante</th><th>Lingua</th><th>Quantità</th><th>Prezzo €</th><th></th></tr>${ls.map(([k, l]) => `<tr data-k="${esc(k)}">
+    ${vs.length ? `<div class="vbox"><b style="color:#e8590c">⚠ Variazione del prezzo di mercato</b>
+      ${vs.map(({ l, v }) => `<div>${l.rev ? 'Reverse' : 'Normale'}: ${BASEN[l.rb || 'low']} ${eur(v.ref)} (${fmtD(l.refAt)}) → <b>${eur(v.cur)}</b> · consigliato <b>${eur(v.sugg)}</b> (tuo ${eur(l.price)})</div>`).join('')}
+      <p class="row" style="margin:6px 0 0"><button class="sm pri" id="dVar">Conferma / tieni il prezzo…</button></p></div>` : ''}
+    ${ls.length ? `<h4 style="margin:10px 0 4px">In vendita su Cardmarket</h4><table><tr><th>Variante</th><th>Lingua</th><th>Quantità</th><th>Prezzo €</th><th>Regola</th><th>Mercato oggi</th><th></th></tr>${ls.map(([k, l]) => `<tr data-k="${esc(k)}">
       <td>${l.rev ? 'Reverse Holo' : 'Normale'}</td><td>${LANGN[l.lang] || l.lang}</td>
       <td><input type="number" min="0" value="${l.q}" data-f="q" style="width:70px"></td>
-      <td><input type="number" min="0" step="0.01" value="${l.price ?? ''}" data-f="price" style="width:90px"></td>
+      <td><input type="number" min="0" step="0.01" value="${l.price ?? ''}" data-f="price" style="width:90px"><br><span class="small">dal ${fmtD(l.pAt || l.date)}</span></td>
+      <td>${l.ref != null ? `${ruleTxt(l)}<br><span class="small">riferimento ${eur(l.ref)} (${fmtD(l.refAt)})</span>` : '<span class="small">—</span>'}</td>
+      <td>${mk(mOf(k))}</td>
       <td><button class="sm" data-sell="1">venduta 1</button></td></tr>`).join('')}</table>
-      <p class="small">In vendita dal ${new Date(ls[0][1].date).toLocaleDateString('it-IT')}${ls[0][1].com ? ` · commento: ${esc(ls[0][1].com)}` : ''}</p>`
-    : '<p class="small">Non in vendita.</p>'}
+      <p class="small">In vendita dal ${new Date(ls[0][1].date).toLocaleDateString('it-IT')}${ls[0][1].com ? ` · commento: ${esc(ls[0][1].com)}` : ''}. Se cambi il prezzo qui, il mercato di oggi diventa il nuovo riferimento.</p>` : ''}
+    ${sb.length ? `<h4 style="margin:10px 0 4px">⏸ In Standby (non ancora su Cardmarket)</h4><table><tr><th>Variante</th><th>Lingua</th><th>Quantità</th><th>Stima di mercato</th><th>Dal</th></tr>${sb.map(([k, x]) => `<tr data-sb="${esc(k)}">
+      <td>${x.rev ? 'Reverse Holo' : 'Normale'}</td><td>${LANGN[x.lang] || x.lang}</td>
+      <td><input type="number" min="0" value="${x.q}" data-f="sbq" style="width:70px"></td>
+      <td>${mk(sbmOf(k))}</td><td class="small">${fmtD(x.date)}<br>${esc(x.file || '')}</td></tr>`).join('')}</table>
+      <p class="small">Passano "in vendita" quando le carichi su Cardmarket con il pulsante Card Scanner e premi "Invia al gestionale".</p>` : ''}
+    ${!ls.length && !sb.length ? '<p class="small">Non in vendita.</p>' : ''}
     <p class="small">${srcs.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noreferrer">immagine ${i + 1}</a>`).join(' · ') || 'nessun link immagine'}</p>
     <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
     $('dClose').onclick = closeDlg;
+    if ($('dVar')) $('dVar').onclick = () => varDialog(vs, `Conferma prezzi · ${c.localId} ${c.name}`);
     $('dlgBody').querySelectorAll('input[data-f]').forEach(inp => inp.onchange = () => {
+      if (inp.dataset.f === 'sbq') {
+        const k = inp.closest('tr').dataset.sb, X = state.standby[k];
+        if (!X) return;
+        X.q = Math.max(0, +inp.value || 0); if (!X.q) { delete state.standby[k]; delete (state.sbMarket || {})[k]; }
+        save(); refresh(); return;
+      }
       const k = inp.closest('tr').dataset.k, L = state.listings[k];
       if (!L) return;
       if (inp.dataset.f === 'q') { L.q = Math.max(0, +inp.value || 0); if (!L.q) delete state.listings[k]; }
-      else L.price = inp.value === '' ? null : +inp.value;
+      else {
+        L.price = inp.value === '' ? null : r2(+inp.value); L.pAt = today();
+        const cur = baseOf(mOf(k), L.rb || 'low'); if (cur != null) { L.ref = cur; L.refAt = mOf(k).upd || today(); }
+      }
       save(); refresh();
     });
     $('dlgBody').querySelectorAll('[data-sell]').forEach(b => b.onclick = () => {
@@ -920,47 +989,40 @@ function showSold() {
   });
 }
 
-// ---------- revisione prezzi (automatica: TCGdex + Price Guide di Cardmarket) ----------
-// state.market[chiave carta] = {v:2, lo: "Da" (prezzo minimo), t: tendenza, rv: 1 se valori Reverse, rn: 1 se Reverse ma valori della normale,
-//                               src: 'pg' | 'tcgdex', x: 1 se TCGdex abbina un altro prodotto Cardmarket, upd: data dei prezzi, at: quando l'ho letto}
+// ---------- prezzi di mercato (automatici: TCGdex + Price Guide di Cardmarket) ----------
+// state.market[chiave carta in vendita] e state.sbMarket[chiave standby] =
+//   {v:2, lo: "Da" (prezzo minimo), t: tendenza, rv: 1 se valori Reverse, rn: 1 se Reverse ma valori della normale,
+//    src: 'pg' | 'tcgdex', x: 1 se TCGdex abbina un altro prodotto Cardmarket, upd: data dei prezzi, at: quando l'ho letto}
 // state.pg = {at, p:{idProduct:[low, trend, lowReverse, trendReverse]}}  Price Guide ridotta alle carte che conosco
-// I prezzi sono quelli generali di Cardmarket (tutte le lingue e condizioni), aggiornati una volta al giorno.
+// Carta in vendita: rb = base del prezzo ('low' = Da, 'trend' = Tendenza), ro = ± centesimi,
+//   ref = valore di mercato al caricamento (o all'ultima conferma), refAt, pAt = data del prezzo.
+// Ogni variazione del valore di mercato rispetto a ref, anche di 0,01 €, viene segnalata finché non la confermi.
 const r2 = v => Math.round(v * 100) / 100;
 const PG_URL = 'https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_6.json';
 const PG_PAGE = 'https://www.cardmarket.com/it/Pokemon/Data/Price-Guide';
 const AUTO_H = 12;  // ogni quante ore aggiorno da solo
-const ST = { down: 'Da ribassare', up: 'Puoi rialzare', ok: 'In linea', nodata: 'Senza dati di mercato', noprice: 'Senza tuo prezzo', wait: 'Non ancora letta' };
-const ST_ORD = { down: 0, up: 1, noprice: 2, nodata: 3, ok: 4, wait: 5 };
 const BASEN = { low: 'Da', trend: 'Tendenza' };
-const revF = { st: 'all', set: '', q: '' };
-function revCfg() {
-  const c = state.revCfg || (state.revCfg = {});
-  if (!c.base) c.base = 'low';
-  if (c.plus == null) c.plus = 0;
-  if (c.tol == null) c.tol = 0;
-  return c;
-}
 const mOf = k => { const M = (state.market || {})[k]; return M && M.v === 2 ? M : null; };
-function revRows() {
-  const cfg = revCfg(), plus = (+cfg.plus || 0) / 100, tol = (+cfg.tol || 0) / 100 + 0.004;
-  return Object.entries(state.listings).map(([k, l]) => {
-    const I = info(l), M = mOf(k);
-    const r = { k, l, name: I.name, set: I.set, rar: I.rar, c: I.c, M, sugg: null, diff: null, used: null };
-    if (!M) { r.st = 'wait'; return r; }
-    const own = cfg.base === 'trend' ? M.t : M.lo, other = cfg.base === 'trend' ? M.lo : M.t;
-    const b = own != null ? own : other;
-    if (b == null) { r.st = 'nodata'; return r; }
-    r.used = own != null ? cfg.base : (cfg.base === 'trend' ? 'low' : 'trend');
-    r.sugg = r2(Math.max(0.02, b + plus));
-    if (l.price == null) r.st = 'noprice';
-    else { r.diff = r2(l.price - r.sugg); r.st = r.diff > tol ? 'down' : r.diff < -tol ? 'up' : 'ok'; }
-    return r;
-  });
+const sbmOf = k => { const M = (state.sbMarket || {})[k]; return M && M.v === 2 ? M : null; };
+const baseOf = (M, b) => M ? (b === 'trend' ? M.t : M.lo) : null;
+const fmtDT = d => d ? new Date(d).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+const fmtD = d => d ? new Date(d).toLocaleDateString('it-IT') : '—';
+const ruleTxt = L => `${BASEN[L.rb || 'low']}${L.ro ? ` ${L.ro > 0 ? '+' : '−'} ${eur(Math.abs(L.ro) / 100)}` : ''}`;
+/** variazione del prezzo di mercato per una carta in vendita (null = nessuna) */
+function varOf(k, L) {
+  if (!L) return null;
+  const M = mOf(k), cur = baseOf(M, L.rb || 'low');
+  if (cur == null || L.ref == null || r2(cur) === r2(L.ref)) return null;
+  const sugg = r2(Math.max(0.02, cur + (L.ro || 0) / 100));
+  return { cur, ref: L.ref, d: r2(cur - L.ref), sugg, diff: L.price != null ? r2(sugg - L.price) : null, M };
+}
+function variations(filterFn) {
+  return Object.entries(state.listings).filter(([k, l]) => !filterFn || filterFn(k, l))
+    .map(([k, l]) => ({ k, l, v: varOf(k, l) })).filter(x => x.v);
 }
 
 // --- Price Guide: file JSON di Cardmarket (scaricato da solo se il browser lo permette, altrimenti caricato a mano) ---
 function pgKeep() {
-  // tengo solo le carte che conosco (in vendita + elenchi dei set), così non riempio la memoria del browser
   const s = new Set(Object.values(state.listings).map(l => String(l.p)));
   Object.values(state.cm).forEach(e => Object.keys(e.cards || {}).forEach(p => s.add(String(p))));
   return s;
@@ -975,7 +1037,6 @@ function pgImport(d) {
   return Object.keys(p).length;
 }
 async function pgAuto() {
-  // il server di Cardmarket potrebbe non permettere il download da un altro sito: in quel caso resta TCGdex
   if (state.pg && Date.now() - new Date(state.pg.at) < 20 * 3600e3) return true;
   try {
     const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 30000);
@@ -989,7 +1050,6 @@ async function pgAuto() {
 async function pgFile(f) {
   try {
     const n = pgImport(JSON.parse(await f.text()));
-    Object.keys(state.market || {}).forEach(k => { if (state.market[k]?.src === 'pg') delete state.market[k]; });
     save(); toast(`Price Guide caricata: ${n} carte tue trovate`);
     updatePrices(true);
   } catch (e) { alert('File non valido: ' + (e.message || e) + '.\nScarica il file "Pokémon" dalla pagina Price Guide di Cardmarket.'); }
@@ -1000,7 +1060,7 @@ async function tcgJson(url) {
   try { const r = await fetch(url); if (!r.ok) return null; return await r.json(); } catch (e) { return null; }
 }
 async function tcgCardId(l) {
-  const setId = tcgIdFor(l.expName || state.cm[l.exp]?.name);
+  const setId = l.s || tcgIdFor(l.expName || state.cm[l.exp]?.name);
   if (!setId) return null;
   const n0 = norm(l.u);
   for (const p of ['/sets/' + encodeURIComponent(setId), '@en/sets/' + encodeURIComponent(setId)]) {
@@ -1025,145 +1085,248 @@ function fromVals(l, low, trend, lowR, trendR) {
   if (l.rev && (lowR != null || trendR != null)) return { lo: lowR, t: trendR, rv: 1 };
   return { lo: low, t: trend, rn: l.rev ? 1 : 0 };
 }
+/** idProduct Cardmarket di una carta in standby (dall'elenco del set inviato dallo script, se c'è) */
+function sbPid(S) {
+  const E = cmCatalogFor(S.sn || tcgSets.find(x => x.id === S.s)?.name || '');
+  const c = E && Object.values(E.cards || {}).find(c => norm(c.u) === norm(S.u));
+  return c ? c.p : null;
+}
+async function readMarket(l, pid) {
+  const pgFresh = state.pg && Date.now() - new Date(state.pg.at) < 3 * 86400e3;
+  const pg = pid && pgFresh && state.pg.p[pid];
+  if (pg) return Object.assign({ v: 2, src: 'pg', upd: state.pg.at }, fromVals(l, ...pg));
+  const cm = await tcgPrice(l);
+  if (cm) {
+    const M = Object.assign({ v: 2, src: 'tcgdex', upd: cm.updated || null }, fromVals(l, pos(cm.low), pos(cm.trend), pos(cm['low-holo']), pos(cm['trend-holo'])));
+    if (pid && cm.idProduct && String(cm.idProduct) !== String(pid)) M.x = 1;
+    return M;
+  }
+  if (pid && state.pg?.p?.[pid]) return Object.assign({ v: 2, src: 'pg', upd: state.pg.at }, fromVals(l, ...state.pg.p[pid]));
+  return null;
+}
 let upd = null; // aggiornamento in corso
 async function updatePrices(force) {
   if (upd) return upd;
-  const entries = Object.entries(state.listings);
-  if (!entries.length) return;
+  state.standby = state.standby || {};
+  const jobs = [
+    ...Object.entries(state.listings).map(([k, l]) => ({ k, l, sb: false })),
+    ...Object.entries(state.standby).map(([k, l]) => ({ k, l, sb: true }))
+  ];
+  if (!jobs.length) return;
   upd = (async () => {
-    const prog = { done: 0, tot: entries.length };
-    revProg(prog);
-    const pgOk = await pgAuto();
-    const pgFresh = state.pg && Date.now() - new Date(state.pg.at) < 3 * 86400e3;
-    state.market = state.market || {};
-    let i = 0;
+    const prog = { done: 0, tot: jobs.length };
+    showProg(prog);
+    await pgAuto();
+    state.market = state.market || {}; state.sbMarket = state.sbMarket || {};
+    let i = 0, nNew = 0;
     const worker = async () => {
-      while (i < entries.length) {
-        const [k, l] = entries[i++];
-        const old = mOf(k);
-        if (!force && old && Date.now() - new Date(old.at) < AUTO_H * 3600e3) { prog.done++; continue; }
-        let M = null;
-        const pg = pgFresh && state.pg.p[l.p];
-        if (pg) M = Object.assign({ v: 2, src: 'pg', upd: state.pg.at }, fromVals(l, ...pg));
-        else {
-          const cm = await tcgPrice(l);
-          if (cm) {
-            M = Object.assign({ v: 2, src: 'tcgdex', upd: cm.updated || null },
-              fromVals(l, pos(cm.low), pos(cm.trend), pos(cm['low-holo']), pos(cm['trend-holo'])));
-            if (cm.idProduct && String(cm.idProduct) !== String(l.p)) M.x = 1;
-          } else if (state.pg?.p?.[l.p]) M = Object.assign({ v: 2, src: 'pg', upd: state.pg.at }, fromVals(l, ...state.pg.p[l.p]));
+      while (i < jobs.length) {
+        const { k, l, sb } = jobs[i++];
+        const store = sb ? state.sbMarket : state.market;
+        const old = store[k];
+        if (!force && old && old.v === 2 && Date.now() - new Date(old.at) < AUTO_H * 3600e3) { prog.done++; continue; }
+        const M = await readMarket(l, sb ? sbPid(l) : l.p);
+        store[k] = Object.assign(M || { v: 2, src: '', lo: null, t: null }, { at: today() });
+        if (!sb) {
+          // carte messe in vendita prima di questa versione: il primo valore letto diventa il riferimento
+          const cur = baseOf(M, l.rb || 'low');
+          if (l.ref == null && cur != null) { l.ref = cur; l.refAt = M.upd || today(); if (!l.rb) l.rb = 'low'; if (l.ro == null) l.ro = 0; }
+          if (varOf(k, l)) nNew++;
         }
-        state.market[k] = Object.assign(M || { v: 2, src: '', lo: null, t: null }, { at: today() });
         prog.done++;
-        if (prog.done % 10 === 0) revProg(prog);
+        if (prog.done % 10 === 0) showProg(prog);
       }
     };
     await Promise.all([1, 2, 3, 4, 5, 6].map(worker));
     state.revAt = today();
     save();
-    revProg(null);
-    renderSets();
-    if (selected === '__prices') renderPrices();
-    return pgOk;
+    showProg(null);
+    refresh();
+    return nNew;
   })();
   try { return await upd; } finally { upd = null; }
 }
-function revProg(p) {
-  const el = $('rvProg');
-  if (el) el.textContent = p ? `Aggiorno i prezzi… ${p.done}/${p.tot}` : '';
+function showProg(p) {
+  const b = $('btnUpd');
+  if (!b) return;
+  b.disabled = !!p;
+  b.textContent = p ? `🔄 Aggiorno… ${p.done}/${p.tot}` : '🔄 Aggiorna prezzi';
+  b.title = state.revAt ? `Ultimo aggiornamento: ${fmtDT(state.revAt)}` : '';
 }
 
-function renderPrices() {
-  const cfg = revCfg();
-  const all = revRows();
-  const sets = [...new Set(all.map(r => r.set).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const qq = simp(revF.q);
-  const scope = all.filter(r => (!revF.set || r.set === revF.set) && (!qq || simp(`${r.name} ${r.l.u} ${r.set}`).includes(qq)));
-  const list = scope.filter(r => revF.st === 'all' || r.st === revF.st)
-    .sort((a, b) => ST_ORD[a.st] - ST_ORD[b.st] || Math.abs(b.diff || 0) - Math.abs(a.diff || 0) || String(a.set).localeCompare(b.set) || (parseInt(a.l.u) || 0) - (parseInt(b.l.u) || 0));
-  const cnt = s => scope.filter(r => r.st === s);
-  const sumQ = (rs, f) => rs.reduce((a, r) => a + f(r) * r.l.q, 0);
-  const down = cnt('down'), up = cnt('up');
-  const fmtD = d => d ? new Date(d).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
-  const nPg = scope.filter(r => r.M?.src === 'pg').length, nTd = scope.filter(r => r.M?.src === 'tcgdex').length;
-  const segB = (v, l, n) => `<button data-st="${v}" class="${revF.st === v ? 'on' : ''}">${l}${n != null ? ` (${n})` : ''}</button>`;
-  const sign = (+cfg.plus || 0) < 0 ? -1 : 1;
-  $('main').innerHTML = `
-  <div class="sethead"><div><h2>💶 Revisione prezzi</h2>
-    <div class="sub">Prezzi di Cardmarket aggiornati in automatico (TCGdex e Price Guide di Cardmarket, una volta al giorno). <b>Da</b> = prezzo minimo, <b>Tendenza</b> = tendenza di prezzo: sono valori generali, di tutte le lingue e condizioni.</div></div>
-    <div class="row"><span class="small" id="rvProg"></span><button class="pri" id="rvUpd">🔄 Aggiorna prezzi</button><button id="rvPg" title="Carica il file Pokémon scaricato dalla pagina Price Guide di Cardmarket">📂 Carica Price Guide</button></div></div>
-  <div class="kpis">
-    <div class="kpi"><span>Prezzi letti</span><b>${scope.length - cnt('wait').length} / ${scope.length}</b><small>ultimo aggiornamento: ${fmtD(state.revAt)} · ${nTd} da TCGdex, ${nPg} da Price Guide</small></div>
-    <div class="kpi"><span>Da ribassare</span><b style="color:#e5484d">${down.length}</b><small>sopra il consigliato${down.length ? ` · −${eur(sumQ(down, r => r.diff))} sul valore` : ''}</small></div>
-    <div class="kpi"><span>Puoi rialzare</span><b style="color:var(--ok)">${up.length}</b><small>${up.length ? `+${eur(sumQ(up, r => -r.diff))} di valore possibile` : 'nessuna sotto il consigliato'}</small></div>
-    <div class="kpi"><span>Senza dati di mercato</span><b>${cnt('nodata').length}</b><small>carta non trovata o senza prezzi su Cardmarket</small></div>
-  </div>
-  <div class="filters">
-    <span class="seg" id="rvSeg">${segB('all', 'Tutte', scope.length)}${segB('down', 'Da ribassare', down.length)}${segB('up', 'Da rialzare', up.length)}${segB('ok', 'In linea', cnt('ok').length)}${segB('nodata', 'Senza dati', cnt('nodata').length)}${segB('noprice', 'Senza tuo prezzo', cnt('noprice').length)}</span>
-    <select id="rvSet"><option value="">Tutti i set</option>${sets.map(s => `<option ${s === revF.set ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
-    <input type="search" id="rvQ" placeholder="Cerca carta…" value="${esc(revF.q)}">
-    <label>Consigliato = <select id="rvBase"><option value="low" ${cfg.base === 'low' ? 'selected' : ''}>Da (prezzo minimo)</option><option value="trend" ${cfg.base === 'trend' ? 'selected' : ''}>Tendenza</option></select>
-      <select id="rvSign"><option value="1">+</option><option value="-1" ${sign < 0 ? 'selected' : ''}>−</option></select>
-      <input type="number" id="rvPlus" min="0" step="1" value="${Math.abs(+cfg.plus || 0)}" style="width:60px"> cent.</label>
-    <label>ignora differenze fino a <input type="number" id="rvTol" min="0" step="1" value="${+cfg.tol || 0}" style="width:60px"> cent.</label>
-  </div>
-  <div class="row" style="margin-bottom:10px">
-    <button id="rvApply">✔ Applica il prezzo consigliato alle selezionate</button>
-    <button id="rvCsv">⬇ Esporta elenco (CSV)</button>
-    <span class="small">Cambia i prezzi su Cardmarket, poi segnali qui (casella + "Applica" oppure scrivi il prezzo nella colonna "Tuo prezzo").</span>
-  </div>
-  ${list.length ? `<table class="rtable"><thead><tr><th><input type="checkbox" id="rvAll"></th><th></th><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Tuo prezzo</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n">Consigliato</th><th class="n">Differenza</th><th>Stato</th><th>Fonte</th></tr></thead><tbody>
-  ${list.map(r => {
-    const M = r.M || {}, im = imgSrcs('', r.c, r.l.u);
-    const noteR = M.rn ? '<small>della normale</small>' : '';
-    return `<tr data-k="${esc(r.k)}"><td><input type="checkbox" class="rvSel" ${r.sugg == null ? 'disabled' : ''}></td>
-    <td>${im.length ? `<img class="thumb" loading="lazy" referrerpolicy="no-referrer" src="${esc(im[0])}" data-srcs="${esc(im.slice(1).join('|'))}" onerror="nextImg(this)">` : ''}</td>
-    <td><b>${esc(r.l.u)}</b> ${esc(r.name)}<small>${esc(r.set)} · ${esc(r.rar)}</small></td>
-    <td>${r.l.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale'}<small>${LANGN[r.l.lang] || r.l.lang}</small></td>
-    <td class="n">${r.l.q}</td>
-    <td class="n"><input type="number" min="0" step="0.01" class="rvP" value="${r.l.price ?? ''}"></td>
-    <td class="n">${M.lo != null ? (cfg.base === 'low' ? `<b>${eur(M.lo)}</b>` : eur(M.lo)) + noteR : ''}</td>
-    <td class="n">${M.t != null ? (cfg.base === 'trend' ? `<b>${eur(M.t)}</b>` : eur(M.t)) + noteR : ''}</td>
-    <td class="n">${r.sugg != null ? `<b>${eur(r.sugg)}</b>${r.used !== cfg.base ? `<small>da ${BASEN[r.used]}</small>` : ''}` : ''}</td>
-    <td class="n">${r.diff != null && Math.abs(r.diff) >= 0.005 ? `<span class="${r.diff > 0 ? 'up' : 'down'}">${r.diff > 0 ? '+' : '−'}${eur(Math.abs(r.diff))}</span>` : r.diff != null ? '0' : ''}</td>
-    <td><span class="st ${r.st}">${ST[r.st]}</span>${M.x ? '<small title="TCGdex collega questa carta a un altro prodotto Cardmarket: controlla">⚠ abbinamento da verificare</small>' : ''}</td>
-    <td><small>${M.src === 'pg' ? 'Price Guide' : M.src === 'tcgdex' ? 'TCGdex' : ''}${M.upd ? ' · ' + fmtD(M.upd) : ''}</small></td></tr>`;
-  }).join('')}</tbody></table>` : `<p class="empty">${scope.length ? 'Nessuna carta in questo stato.' : 'Nessuna carta in vendita.'}</p>`}
-  <p class="small" style="margin-top:12px">Se il browser non riesce a scaricare da solo la Price Guide, la aggiorno con TCGdex (che riprende gli stessi prezzi di Cardmarket). Per usare direttamente il file di Cardmarket: apri la <a href="${PG_PAGE}" target="_blank" rel="noreferrer">pagina Price Guide</a>, scarica il file <b>Pokémon</b> e caricalo con <b>📂 Carica Price Guide</b> (o trascinalo qui).</p>`;
-
-  $('rvSeg').onclick = e => { const b = e.target.closest('button[data-st]'); if (!b) return; revF.st = b.dataset.st; renderPrices(); };
-  $('rvSet').onchange = () => { revF.set = $('rvSet').value; renderPrices(); };
-  $('rvQ').oninput = () => { revF.q = $('rvQ').value; clearTimeout(renderPrices.t); renderPrices.t = setTimeout(() => { renderPrices(); const q = $('rvQ'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 300); };
-  const setPlus = () => { cfg.plus = (+$('rvSign').value || 1) * Math.abs(parseInt($('rvPlus').value || '0', 10) || 0); save(); renderSets(); renderPrices(); };
-  $('rvPlus').onchange = setPlus; $('rvSign').onchange = setPlus;
-  $('rvBase').onchange = () => { cfg.base = $('rvBase').value; save(); renderSets(); renderPrices(); };
-  $('rvTol').onchange = () => { cfg.tol = Math.max(0, parseInt($('rvTol').value || '0', 10)); save(); renderSets(); renderPrices(); };
-  if ($('rvAll')) $('rvAll').onchange = () => document.querySelectorAll('.rvSel:not(:disabled)').forEach(c => { c.checked = $('rvAll').checked; });
-  document.querySelectorAll('.rvP').forEach(inp => inp.onchange = () => {
-    const L = state.listings[inp.closest('tr').dataset.k];
-    if (!L) return;
-    L.price = inp.value === '' ? null : r2(+inp.value);
-    save(); refresh();
+// --- conferma delle variazioni ---
+/** hai cambiato il prezzo su Cardmarket (o decidi di tenerlo): il valore di mercato di oggi diventa il nuovo riferimento */
+function confirmVar(k, newPrice) {
+  const L = state.listings[k], v = varOf(k, L);
+  if (!L || !v) return;
+  if (newPrice != null && !isNaN(newPrice)) { L.price = r2(newPrice); L.pAt = today(); }
+  L.ref = v.cur; L.refAt = v.M.upd || today();
+}
+function varDialog(rows, title) {
+  if (!rows.length) { alert('Nessuna variazione da confermare.'); return; }
+  rows.sort((a, b) => (parseInt(a.l.u) || 0) - (parseInt(b.l.u) || 0) || a.l.rev - b.l.rev);
+  openDlg(`<h3>${esc(title)}</h3>
+    <p class="small">Per ogni carta: se hai cambiato il prezzo su Cardmarket scrivi il nuovo prezzo (è già proposto quello consigliato) e premi <b>✔ Prezzo cambiato</b>.
+    Se decidi di tenere il prezzo attuale premi <b>Tengo il mio</b>. In tutti e due i casi il valore di mercato di oggi diventa il nuovo riferimento e la segnalazione sparisce, finché il mercato non cambia di nuovo.</p>
+    <table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Tuo prezzo</th><th>Regola</th><th class="n">Mercato prima</th><th class="n">Oggi</th><th class="n">Consigliato</th><th class="n">Nuovo prezzo</th><th></th></tr></thead><tbody>
+    ${rows.map(({ k, l, v }) => { const I = info(l); return `<tr data-k="${esc(k)}">
+      <td><b>${esc(l.u)}</b> ${esc(I.name)}<small>${esc(I.set)}</small></td>
+      <td>${l.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale'}<small>${LANGN[l.lang] || l.lang}</small></td>
+      <td class="n">${l.q}</td>
+      <td class="n">${eur(l.price)}<small>dal ${fmtD(l.pAt || l.date)}</small></td>
+      <td>${ruleTxt(l)}${v.M.rn ? '<small>valori della normale</small>' : ''}${v.M.x ? '<small>⚠ abbinamento da verificare</small>' : ''}</td>
+      <td class="n">${eur(v.ref)}<small>${fmtD(l.refAt)}</small></td>
+      <td class="n"><b>${eur(v.cur)}</b><small class="${v.d > 0 ? 'down' : 'up'}">${v.d > 0 ? '▲ +' : '▼ −'}${eur(Math.abs(v.d))}</small></td>
+      <td class="n"><b>${eur(v.sugg)}</b></td>
+      <td class="n"><input type="number" min="0.02" step="0.01" class="vP" value="${v.sugg.toFixed(2)}"></td>
+      <td style="white-space:nowrap"><button class="sm pri" data-ok="1">✔ Prezzo cambiato</button> <button class="sm" data-keep="1">Tengo il mio</button></td></tr>`; }).join('')}
+    </tbody></table>
+    <p class="row" style="justify-content:space-between;margin-top:12px"><button id="vAll">✔ Ho messo il consigliato a tutte</button><button id="dClose">Chiudi</button></p>`, () => {
+    $('dClose').onclick = closeDlg;
+    const done = tr => { tr.style.opacity = '.35'; tr.querySelectorAll('button,input').forEach(x => x.disabled = true); save(); refresh(); };
+    $('dlgBody').querySelectorAll('[data-ok]').forEach(b => b.onclick = () => {
+      const tr = b.closest('tr'), p = parseFloat(tr.querySelector('.vP').value);
+      if (isNaN(p) || p <= 0) { alert('Scrivi il nuovo prezzo.'); return; }
+      confirmVar(tr.dataset.k, p); done(tr);
+    });
+    $('dlgBody').querySelectorAll('[data-keep]').forEach(b => b.onclick = () => { const tr = b.closest('tr'); confirmVar(tr.dataset.k, null); done(tr); });
+    $('vAll').onclick = () => {
+      const trs = [...$('dlgBody').querySelectorAll('tbody tr')].filter(tr => !tr.querySelector('[data-ok]').disabled);
+      if (!trs.length || !confirm(`Confermi di aver messo su Cardmarket il prezzo consigliato a tutte le ${trs.length} carte rimaste?`)) return;
+      trs.forEach(tr => { const k = tr.dataset.k; confirmVar(k, varOf(k, state.listings[k])?.sugg); done(tr); });
+    };
   });
-  $('rvApply').onclick = () => {
-    const sel = [...document.querySelectorAll('.rvSel:checked')].map(c => c.closest('tr').dataset.k);
-    if (!sel.length) { alert('Seleziona prima le carte (casella a sinistra).'); return; }
-    if (!confirm(`Hai già cambiato su Cardmarket il prezzo di queste ${sel.length} carte? Nel gestionale metto il prezzo consigliato.`)) return;
-    const rows = Object.fromEntries(revRows().map(r => [r.k, r]));
-    sel.forEach(k => { if (rows[k]?.sugg != null && state.listings[k]) state.listings[k].price = rows[k].sugg; });
-    save(); refresh(); toast(`Prezzo aggiornato su ${sel.length} carte`);
-  };
-  $('rvCsv').onclick = () => downloadCsv(`revisione-prezzi-${new Date().toISOString().slice(0, 10)}.csv`,
-    [['Set', 'Numero', 'Nome', 'Rarità', 'Variante', 'Lingua', 'Quantità', 'Tuo prezzo', 'Da', 'Tendenza', 'Consigliato', 'Differenza', 'Stato', 'Fonte', 'Prezzi del']].concat(
-      list.map(r => [r.set, r.l.u, r.name, r.rar, r.l.rev ? 'Reverse Holo' : 'Normale', (r.l.lang || '').toUpperCase(), r.l.q, r.l.price ?? '',
-        r.M?.lo ?? '', r.M?.t ?? '', r.sugg ?? '', r.diff ?? '', ST[r.st], r.M?.src === 'pg' ? 'Price Guide' : r.M?.src === 'tcgdex' ? 'TCGdex' : '', r.M?.upd ? new Date(r.M.upd).toLocaleString('it-IT') : ''])));
-  $('rvUpd').onclick = async () => {
-    $('rvUpd').disabled = true;
-    await updatePrices(true);
-    toast('Prezzi aggiornati');
-  };
-  $('rvPg').onclick = () => $('fPg').click();
-  if (upd) revProg({ done: 0, tot: Object.keys(state.listings).length });
+}
+
+// --- PDF della revisione prezzi di un set ---
+function loadJs(src) {
+  return new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => ko(new Error('impossibile caricare ' + src)); document.head.appendChild(s); });
+}
+async function pdfLib() {
+  if (!window.jspdf) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  if (!window.jspdf.jsPDF.API.autoTable) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+  return window.jspdf.jsPDF;
+}
+const pdfT = s => String(s ?? '').replace(/−/g, '-').replace(/[’‘]/g, "'").replace(/[“”]/g, '"').replace(/…/g, '...');
+const eurP = v => v == null ? '' : Number(v).toFixed(2).replace('.', ',') + ' €';
+function pdfSetCode(rows, setName) {
+  for (const { l } of rows) { const c = state.cm[l.exp]?.cards?.[l.p]?.c; if (c) return c.toUpperCase(); }
+  const t = tcgSets.find(x => simp(x.name) === simp(setName));
+  return (t ? t.id : 'SET').toUpperCase();
+}
+async function pdfVariations(rows, setName) {
+  if (!rows.length) { alert('Nessuna variazione di prezzo in questo set.'); return; }
+  let JsPDF;
+  try { JsPDF = await pdfLib(); } catch (e) { alert('Non riesco a creare il PDF (serve internet): ' + e.message); return; }
+  rows = rows.slice().sort((a, b) => (parseInt(a.l.u) || 0) - (parseInt(b.l.u) || 0) || String(a.l.u).localeCompare(String(b.l.u)) || a.l.rev - b.l.rev);
+  const code = pdfSetCode(rows, setName);
+  const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+  doc.text(pdfT(`Revisione prezzi - ${setName} (${code})`), 12, 15);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  const upds = rows.map(r => r.v.M.upd).filter(Boolean).sort();
+  const nUp = rows.filter(r => r.v.d > 0).length, nDown = rows.length - nUp;
+  const dVal = rows.reduce((a, r) => a + (r.v.diff || 0) * r.l.q, 0);
+  doc.text(pdfT(`Creato il ${new Date().toLocaleString('it-IT')} · prezzi di mercato Cardmarket del ${upds.length ? fmtD(upds[upds.length - 1]) : '—'} · ${rows.length} righe con variazione (${nUp} in aumento, ${nDown} in calo) · effetto sul valore se applichi i consigliati: ${dVal >= 0 ? '+' : '-'}${eurP(Math.abs(dVal))}`), 12, 21);
+  doc.text(pdfT('Mercato = "Da" (prezzo minimo) o Tendenza di Cardmarket, secondo la regola scelta al caricamento. Consigliato = mercato di oggi con la stessa regola. Dopo aver cambiato il prezzo su Cardmarket, conferma nel gestionale.'), 12, 26, { maxWidth: W - 24 });
+  doc.autoTable({
+    startY: 35, margin: { left: 8, right: 8 }, theme: 'grid',
+    styles: { fontSize: 8.6, cellPadding: 1.6, valign: 'middle', lineColor: [210, 214, 220] },
+    headStyles: { fillColor: [28, 33, 40], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [246, 247, 249] },
+    head: [['N°', 'Carta', 'Variante', 'Lingua', 'Qtà', 'Tuo prezzo', 'Prezzo dal', 'Regola', 'Mercato al caricamento', 'Mercato oggi', 'Variazione', 'Nuovo prezzo consigliato', 'Differenza', 'Fatto']].map(r => r.map(pdfT)),
+    body: rows.map(({ l, v }) => {
+      const I = info(l);
+      return [l.u, I.name, l.rev ? 'Reverse Holo' : 'Normale', (l.lang || '').toUpperCase(), l.q, eurP(l.price), fmtD(l.pAt || l.date),
+        ruleTxt(l) + (v.M.rn ? ' (val. normale)' : '') + (v.M.x ? ' (!) verifica' : ''), `${eurP(v.ref)}  (${fmtD(l.refAt)})`, eurP(v.cur),
+        (v.d > 0 ? '+' : '-') + eurP(Math.abs(v.d)), eurP(v.sugg), v.diff == null ? '' : (v.diff > 0 ? '+' : v.diff < 0 ? '-' : '') + eurP(Math.abs(v.diff)), ''].map(pdfT);
+    }),
+    columnStyles: { 0: { halign: 'right', cellWidth: 11 }, 1: { cellWidth: 36, fontStyle: 'bold' }, 3: { halign: 'center', cellWidth: 13 }, 4: { halign: 'right', cellWidth: 10 },
+      5: { halign: 'right' }, 8: { halign: 'right' }, 9: { halign: 'right', fontStyle: 'bold' }, 10: { halign: 'right' }, 11: { halign: 'right', fontStyle: 'bold' }, 12: { halign: 'right' }, 13: { cellWidth: 13 } },
+    didParseCell: d => {
+      if (d.section !== 'body') return;
+      const r = rows[d.row.index];
+      if (d.column.index === 10) d.cell.styles.textColor = r.v.d > 0 ? [47, 158, 91] : [229, 72, 77];
+      if (d.column.index === 2 && r.l.rev) d.cell.styles.textColor = [166, 79, 209];
+    },
+    didDrawCell: d => {
+      if (d.section === 'body' && d.column.index === 13) { const s = 4; doc.setDrawColor(90); doc.rect(d.cell.x + (d.cell.width - s) / 2, d.cell.y + (d.cell.height - s) / 2, s, s); }
+    },
+    didDrawPage: () => {
+      const H = doc.internal.pageSize.getHeight();
+      doc.setFontSize(8); doc.setTextColor(120);
+      doc.text(pdfT(`${code} - ${setName} · Revisione prezzi · pagina ${doc.internal.getNumberOfPages()}`), W - 8, H - 6, { align: 'right' });
+      doc.setTextColor(0);
+    }
+  });
+  doc.save(`${code}-${String(setName).trim().replace(/\s+/g, '_').replace(/[\\/:*?"<>|]/g, '')}_Revisioneprezzi.pdf`);
+}
+
+// ---------- catalogo dall'app (.txt) → Standby ----------
+// state.standby["setTcgdex|numero|N/R|lingua"] = {s, sn, u, rev, lang, q, n, r, com, date, file}
+const sbKey = (s, u, rev, lang) => `${s}|${norm(u)}|${rev ? 'R' : 'N'}|${lang || 'it'}`;
+const isCatalogTxt = t => /^\s*CARDSCANNER/i.test(t) || /^\s*SET\s+.+\|/im.test(t);
+function parseCatalog(text) {
+  if (/<br|<html|<body/i.test(text)) text = new DOMParser().parseFromString(text.replace(/<br\s*\/?>/gi, '\n'), 'text/html').body.textContent;
+  const sets = [];
+  let cur = null, com = '';
+  text.replace(/ /g, ' ').split(/\r?\n/).forEach(line => {
+    const l = line.trim();
+    if (!l || l.startsWith('#') || /^CARDSCANNER/i.test(l)) return;
+    let m = l.match(/^COMMENTO\s+(.*)$/i);
+    if (m) { com = m[1].trim(); if (cur) cur.com = com; return; }
+    m = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*(?:\|\s*([^|]*?))?\s*$/i);
+    if (m) { cur = { name: m[1].trim(), lang: m[2].toLowerCase(), id: (m[3] || '').trim(), com, items: [] }; sets.push(cur); return; }
+    if (!cur) return;
+    m = l.match(/^([A-Z]*\d+[a-z]?)\s*\|\s*x\s*(\d+)\s*\|\s*([NR])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|]*?))?\s*$/i);
+    if (m) { cur.items.push({ u: m[1], q: +m[2], rev: m[3].toUpperCase() === 'R', n: m[4] || '', r: m[5] || '' }); return; }
+    m = l.match(/^([A-Z]*\d+)(R?)\s*x\s*(\d+)/i);
+    if (m) cur.items.push({ u: m[1], rev: m[2].toUpperCase() === 'R', q: +m[3], n: '', r: '' });
+  });
+  return sets.filter(s => s.items.length);
+}
+/** copie già in vendita della stessa carta (stesso set, numero, variante, lingua) */
+function listedQty(setId, u, rev, lang) {
+  return Object.values(state.listings).filter(l => l.rev === rev && (l.lang || 'it') === lang && norm(l.u) === norm(u) &&
+    tcgIdFor(l.expName || state.cm[l.exp]?.name) === setId).reduce((a, l) => a + l.q, 0);
+}
+async function importCatalog(files) {
+  state.standby = state.standby || {};
+  let last = null;
+  const msg = [];
+  for (const f of files) {
+    const sets = parseCatalog(await f.text());
+    if (!sets.length) { alert(`"${f.name}" non è un catalogo dell'app (formato CARDSCANNER).`); continue; }
+    for (const S of sets) {
+      const sid = S.id && tcgSets.some(x => x.id === S.id) ? S.id : (tcgIdFor(S.name) || S.id);
+      if (!sid) { msg.push(`${S.name}: set non riconosciuto, saltato`); continue; }
+      const sn = tcgSets.find(x => x.id === sid)?.name || S.name;
+      const old = Object.keys(state.standby).filter(k => state.standby[k].s === sid);
+      if (old.length && !confirm(`Il set "${sn}" ha già ${old.reduce((a, k) => a + state.standby[k].q, 0)} copie in Standby.\n\nSostituirle con il contenuto di "${f.name}"?`)) continue;
+      old.forEach(k => delete state.standby[k]);
+      const agg = {};
+      S.items.forEach(it => {
+        const k = sbKey(sid, it.u, it.rev, S.lang);
+        const x = agg[k] || (agg[k] = { s: sid, sn, u: it.u, rev: it.rev, lang: S.lang, q: 0, n: it.n, r: it.r, com: S.com || '', date: today(), file: f.name });
+        x.q += it.q;
+      });
+      let tot = 0, already = 0;
+      Object.entries(agg).forEach(([k, x]) => {
+        const inV = listedQty(sid, x.u, x.rev, x.lang);
+        const q = x.q - inV;
+        already += Math.min(inV, x.q);
+        if (q > 0) { x.q = q; state.standby[k] = x; tot += q; }
+      });
+      msg.push(`${sn}: ${tot} copie in Standby` + (already ? ` (${already} già in vendita, non aggiunte)` : ''));
+      last = sid;
+    }
+  }
+  save();
+  if (msg.length) toast(msg.join(' · '));
+  if (last) { selected = last; filter = 'all'; }
+  refresh();
+  updatePrices(false);
 }
 
 // ---------- backup automatico in una cartella del PC (es. dentro Google Drive o OneDrive) ----------
@@ -1252,7 +1415,7 @@ function bkDialog() {
         if (bkState !== 'ok') await bkResume();
         const s = JSON.parse(await (await (await bkDir.getFileHandle(BK_FILE)).getFile()).text());
         if (!s.listings) throw new Error('file non valido');
-        if (confirm(`Sostituire i dati attuali con il backup della cartella (${Object.keys(s.listings).length} righe in vendita, ${(s.sold || []).length} vendite)?`)) { state = Object.assign({ cm: {}, sold: [] }, s); save(); closeDlg(); refresh(); }
+        if (confirm(`Sostituire i dati attuali con il backup della cartella (${Object.keys(s.listings).length} righe in vendita, ${(s.sold || []).length} vendite)?`)) { state = Object.assign({ cm: {}, sold: [], standby: {} }, s); save(); closeDlg(); refresh(); }
       } catch (e) { alert('Non riesco a leggere il backup: ' + e.message); }
     };
   });
@@ -1279,12 +1442,16 @@ function refresh() {
 $('btnSale').onclick = () => $('fSale').click();
 $('fSale').onchange = e => { importSales([...e.target.files]); e.target.value = ''; };
 $('btnSold').onclick = () => { selected = '__sales'; renderSets(); renderSet(); };
-$('btnRev').onclick = () => { selected = '__prices'; renderSets(); renderSet(); };
+$('btnCat').onclick = () => $('fCat').click();
+$('fCat').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) importCatalog(fs); };
+$('btnUpd').onclick = async () => { const n = await updatePrices(true); toast(n ? `Prezzi aggiornati: ${n} carte con variazione` : 'Prezzi aggiornati: nessuna variazione'); };
 $('btnBk').onclick = bkDialog;
 $('btnMore').onclick = () => {
   const all = Object.values(state.cm).flatMap(e => Object.values(e.cards));
   openDlg(`<h3>Altro</h3>
   <p class="row"><button id="bBackup">💾 Scarica backup</button><button id="bRestore">↩ Ripristina backup</button><button id="bWipe">🗑 Svuota carte in vendita</button></p>
+  <p class="row"><button id="bPg">📂 Carica Price Guide di Cardmarket</button><span class="small">${state.pg ? `caricata il ${fmtDT(state.pg.at)}` : 'non caricata'} · ${state.pgAuto ? 'si scarica da sola ✔' : 'il browser non la scarica da solo: uso TCGdex'}</span></p>
+  <p class="small">La Price Guide è facoltativa: se c'è, abbina i prezzi alla carta esatta di Cardmarket. Si scarica dalla <a href="${PG_PAGE}" target="_blank" rel="noreferrer">pagina Price Guide</a> (file Pokémon).</p>
   <p class="small">Controllo: ${tcgSets.length} set da TCGdex · ${all.length} carte dalle pagine Cardmarket · ${all.filter(c => c.i).length} con link immagine Cardmarket · ${all.filter(c => c.m != null).length} con il tuo prezzo attuale.</p>
   <p class="small">I dati sono salvati in questo browser. Attiva il <b>💾 Backup automatico</b> (pulsante in alto) oppure scarica un backup ogni tanto: se pulisci i dati di Chrome o cambi PC, lo ripristini da qui.</p>
   <p class="small">Pulsante per Cardmarket: <a href="../cardmarket/">pagina di installazione</a>.</p>
@@ -1297,22 +1464,28 @@ $('btnMore').onclick = () => {
       a.click();
     };
     $('bRestore').onclick = () => $('fRestore').click();
-    $('bWipe').onclick = () => { if (confirm('Cancellare tutte le carte in vendita e le vendite? Fai prima un backup.')) { state = { cm: state.cm, listings: {}, sold: [] }; save(); closeDlg(); refresh(); } };
+    $('bPg').onclick = () => $('fPg').click();
+    $('bWipe').onclick = () => { if (confirm('Cancellare tutte le carte in vendita e le vendite? Fai prima un backup.')) { state = { cm: state.cm, listings: {}, sold: [], standby: state.standby || {} }; save(); closeDlg(); refresh(); } };
   });
 };
 $('fRestore').onchange = async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
-  try { const s = JSON.parse(await f.text()); if (!s.listings) throw 0; if (confirm('Sostituire i dati attuali con questo backup?')) { state = Object.assign({ cm: {}, sold: [] }, s); save(); closeDlg(); refresh(); } }
+  try { const s = JSON.parse(await f.text()); if (!s.listings) throw 0; if (confirm('Sostituire i dati attuali con questo backup?')) { state = Object.assign({ cm: {}, sold: [], standby: {} }, s); save(); closeDlg(); refresh(); } }
   catch (err) { alert('Backup non valido.'); }
 };
 document.addEventListener('dragover', e => e.preventDefault());
-document.addEventListener('drop', e => {
+document.addEventListener('drop', async e => {
   e.preventDefault();
   const fs = [...e.dataTransfer.files];
-  const pgF = fs.find(f => /price_?guide|\.json$/i.test(f.name));
-  if (pgF && /price_?guide/i.test(pgF.name)) { pgFile(pgF); return; }
-  if (fs.length) importSales(fs);
+  const pgF = fs.find(f => /price_?guide/i.test(f.name));
+  if (pgF) { pgFile(pgF); return; }
+  // file .txt dell'app → Standby; il resto (PDF ordini ecc.) → vendite
+  const cat = [];
+  for (const f of fs) if (/\.(txt|html?)$/i.test(f.name) && isCatalogTxt(await f.text())) cat.push(f);
+  if (cat.length) importCatalog(cat);
+  const rest = fs.filter(f => !cat.includes(f));
+  if (rest.length) importSales(rest);
 });
 $('fPg').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) pgFile(f); };
 window.addEventListener('hashchange', () => { const name = importFromHash(); if (name) selected = tcgIdFor(name) || selected; refresh(); });
@@ -1325,6 +1498,7 @@ window.addEventListener('hashchange', () => { const name = importFromHash(); if 
   selected = (arrived && tcgIdFor(arrived)) || Object.keys(bySet).sort((a, b) => bySet[b].length - bySet[a].length)[0] || (tcgSets[0] && tcgSets[0].id) || null;
   refresh();
   updatePrices(false); // aggiorna da solo i prezzi più vecchi di 12 ore
+  setInterval(() => updatePrices(false), 3600e3); // e ricontrolla ogni ora se la pagina resta aperta
 })();
 </script>
 </body>

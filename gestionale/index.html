@@ -122,6 +122,11 @@ main{flex:1;overflow:auto;padding:22px 28px 70px}
 .chip i{font-style:normal;color:var(--mut);font-weight:400;margin-left:4px}
 .chip.on{background:var(--navy);border-color:var(--navy);color:#fff}.chip.on i{color:#c9d6ef}
 .toolbar input[type=search]{min-width:220px}
+.tb2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px;gap:16px;margin-top:-6px}
+.tb2 label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--mut);font-weight:600}
+.tb2 select,.tb2 input{padding:5px 8px;font-size:13.5px;width:auto;min-width:0}.tb2 input[type=number]{width:72px}
+.tb2 #cfInfo{margin-left:auto;font-weight:700;color:var(--navy)}
+button.lnk{border:0!important;background:none!important;color:var(--navy)!important;text-decoration:underline;padding:2px 4px!important;font-size:13px}
 details.menu{position:relative}
 details.menu summary{list-style:none;cursor:pointer;padding:7px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;font-weight:600;color:var(--navy)}
 details.menu summary::-webkit-details-marker{display:none}
@@ -458,6 +463,7 @@ async function loadRarities(setId, cards) {
     }
   };
   await Promise.all([1, 2, 3, 4, 5, 6].map(worker));
+  if (rarJob === job) { cfRarOptions(); if (cf.rar) applyCardFilter(); }
   try { localStorage.setItem(RKEY(setId), JSON.stringify(cache)); } catch (e) {}
 }
 
@@ -580,6 +586,8 @@ function nextImg(im) {
 
 // ---------- set aperto: tutte le carte, fuoriserie comprese ----------
 let filter = 'all', filterText = '', current = null;
+// filtri in più della griglia: rarità, prezzo da/a, copie minime, ordinamento
+const cf = { rar: '', pmin: '', pmax: '', q: '', sort: 'num' };
 // selezione di più carte nel set (per togliere dalla vendita, riportare in Standby…)
 let selMode = false, selSet = null;
 const sel = new Set();
@@ -670,6 +678,12 @@ async function renderSet() {
       <button id="sDone" class="pri">Fine</button></div>` : ''}
     <div class="toolbar"><div class="chips" id="fChips">${chip('all', 'Tutte')}${chip('yes', 'In vendita')}${cntF.sb ? chip('sb', 'Standby') : ''}${cntF.var ? chip('var', 'Variazioni') : ''}${cntF.rev ? chip('rev', 'Reverse') : ''}${chip('no', 'Mancanti')}</div>
       <input type="search" id="qCard" placeholder="Cerca per nome o numero…" style="margin-left:auto"></div>
+    <div class="toolbar tb2" id="cfBar">
+      <label>Rarità <select id="cfRar"><option value="">Tutte</option></select></label>
+      <label title="Il tuo prezzo; per le carte in Standby il Consigliato">Prezzo <input type="number" id="cfMin" min="0" step="0.01" placeholder="da" value="${esc(cf.pmin)}"> – <input type="number" id="cfMax" min="0" step="0.01" placeholder="a" value="${esc(cf.pmax)}"> €</label>
+      <label>Copie <select id="cfQ"><option value="">Tutte</option><option value="1">1 sola</option><option value="2">2 o più</option><option value="4">4 o più</option><option value="10">10 o più</option></select></label>
+      <label>Ordina per <select id="cfSort"><option value="num">Numero</option><option value="name">Nome A–Z</option><option value="pd">Prezzo più alto</option><option value="pa">Prezzo più basso</option><option value="val">Valore più alto</option><option value="q">Più copie</option><option value="days">In vendita da più tempo</option></select></label>
+      <span class="small" id="cfInfo"></span><button class="lnk" id="cfReset">Azzera filtri</button></div>
     <div class="grid">`;
   for (const c of cards) {
     const n0 = norm(c.localId);
@@ -686,10 +700,15 @@ async function renderSet() {
     const isExtra = official && /^\d+$/.test(c.localId) && +c.localId > official;
     const cls = ls.length ? 'yes' : sq ? 'sb' : 'no';
     const sbM2 = sbM;
+    // valori per filtri e ordinamento
+    const qAll = ls.reduce((a, [, l]) => a + l.q, 0) + sq;
+    const pF = prices.length ? prices[prices.length - 1] : (sb.map(([k, x]) => { const M = sbmOf(k); return M && !(x.rev && !M.rv) ? consOf(M)?.v : null; }).filter(v => v != null).sort((a, b) => b - a)[0] ?? '');
+    const valF = ls.reduce((a, [, l]) => a + (l.price || 0) * l.q, 0);
+    const d0 = ls.map(([, l]) => l.date).filter(Boolean).sort()[0];
     const band = [];
     if (ls.length) band.push(`<div class="band b-ok"><span class="bl"><span>In vendita</span><span>${n ? '×' + n : ''}${r ? ` <span class="r">R ×${r}</span>` : ''}</span></span></div>`);
     if (sq) band.push(`<div class="band b-sb"><span class="bl"><span>Standby</span><span>${sqN ? 'N ×' + sqN : ''}${sqR ? ` <span class="r">R ×${sqR}</span>` : ''}</span></span></div>`);
-    h += `<div class="card ${cls}${r ? ' r' : ''}${sq ? ' hassb' : ''}${vv.length ? ' vr' : ''}${selMode && sel.has(n0) ? ' sel' : ''}" data-n="${esc(n0)}" data-s="${esc(`${c.name} ${c.localId} ${n0} ${rar} ${cm?.n || ''}`.toLowerCase())}">
+    h += `<div class="card ${cls}${r ? ' r' : ''}${sq ? ' hassb' : ''}${vv.length ? ' vr' : ''}${selMode && sel.has(n0) ? ' sel' : ''}" data-n="${esc(n0)}" data-p="${pF}" data-q="${qAll}" data-v="${valF}" data-d="${d0 ? daysAgo(d0) : ''}" data-nm="${esc(c.name)}" data-s="${esc(`${c.name} ${c.localId} ${n0} ${rar} ${cm?.n || ''}`.toLowerCase())}">
       <div class="im"><span>${esc(c.localId)}</span>${imgTag(imgSrcs(c.image, cm, c.localId), true)}</div>
       ${vv.length ? `<span class="vtag" title="Prezzo di mercato cambiato">${vv.map(v => (v.d > 0 ? '▲ ' : '▼ ') + eur(Math.abs(v.d))).join(' ')}</span>` : ''}
       ${band.join('')}
@@ -701,6 +720,13 @@ async function renderSet() {
   main.innerHTML = h + '</div>';
   $('qCard').value = filterText;
   $('qCard').oninput = () => { filterText = $('qCard').value; applyCardFilter(); };
+  $('cfQ').value = cf.q; $('cfSort').value = cf.sort; cfRarOptions();
+  $('cfRar').onfocus = cfRarOptions; $('cfRar').onmousedown = cfRarOptions;
+  const cfUpd = () => { cf.rar = $('cfRar').value; cf.pmin = $('cfMin').value; cf.pmax = $('cfMax').value; cf.q = $('cfQ').value; const so = cf.sort !== $('cfSort').value; cf.sort = $('cfSort').value; if (so) cfSort(); applyCardFilter(); };
+  ['cfRar', 'cfQ', 'cfSort'].forEach(id => $(id).onchange = cfUpd);
+  ['cfMin', 'cfMax'].forEach(id => $(id).oninput = cfUpd);
+  $('cfReset').onclick = () => { Object.assign(cf, { rar: '', pmin: '', pmax: '', q: '', sort: 'num' }); filter = 'all'; filterText = ''; renderSet(); };
+  cfSort();
   $('fChips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; filter = b.dataset.f; $('fChips').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); applyCardFilter(); };
   if ($('bPdf2')) $('bPdf2').onclick = () => pdfVariations(vars, setName);
   if ($('bBulk')) $('bBulk').onclick = () => window.open(CMBULK + encodeURIComponent(cmCat.id), '_blank');
@@ -999,6 +1025,26 @@ function bulkAction(kind, sid, setName) {
   });
 }
 
+/** rarità presenti nella griglia (si aggiornano mentre arrivano da TCGdex) */
+function cfRarOptions() {
+  const sel = $('cfRar'); if (!sel) return;
+  const cnt = {};
+  document.querySelectorAll('.grid .card .rar').forEach(r => { const t = r.textContent.trim(); if (t) cnt[t] = (cnt[t] || 0) + 1; });
+  const keys = Object.keys(cnt).sort((a, b) => a.localeCompare(b));
+  if (cf.rar && !keys.includes(cf.rar)) keys.unshift(cf.rar);
+  sel.innerHTML = '<option value="">Tutte</option>' + keys.map(k => `<option ${k === cf.rar ? 'selected' : ''} value="${esc(k)}">${esc(k)}${cnt[k] ? ` (${cnt[k]})` : ''}</option>`).join('');
+}
+/** riordina le carte della griglia */
+function cfSort() {
+  const g = document.querySelector('.grid'); if (!g) return;
+  const els = [...g.querySelectorAll('.card')];
+  const num = el => { const n = parseInt(el.dataset.n, 10); return isNaN(n) ? 99999 : n; };
+  const v = (el, k) => el.dataset[k] === '' ? null : +el.dataset[k];
+  const desc = k => (a, b) => (v(b, k) ?? -1) - (v(a, k) ?? -1) || num(a) - num(b);
+  const cmp = { num: (a, b) => num(a) - num(b) || a.dataset.n.localeCompare(b.dataset.n), name: (a, b) => a.dataset.nm.localeCompare(b.dataset.nm, 'it') || num(a) - num(b),
+    pd: desc('p'), pa: (a, b) => (v(a, 'p') ?? 1e9) - (v(b, 'p') ?? 1e9) || num(a) - num(b), val: desc('v'), q: desc('q'), days: desc('d') }[cf.sort] || ((a, b) => num(a) - num(b));
+  els.sort(cmp).forEach(el => g.appendChild(el));
+}
 function applyCardFilter() {
   const t = filterText.trim().toLowerCase();
   document.querySelectorAll('.card').forEach(el => {
@@ -1008,8 +1054,17 @@ function applyCardFilter() {
     if (filter === 'var') ok = ok && el.classList.contains('vr');
     if (filter === 'no') ok = ok && el.classList.contains('no');
     if (filter === 'rev') ok = ok && el.classList.contains('r');
+    if (cf.rar) ok = ok && (el.querySelector('.rar')?.textContent.trim() || '') === cf.rar;
+    const pr = el.dataset.p === '' || el.dataset.p == null ? null : +el.dataset.p;
+    const mn = parseFloat(String(cf.pmin).replace(',', '.')), mx = parseFloat(String(cf.pmax).replace(',', '.'));
+    if (!isNaN(mn)) ok = ok && pr != null && pr >= mn - 1e-9;
+    if (!isNaN(mx)) ok = ok && pr != null && pr <= mx + 1e-9;
+    if (cf.q) ok = ok && (cf.q === '1' ? +el.dataset.q === 1 : +el.dataset.q >= +cf.q);
     el.classList.toggle('hide', !ok);
   });
+  const all = document.querySelectorAll('.grid .card'), vis = document.querySelectorAll('.grid .card:not(.hide)');
+  const active = cf.rar || cf.pmin !== '' || cf.pmax !== '' || cf.q || cf.sort !== 'num';
+  if ($('cfInfo')) { $('cfInfo').textContent = vis.length < all.length ? `${vis.length} di ${all.length} carte` : ''; $('cfReset').style.display = active || filter !== 'all' || filterText ? '' : 'none'; }
 }
 // dettaglio carta
 $('main').addEventListener('click', e => {

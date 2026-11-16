@@ -64,6 +64,8 @@ h1{margin:0;font-size:17px;letter-spacing:-.005em;color:#fff;white-space:nowrap}
 .tact{margin-left:auto;display:flex;gap:6px;align-items:center}
 .tm summary{background:rgba(255,255,255,.1)!important;border:1px solid rgba(255,255,255,.18)!important;color:#fff!important;padding:7px 13px!important}
 .tm summary:hover,.tm[open] summary{background:rgba(255,255,255,.2)!important}
+.undo.off summary{opacity:.45}.undo .mn{min-width:380px;max-height:70vh;overflow:auto;right:0;left:auto}
+.undo .mn button small{white-space:normal}.undo .mh{font-size:11.5px;font-weight:700;color:var(--mut);padding:8px 12px 2px;border-top:1px solid var(--line)}
 .tm .car{opacity:.7;font-size:11px;margin-left:2px}
 .tm .mn{min-width:300px}
 .tm .mn button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:9px 12px;color:var(--fg)}
@@ -293,6 +295,7 @@ dialog.cdw{width:min(1040px,95vw);padding:0}
       <button id="btnUpd"><b>Aggiorna prezzi di mercato</b><small id="updInfo">Tutto il catalogo, da TCGdex</small></button>
       <button id="btnEditCM"><b>Cambia prezzi su Cardmarket</b><small>Tutti i set, es. da Tendenza a prezzo minimo</small></button>
     </div></details>
+    <details class="menu tm undo" id="undoMenu"><summary id="undoSum">↶ <span class="car">▾</span></summary><div class="mn" id="undoList"></div></details>
     <a class="tlink" href="https://www.cardmarket.com/it/Pokemon" target="cardmarketPokemon" rel="noreferrer" title="Apri Cardmarket (Pokémon)">Cardmarket <span class="car">↗</span></a>
     <button id="btnBk" class="ticon" title="Backup automatico">💾</button>
     <button id="btnMore" class="ticon" title="Impostazioni">⚙</button>
@@ -343,6 +346,7 @@ if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.clo
 // listings[pid|N/R|lang] = {p, exp, expName, u, rev, lang, q, price, date, com}
 // sold = [...]
 let state = load();
+// (annulla) stato di partenza = quello salvato nel browser
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.listings) return Object.assign({ cm: {}, sold: [], standby: {} }, s); } catch (e) {}
   const s = { cm: {}, listings: {}, sold: [], standby: {} };
@@ -360,7 +364,7 @@ function load() {
   } catch (e) {}
   return s;
 }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { alert('Il browser non riesce a salvare: fai un Backup da "Altro".'); } bkSchedule(); ghSchedule(); }
+function save() { const js = JSON.stringify(state); undoRecord(js); try { localStorage.setItem(KEY, js); } catch (e) { alert('Il browser non riesce a salvare: fai un Backup da "Altro".'); } bkSchedule(); ghSchedule(); }
 const lkey = (p, rev, lang) => `${p}|${rev ? 'R' : 'N'}|${lang || 'it'}`;
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 4000); }
 
@@ -935,6 +939,7 @@ const LOGT = { standby: '📥 Standby', vendita: '🛒 In vendita', venduta: '�
 function logOp(t, set, txt, q) {
   const L = state.log || (state.log = []);
   L.push({ at: new Date().toISOString(), t, set: set || '', txt, q: q ?? null });
+  undoNote(t, set, txt);
   if (L.length > 3000) L.splice(0, L.length - 3000);
 }
 const cardTxt = l => `${l.u} ${info(l).name || l.n || ''}${l.rev ? ' Reverse' : ''}`.trim();
@@ -960,6 +965,102 @@ function renderLog() {
     [['Data e ora', 'Operazione', 'Set', 'Dettagli', 'Copie']].concat(list.map(x => [new Date(x.at).toLocaleString('it-IT'), (LOGT[x.t] || x.t).replace(/^\S+\s/, ''), x.set, x.txt, x.q ?? ''])));
 }
 
+// ---------- annulla / ripeti: ultime 20 operazioni, anche dopo aver chiuso il gestionale ----------
+// Ogni save() che segue un'operazione dell'utente (registrata con logOp) diventa un punto di annullamento:
+// tengo lo stato di PRIMA. Prezzi di mercato, storico prezzi, catalogo e registro non si annullano.
+const UNDO_MAX = 20, UNDO_T = new Set(['standby', 'vendita', 'venduta', 'prezzo', 'quantita', 'tolta', 'riportata', 'dati']);
+const UNDO_KEEP = ['log', 'market', 'sbMarket', 'pg', 'hist', 'cm', 'revAt', 'pgAuto'];
+let undoStack = [], redoStack = [], undoLast = null, undoPending = [], undoBusy = false, undoSaveT = null;
+function undoNote(t, set, txt) { if (!undoBusy) undoPending.push({ t, set, txt }); }
+function undoRecord(js) {
+  const ops = undoPending.filter(o => UNDO_T.has(o.t)); undoPending = [];
+  if (undoLast != null && js !== undoLast && ops.length && !undoBusy) {
+    const sets = [...new Set(ops.map(o => o.set).filter(Boolean))];
+    const label = ops.length === 1 ? ops[0].txt : `${ops.length} operazioni: ${ops[0].txt}`;
+    undoStack.push({ at: new Date().toISOString(), label: label.length > 140 ? label.slice(0, 137) + '…' : label, set: sets.join(', '), types: [...new Set(ops.map(o => o.t))], before: undoLast });
+    if (undoStack.length > UNDO_MAX) undoStack.splice(0, undoStack.length - UNDO_MAX);
+    redoStack = [];
+    undoPersist();
+  }
+  undoLast = js;
+  undoShow();
+}
+function undoApply(js) {
+  const s = JSON.parse(js), cur = state;
+  const n = Object.assign({ cm: {}, sold: [], standby: {} }, s);
+  UNDO_KEEP.forEach(k => { if (cur[k] !== undefined) n[k] = cur[k]; });
+  n.market = Object.assign({}, s.market || {}, cur.market || {});
+  n.sbMarket = Object.assign({}, s.sbMarket || {}, cur.sbMarket || {});
+  state = n;
+}
+/** l'operazione ha toccato anche Cardmarket? (l'annullamento cambia solo il gestionale) */
+const undoCm = e => e.types.includes('vendita') || /script|Cardmarket/i.test(e.label);
+function undoDo(steps = 1) {
+  if (!undoStack.length) return;
+  let last = null;
+  undoBusy = true;
+  for (let i = 0; i < steps && undoStack.length; i++) {
+    const e = undoStack.pop();
+    const after = JSON.stringify(state);
+    undoApply(e.before);
+    redoStack.push(Object.assign({}, e, { after, before: undefined }));
+    logOp('dati', e.set, `Annullato: ${e.label}`);
+    last = e;
+    if (undoCm(e)) last.cm = true;
+  }
+  save(); undoBusy = false; undoPersist(); refresh();
+  toast(`↶ Annullato: ${last.label}${steps > 1 ? ` (e altre ${steps - 1})` : ''}`);
+  if (last.cm || redoStack.slice(-steps).some(undoCm)) alert('Annullato nel gestionale.\n\nAttenzione: su Cardmarket non cambia nulla. Se l\'operazione aveva messo in vendita carte o cambiato prezzi su Cardmarket, lì restano come sono: sistemale a mano o con lo script.');
+}
+function redoDo() {
+  if (!redoStack.length) return;
+  const e = redoStack.pop();
+  undoBusy = true;
+  const before = JSON.stringify(state);
+  undoApply(e.after);
+  undoStack.push(Object.assign({}, e, { before, after: undefined }));
+  logOp('dati', e.set, `Ripetuto: ${e.label}`);
+  save(); undoBusy = false; undoPersist(); refresh();
+  toast(`↷ Ripetuto: ${e.label}`);
+}
+function undoDb(op, val) {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('gestionaleUndo', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('h');
+    r.onerror = () => rej(r.error);
+    r.onsuccess = () => {
+      const st = r.result.transaction('h', op === 'get' ? 'readonly' : 'readwrite').objectStore('h');
+      const x = op === 'get' ? st.get('stack') : st.put(val, 'stack');
+      x.onsuccess = () => res(x.result); x.onerror = () => rej(x.error);
+    };
+  });
+}
+function undoPersist() { clearTimeout(undoSaveT); undoSaveT = setTimeout(() => undoDb('put', { undo: undoStack, redo: redoStack }).catch(() => {}), 800); }
+async function undoInit() {
+  try {
+    const d = await undoDb('get');
+    if (d && Array.isArray(d.undo)) { undoStack = d.undo.concat(undoStack).slice(-UNDO_MAX); if (!redoStack.length) redoStack = d.redo || []; }
+  } catch (e) {}
+  undoShow();
+}
+function undoShow() {
+  const m = $('undoMenu'); if (!m) return;
+  const u = undoStack, r = redoStack;
+  m.classList.toggle('off', !u.length && !r.length);
+  $('undoSum').title = u.length ? 'Annulla: ' + u[u.length - 1].label : 'Niente da annullare';
+  const when = d => new Date(d).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  $('undoList').innerHTML = (u.length ? `<button data-u="1"><b>↶ Annulla l'ultima</b><small>${esc(u[u.length - 1].label)} · ${when(u[u.length - 1].at)}</small></button>` : '<div class="small" style="padding:8px 12px">Niente da annullare.</div>')
+    + (r.length ? `<button data-r="1"><b>↷ Ripeti</b><small>${esc(r[r.length - 1].label)}</small></button>` : '')
+    + (u.length > 1 ? `<div class="mh">Torna a prima di…</div>` + u.slice(0, -1).map((e, i) => [e, u.length - i]).reverse().map(([e, steps]) =>
+      `<button data-u="${steps}"><b>${esc(e.label)}</b><small>${when(e.at)}${e.set ? ' · ' + esc(e.set) : ''} · annulla ${steps} operazioni</small></button>`).join('') : '')
+    + '<div class="small" style="padding:8px 12px;border-top:1px solid var(--line)">Annulla cambia solo il gestionale, non Cardmarket. Anche Ctrl+Z / Ctrl+Y.</div>';
+}
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') || $('dlg').open) return;
+  if (e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undoDo(1); }
+  else if (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey)) { e.preventDefault(); redoDo(); }
+});
+
 // ---------- azioni su più carte del set + annulla ----------
 let undoSnap = null;
 function snapshot(label) {
@@ -970,12 +1071,7 @@ function showUndo(msg) {
   const b = document.createElement('div');
   b.className = 'undobar';
   b.innerHTML = `<span>${esc(msg)}</span><button>↶ Annulla</button>`;
-  b.querySelector('button').onclick = () => {
-    if (!undoSnap) return;
-    Object.assign(state, JSON.parse(undoSnap.d));
-    logOp('dati', '', `Annullata l'ultima operazione (${undoSnap.label})`);
-    undoSnap = null; save(); refresh(); b.remove(); toast('Annullato: tutto come prima');
-  };
+  b.querySelector('button').onclick = () => { b.remove(); undoDo(1); };
   document.body.appendChild(b);
   setTimeout(() => b.remove(), 60000);
 }
@@ -1339,6 +1435,68 @@ function delta(cur, prev, invert) {
   const good = invert ? p < 0 : p > 0;
   return `<span class="delta ${good ? 'pos' : 'neg'}" title="periodo precedente: ${typeof prev === 'number' ? prev.toFixed(2).replace('.', ',') : prev}">${p > 0 ? '▲' : '▼'} ${Math.abs(p) > 999 ? '>999' : Math.abs(p)}%</span>`;
 }
+/** copia personale dell'ordine in PDF: ricostruita con i dati salvati nel gestionale (non è il documento di Cardmarket) */
+async function pdfOrder(o) {
+  let JsPDF;
+  try { JsPDF = await pdfLib(); } catch (e) { alert('Non riesco a creare il PDF (serve internet): ' + e.message); return; }
+  const D = (o.id && (state.orders || {})[o.id]) || {};
+  const setOfLine = (num, rev) => { const s = o.lines.find(l => norm(l.num) === norm(num) && !!l.rev === !!rev) || o.lines.find(l => norm(l.num) === norm(num)); return s ? setOf(s) : ''; };
+  const rows = D.items && D.items.length
+    ? D.items.map(it => ({ q: it.qty, name: it.name, num: it.num, set: setOfLine(it.num, it.rev) || it.code || '', lang: (it.lang || '').toUpperCase(), cond: it.cond || '', rev: it.rev, price: it.price }))
+    : o.lines.map(s => ({ q: s.q, name: s.name, num: s.num, set: setOf(s), lang: (s.lang || '').toUpperCase(), cond: '', rev: s.rev, price: s.price }));
+  const X = D.x || {}, nArt = rows.reduce((a, r) => a + r.q, 0), val = rows.reduce((a, r) => a + (r.price || 0) * r.q, 0);
+  const doc = new JsPDF({ unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  const navy = [29, 61, 122], mut = [104, 114, 134];
+  // intestazione
+  doc.setFillColor(...navy); doc.rect(0, 0, W, 26, 'F');
+  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(19);
+  doc.text(pdfT(o.id ? `Ordine #${o.id}` : 'Vendita'), 14, 16);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  doc.text(pdfT('Copia personale'), W - 14, 12, { align: 'right' });
+  doc.text(pdfT('Gestionale carte'), W - 14, 18, { align: 'right' });
+  // dati dell'ordine
+  doc.setTextColor(24, 34, 58);
+  const info = [['Canale', o.ch || 'Cardmarket'], ['Acquirente', o.buyer || '—'], ['Pagato il', new Date(o.date).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })],
+    ['Articoli', `${nArt} ${nArt === 1 ? 'carta' : 'carte'} (${rows.length} ${rows.length === 1 ? 'riga' : 'righe'})`]];
+  if (X.method) info.push(['Spedizione', X.method]);
+  let y = 36;
+  info.forEach(([k, v], i) => {
+    const x = i % 2 ? W / 2 + 4 : 14;
+    if (i % 2 === 0 && i) y += 11;
+    doc.setFontSize(8.5); doc.setTextColor(...mut); doc.text(pdfT(k.toUpperCase()), x, y);
+    doc.setFontSize(11); doc.setTextColor(24, 34, 58); doc.setFont('helvetica', 'bold'); doc.text(pdfT(String(v)), x, y + 5.2, { maxWidth: W / 2 - 20 }); doc.setFont('helvetica', 'normal');
+  });
+  // articoli
+  doc.autoTable({
+    startY: y + 13, margin: { left: 14, right: 14 }, theme: 'plain',
+    styles: { fontSize: 9, cellPadding: { top: 2.2, bottom: 2.2, left: 2, right: 2 }, textColor: [24, 34, 58], lineColor: [227, 231, 238], lineWidth: { bottom: 0.2 } },
+    headStyles: { fillColor: [243, 245, 248], textColor: mut, fontStyle: 'bold', fontSize: 8 },
+    head: [['Qtà', 'Carta', 'N°', 'Set', 'Lingua', 'Cond.', 'Variante', 'Prezzo', 'Totale']].map(r => r.map(pdfT)),
+    body: rows.map(r => [r.q, r.name, r.num, r.set, r.lang, r.cond, r.rev ? 'Reverse Holo' : 'Normale', eurP(r.price), eurP((r.price || 0) * r.q)].map(v => pdfT(String(v ?? '')))),
+    columnStyles: { 0: { halign: 'right', cellWidth: 10 }, 1: { fontStyle: 'bold' }, 2: { cellWidth: 13 }, 4: { halign: 'center', cellWidth: 14 }, 5: { halign: 'center', cellWidth: 13 }, 7: { halign: 'right', cellWidth: 18 }, 8: { halign: 'right', cellWidth: 20, fontStyle: 'bold' } },
+    didParseCell: d => { if (d.section === 'body' && d.column.index === 6 && rows[d.row.index].rev) d.cell.styles.textColor = [124, 77, 204]; }
+  });
+  // totali
+  let ty = doc.lastAutoTable.finalY + 8;
+  if (ty > H - 50) { doc.addPage(); ty = 20; }
+  const tot = [['Valore articoli', eurP(val)]];
+  if (X.ship != null) tot.push(['Spedizione', eurP(X.ship)]);
+  const grand = X.tot != null ? X.tot : val + (X.ship || 0);
+  doc.setFontSize(10);
+  tot.forEach(([k, v]) => { doc.setTextColor(...mut); doc.text(pdfT(k), W - 64, ty); doc.setTextColor(24, 34, 58); doc.text(pdfT(v), W - 14, ty, { align: 'right' }); ty += 6; });
+  doc.setDrawColor(...navy); doc.setLineWidth(0.5); doc.line(W - 64, ty - 2.5, W - 14, ty - 2.5);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12.5); doc.text(pdfT('Totale'), W - 64, ty + 3.5); doc.text(pdfT(eurP(grand)), W - 14, ty + 3.5, { align: 'right' });
+  if (X.ship == null && X.tot == null) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...mut); doc.text(pdfT('Spedizione non indicata: totale dei soli articoli.'), W - 14, ty + 9, { align: 'right' }); }
+  // piè di pagina su ogni pagina
+  const n = doc.getNumberOfPages();
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...mut);
+    doc.text(pdfT(`Copia creata dal Gestionale carte il ${new Date().toLocaleString('it-IT')} con i dati dell'ordine${D.file ? ' (' + D.file + ')' : ''}. Non è il documento originale di Cardmarket.`), 14, H - 10, { maxWidth: W - 45 });
+    doc.text(`${i}/${n}`, W - 14, H - 10, { align: 'right' });
+  }
+  doc.save(`Ordine_${o.id || dayKey(o.date)}_copia.pdf`);
+}
 function renderSales() {
   // vendite registrate prima che salvassi il numero d'ordine: lo ricavo dal riferimento "Ordine #…"
   state.sold.forEach(x => { if (!x.order) { const m = String(x.file || '').match(/Ordine #(\d+)/); if (m) x.order = m[1]; } });
@@ -1412,10 +1570,11 @@ function renderSales() {
     <div class="panel"><h3>Carte più vendute</h3>${bars(byCard, v => v + ' copie')}</div>
     <div class="panel"><h3>Migliori acquirenti</h3>${byBuyer.length ? bars(byBuyer, eur) : '<p class="small">Gli acquirenti arrivano dagli ordini Cardmarket caricati.</p>'}</div>
     <div class="panel wide"><h3>Ordini (${olist.length})</h3>
-      <table class="otable"><tr><th>Data</th><th>Ordine</th><th>Canale</th><th>Acquirente</th><th>Copie</th><th>Totale</th></tr>
+      <table class="otable"><tr><th>Data</th><th>Ordine</th><th>Canale</th><th>Acquirente</th><th>Copie</th><th>Totale</th><th></th></tr>
       ${olist.map(o => `<tr class="ord" data-o="${esc(o.k)}"><td>${fmtD(o.date)}</td><td>${o.id ? '#' + esc(o.id) : '<span class="small">vendite a mano</span>'}</td><td>${chTag(o.ch)}</td>
-        <td>${esc(o.buyer) || '<span class="small">—</span>'}</td><td>${o.q}</td><td><b>${eur(o.v)}</b></td></tr>
-        <tr class="det hide" data-d="${esc(o.k)}"><td colspan="6"><table>${o.lines.map(s => `<tr><td>${s.q}×</td><td>${esc(s.num)} ${esc(s.name)}${s.rev ? ' <b style="color:var(--rev)">R</b>' : ''}</td>
+        <td>${esc(o.buyer) || '<span class="small">—</span>'}</td><td>${o.q}</td><td><b>${eur(o.v)}</b></td>
+        <td style="text-align:right"><button class="sm" data-pdf="${esc(o.k)}" title="Copia personale dell'ordine in PDF, creata dal gestionale">📄 PDF</button></td></tr>
+        <tr class="det hide" data-d="${esc(o.k)}"><td colspan="7"><table>${o.lines.map(s => `<tr><td>${s.q}×</td><td>${esc(s.num)} ${esc(s.name)}${s.rev ? ' <b style="color:var(--rev)">R</b>' : ''}</td>
           <td>${esc(setOf(s))}</td><td>${eur(s.price)}</td><td>${s.listed ? Math.round((new Date(s.date) - new Date(s.listed)) / DAY) + ' gg in vendita' : ''}</td>
           <td><button class="sm" data-undo="${s.i}">annulla vendita</button></td></tr>`).join('')}</table></td></tr>`).join('')}</table></div>
   </div>`}`;
@@ -1427,6 +1586,7 @@ function renderSales() {
   $('fCh').onchange = () => { salesF.ch = $('fCh').value; renderSales(); };
   $('fSetS').onchange = () => { salesF.set = $('fSetS').value; renderSales(); };
   $('fQ').oninput = () => { salesF.q = $('fQ').value; clearTimeout(renderSales.t); renderSales.t = setTimeout(() => { renderSales(); const q = $('fQ'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 300); };
+  document.querySelectorAll('[data-pdf]').forEach(bt => bt.onclick = e => { e.stopPropagation(); pdfOrder(orders[bt.dataset.pdf]); });
   document.querySelectorAll('tr.ord').forEach(tr => tr.onclick = () => document.querySelector(`tr[data-d="${CSS.escape(tr.dataset.o)}"]`).classList.toggle('hide'));
   document.querySelectorAll('[data-undo]').forEach(bt => bt.onclick = e => {
     e.stopPropagation();
@@ -1436,6 +1596,7 @@ function renderSales() {
     const L = state.listings[k] || (state.listings[k] = { p: s.p, exp: s.exp, expName: s.expName, u: s.num, rev: s.rev, lang: s.lang, q: 0, price: s.price, date: s.listed || s.date, com: '' });
     L.q += s.q;
     state.sold.splice(+bt.dataset.undo, 1);
+    logOp('riportata', s.expName || '', `Annullata la vendita di ${s.num} ${s.name}${s.rev ? ' Reverse' : ''} ×${s.q}${s.order ? ' (ordine #' + s.order + ')' : ''}: torna in vendita`, s.q);
     save(); refresh();
   });
   $('xSales').onclick = () => downloadCsv(`vendite-${dayKey(a)}_${dayKey(+b - 1)}.csv`,
@@ -1519,7 +1680,11 @@ function parseOrder(text) {
   const d = text.match(/Pagato:\s*(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?/i) || text.match(/Inviato:\s*(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?/i);
   const date = d ? new Date(+d[3], +d[2] - 1, +d[1], +(d[4] || 12), +(d[5] || 0)).toISOString() : today();
   const buyer = (text.match(/Acquirente\s*-\s*(\S+)/i) || [])[1] || '';
-  return { id, date, buyer, items };
+  const money = re => { const m = text.match(re); return m ? parseFloat(m[1].replace(/\./g, '').replace(',', '.')) : null; };
+  const x = { ship: money(/(?:Spese di spedizione|Costi? di spedizione|Spedizione)\s*:?\s*(\d{1,4}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)/i),
+    tot: money(/(?:Totale(?: ordine)?|Importo totale)\s*:?\s*(\d{1,5}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)/i),
+    method: ((text.match(/Metodo di spedizione\s*:?\s*([^\n]+)/i) || [])[1] || '').trim().slice(0, 80) };
+  return { id, date, buyer, items, x };
 }
 const setCode = l => state.cm[l.exp]?.cards?.[l.p]?.c || Object.values(state.cm[l.exp]?.cards || {}).find(c => c.c)?.c || '';
 function orderCandidates(it) {
@@ -1551,16 +1716,18 @@ function orderReview(o, file) {
     $('dClose').onclick = closeDlg;
     $('dApply').onclick = () => {
       const B = $('dlgBody');
-      let q = 0;
+      let q = 0; const sold = [];
       rows.forEach((r, i) => {
         const cb = B.querySelector(`[data-i="${i}"]`);
         if (!cb.checked || !r.cands.length) return;
         const c = r.cands[+B.querySelector(`[data-s="${i}"]`).value];
         const n0 = Math.max(1, +B.querySelector(`[data-q="${i}"]`).value || 1);
         sell(c.k, n0, 'Cardmarket', (o.id ? 'Ordine #' + o.id : file), r.price, o.date, { order: o.id, buyer: o.buyer });
-        q += n0;
+        q += n0; sold.push(`${r.num}${r.rev ? ' R' : ''} ${r.name} ×${n0}`);
       });
-      if (o.id) state.orders[o.id] = { at: today(), n: q };
+      if (o.id) state.orders[o.id] = { at: today(), n: q, date: o.date, buyer: o.buyer, file, x: o.x || {},
+        items: o.items.map(it => ({ qty: it.qty, name: it.name, num: it.num, lang: it.lang, cond: it.cond, code: it.code, rev: it.rev, price: it.price })) };
+      logOp('venduta', '', `Ordine ${o.id ? '#' + o.id : file}${o.buyer ? ' (' + o.buyer + ')' : ''}: ${sold.join(', ') || 'nessuna carta tolta'}`, q);
       save(); closeDlg(); refresh(); toast(`Ordine ${o.id ? '#' + o.id + ' ' : ''}registrato: tolte ${q} carte`);
     };
   });
@@ -2548,6 +2715,7 @@ $('btnUpd').onclick = async () => {
   if (r) toast(`Prezzi aggiornati su tutto il catalogo: ${r.tot} carte diverse (${r.copies} copie) · ` +
     Object.entries(r.bySet).map(([n, c]) => `${n} ${c}`).join(' · ') + ` · ${r.nNew ? r.nNew + ' con variazione' : 'nessuna variazione'}`);
 };
+$('undoList').onclick = e => { const b = e.target.closest('button'); if (!b) return; $('undoMenu').open = false; if (b.dataset.r) redoDo(); else undoDo(+b.dataset.u || 1); };
 $('btnBk').onclick = () => { if (bkState === 'paused' && !(gh && ghState === 'ok')) bkResume(); else goTab('__set'); };
 $('btnMore').onclick = () => goTab('__set');
 $('tabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) goTab(b.dataset.tab); };
@@ -2613,9 +2781,10 @@ function otherTab() {
     setTimeout(() => { try { window.close(); } catch (e) {} }, 1500);
     return;
   }
+  undoLast = JSON.stringify(state);
   const edited = importEditFromHash();
   const arrived = importFromHash();
-  bkInit();
+  bkInit(); undoInit();
   await loadSets();
   const bySet = listingsBySet();
   selected = (arrived && tcgIdFor(arrived)) || Object.keys(bySet).sort((a, b) => bySet[b].length - bySet[a].length)[0] || (tcgSets[0] && tcgSets[0].id) || null;

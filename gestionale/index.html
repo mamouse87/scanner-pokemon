@@ -23,6 +23,9 @@ h1{margin:0;font-size:17px;letter-spacing:-.005em;color:#fff;white-space:nowrap}
 .tabs .tb:hover{color:var(--navy);background:none}
 .tabs .tb.on{color:var(--navy);border-bottom-color:var(--navy)}
 .tabs .tb i{font-style:normal;font-size:11.5px;font-weight:700;background:#e3f3ea;color:var(--ok);border-radius:99px;padding:1px 7px;margin-left:6px}
+.ghf{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:8px 0}
+.ghf label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:3px}.ghf input{width:250px}
+.ghhelp{margin-top:6px}.ghhelp summary{cursor:pointer;font-weight:700;color:var(--navy);font-size:13.5px}.ghhelp ol{padding-left:20px;font-size:13.5px;line-height:1.6}
 .tabs .tb i.w{background:#fde7e4;color:var(--red)}.tabs .tb i.o{background:#fdebdc;color:var(--var)}
 .odir{font-weight:700;white-space:nowrap}.odir.hi{color:var(--red)}.odir.lo{color:#2d6cc0}
 .fig.f-hi b{color:var(--red)}.fig.f-lo b{color:#2d6cc0}
@@ -52,6 +55,8 @@ h1{margin:0;font-size:17px;letter-spacing:-.005em;color:#fff;white-space:nowrap}
 .tm .mn{min-width:300px}
 .tm .mn button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:9px 12px;color:var(--fg)}
 .tm .mn button b{font-size:14px;color:var(--navy)}.tm .mn button small{font-size:12px;color:var(--mut);font-weight:400}
+.tlink{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:#fff;padding:7px 13px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;line-height:1.2}
+.tlink:hover{background:rgba(255,255,255,.2)}.tlink .car{opacity:.7;font-size:12px}
 .ticon{position:relative;background:rgba(255,255,255,.1)!important;border:1px solid rgba(255,255,255,.18)!important;color:#fff!important;padding:7px 11px!important;font-size:15px;line-height:1}
 .ticon:hover{background:rgba(255,255,255,.2)!important}
 .ticon .dot{position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:#9aa6ba;box-shadow:0 0 0 2px var(--navy)}
@@ -204,6 +209,60 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
 .st.alone{background:#1e4fa3;color:#fff}.st.nodata,.st.noprice,.st.wait,.st.err{background:transparent;border:1px dashed var(--mut);color:var(--mut)}
 .thumb{width:34px;height:47px;object-fit:contain;border-radius:3px;background:var(--bg);display:block}
 
+/* dettaglio carta */
+dialog.cdw{width:min(1040px,95vw);padding:0}
+.cdx{display:grid;grid-template-columns:270px 1fr;min-height:0;background:#fff}
+.cd-img{background:#eef1f6;padding:22px 18px;border-right:1px solid var(--line)}
+.cd-img img{width:100%;border-radius:10px;box-shadow:0 10px 26px rgba(24,34,58,.22);display:block}
+.cd-img .small{margin:10px 0 0;text-align:center}
+.cd-main{padding:20px 24px 22px;min-width:0}
+.cd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.cd-head h3{display:inline;margin:0;font-size:24px;letter-spacing:-.01em}
+.cd-num{font-size:24px;font-weight:400;color:var(--mut);margin-right:8px;font-variant-numeric:tabular-nums}
+.cd-sub{color:var(--mut);font-size:13.5px;margin-top:2px}
+.cd-x{border:0!important;background:none!important;font-size:18px;color:var(--mut)!important;padding:4px 8px!important}
+.cd-figs{display:flex;margin:16px 0 14px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.cd-figs>div{flex:1;padding:9px 12px;border-right:1px solid var(--line);min-width:0}.cd-figs>div:last-child{border-right:0}
+.cd-figs b{display:block;font-size:20px;font-variant-numeric:tabular-nums;line-height:1.2}
+.cd-figs span{font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.cd-figs .g b{color:var(--ok)}.cd-figs .s b{color:var(--sbc)}.cd-figs .v b{color:var(--navy)}
+.cd-v{border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:12px;padding:12px 14px;margin:10px 0}
+.cd-v.sb{border-left-color:var(--sbc);background:#fafbfd}
+.cd-v header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.cd-v header b{font-size:15px}.cd-v header .rv{color:var(--rev)}.cd-v header>span{color:var(--mut);font-size:13px}
+.cd-v .st{font-style:normal;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:99px;background:#e3f3ea;color:var(--ok)}
+.cd-v.sb .st{background:#e9edf3;color:var(--sbc)}
+.cd-tag{margin-left:auto;font-size:12.5px;font-weight:700;padding:2px 9px;border-radius:99px}
+.cd-tag.ok{background:#e3f3ea;color:var(--ok)}.cd-tag.hi{background:#fde7e4;color:var(--red)}.cd-tag.lo{background:#e3edfa;color:#2d6cc0}
+.cd-row{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.cd-row>.sm{align-self:center}
+.cd-ph{aspect-ratio:63/88;border-radius:10px;background:#dfe4ec;display:grid;place-items:center;font-size:40px;color:#9aa6ba;font-weight:700}
+.cd-row label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:3px}
+.cd-row input{width:96px;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.cd-row label:nth-of-type(2) input{width:72px}
+.cd-row small{font-size:11.5px}
+.cd-rule{display:flex;flex-direction:column;font-size:12px;color:var(--mut);margin-right:auto;min-width:0}
+.cd-rule b{font-size:14px;color:var(--fg)}
+.cd-mk{display:grid;grid-template-columns:repeat(7,1fr);margin-top:12px;background:#f6f8fb;border-radius:10px;overflow:hidden}
+.cd-mk>div{padding:7px 8px;min-width:0}.cd-mk span{display:block;font-size:11px;color:var(--mut)}.cd-mk b{font-size:14px;font-variant-numeric:tabular-nums}
+.cd-mk .c{background:#e3f3ea}.cd-mk .c span,.cd-mk .c b{color:var(--ok)}
+.cd-range{position:relative;height:46px;margin:6px 8px 0}
+.cd-range .trk{position:absolute;left:0;right:0;top:20px;height:6px;border-radius:99px;background:linear-gradient(90deg,#cfe9db,#f3f5f8 50%,#f8d9d4)}
+.cd-range .mk{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center}
+.cd-range .mk i{width:3px;height:22px;border-radius:2px;margin-top:12px}
+.cd-range .mk em{font-style:normal;font-size:11px;font-weight:700;white-space:nowrap;position:absolute;top:0;transform:translateY(-2px)}
+.cd-range .mk:first-of-type em{}
+.cd-range .m-c i{background:var(--ok)}.cd-range .m-c em{color:var(--ok);top:auto;bottom:-14px}
+.cd-range .m-p i{background:var(--navy)}.cd-range .m-p em{color:var(--navy);top:-4px}
+.cd-range .ends{position:absolute;left:0;right:0;top:30px;display:flex;justify-content:space-between;font-size:10.5px;color:var(--mut)}
+.cd-range{margin-bottom:12px}
+.cd-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-top:6px}
+.cd-foot>div{flex:1}
+.cd-none{color:var(--mut);font-size:13px;margin:8px 0}
+.cd-sold{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:8px 14px}
+.cd-sold summary{cursor:pointer;font-weight:700;font-size:14px}
+@media (max-width:760px){.cdx{grid-template-columns:1fr}.cd-img{border-right:0;border-bottom:1px solid var(--line)}.cd-img img{max-width:220px;margin:auto}.cd-mk{grid-template-columns:repeat(4,1fr)}.cd-figs{flex-wrap:wrap}}
+
 </style>
 </head>
 <body>
@@ -219,6 +278,7 @@ td.line{font-size:12px;color:var(--mut);max-width:360px}
       <button id="btnUpd"><b>Aggiorna prezzi di mercato</b><small id="updInfo">Tutto il catalogo, da TCGdex</small></button>
       <button id="btnEditCM"><b>Cambia prezzi su Cardmarket</b><small>Tutti i set, es. da Tendenza a prezzo minimo</small></button>
     </div></details>
+    <a class="tlink" href="https://www.cardmarket.com/it/Pokemon" target="cardmarketPokemon" rel="noreferrer" title="Apri Cardmarket (Pokémon)">Cardmarket <span class="car">↗</span></a>
     <button id="btnBk" class="ticon" title="Backup automatico">💾</button>
     <button id="btnMore" class="ticon" title="Impostazioni">⚙</button>
     <button id="btnSold" class="hide">📈 Vendite</button>
@@ -285,7 +345,7 @@ function load() {
   } catch (e) {}
   return s;
 }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { alert('Il browser non riesce a salvare: fai un Backup da "Altro".'); } bkSchedule(); }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { alert('Il browser non riesce a salvare: fai un Backup da "Altro".'); } bkSchedule(); ghSchedule(); }
 const lkey = (p, rev, lang) => `${p}|${rev ? 'R' : 'N'}|${lang || 'it'}`;
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 4000); }
 
@@ -658,7 +718,7 @@ const TABS = [['cards', 'Carte'], ['__out', 'Fuori mercato'], ['__dash', 'Statis
 function renderTabs() {
   const cur = selected && selected.startsWith('__') ? selected : 'cards';
   const sold = state.sold.reduce((a, x) => a + x.q, 0), nOut = outAll().length;
-  $('tabs').innerHTML = TABS.map(([id, l]) => `<button class="tb ${cur === id ? 'on' : ''}" data-tab="${id}">${l}${id === '__sales' && sold ? `<i>${sold}</i>` : ''}${id === '__out' && nOut ? `<i class="o" title="carte con il prezzo lontano dal Consigliato">${nOut}</i>` : ''}${id === '__set' && bkState !== 'ok' && bkState !== 'nosupport' ? '<i class="w" title="Backup non attivo">!</i>' : ''}</button>`).join('');
+  $('tabs').innerHTML = TABS.map(([id, l]) => `<button class="tb ${cur === id ? 'on' : ''}" data-tab="${id}">${l}${id === '__sales' && sold ? `<i>${sold}</i>` : ''}${id === '__out' && nOut ? `<i class="o" title="carte con il prezzo lontano dal Consigliato">${nOut}</i>` : ''}${id === '__set' && (!bkOk() || (gh && ghState === 'err')) ? '<i class="w" title="Backup non attivo o in errore">!</i>' : ''}</button>`).join('');
   document.querySelector('.wrap').classList.toggle('nosets', cur !== 'cards');
 }
 function goTab(id) {
@@ -678,8 +738,27 @@ function renderSettings() {
   const bkTxt = { ok: ['Attivo', 'ok'], off: ['Non attivo', 'bad'], paused: ['In pausa', 'bad'], err: ['Errore', 'bad'], nosupport: ['Non disponibile in questo browser', 'mid'] }[bkState] || ['—', 'mid'];
   $('main').innerHTML = `<div class="sethead"><div><h2>Impostazioni</h2><div class="sub">Backup, prezzi, regole predefinite e strumenti.</div></div></div>
   <div class="setgrid">
-    <section class="sc ${bkState === 'ok' ? '' : 'attn'}">
-      <h3>💾 Backup automatico <span class="stp ${bkTxt[1]}">${bkTxt[0]}</span></h3>
+    <section class="sc ${bkOk() && !(gh && ghState === 'err') ? '' : 'attn'}">
+      <h3>☁️ Backup su GitHub <span class="stp ${gh ? (ghState === 'ok' ? 'ok' : 'bad') : 'mid'}">${gh ? (ghState === 'ok' ? 'Attivo' : 'Errore') : 'Non collegato'}</span></h3>
+      ${gh ? `<p class="small">I dati vengono salvati nel tuo repository privato al massimo ogni 10 minuti dopo una modifica, e quando chiudi la pagina. Ogni salvataggio resta nella cronologia di GitHub: puoi tornare a qualsiasi versione, anche da un altro PC.</p>
+      <dl class="kv"><dt>Repository</dt><dd><a href="https://github.com/${esc(gh.repo)}" target="_blank" rel="noreferrer">${esc(gh.repo)}</a> (privato)</dd>
+        <dt>Ultimo salvataggio</dt><dd>${gh.at ? fmtDT(gh.at) : 'non ancora'}${ghDirty ? ' · modifiche in attesa' : ''}</dd>${ghState === 'err' ? `<dt>Errore</dt><dd style="color:var(--red)">${esc(ghErr)}</dd>` : ''}</dl>
+      <div class="row"><button class="pri" id="gNow">Salva adesso</button><button id="gVer">🕘 Versioni salvate…</button><button id="gOff">Scollega</button></div>`
+      : `<p class="small">Una copia dei dati in un tuo repository <b>privato</b> su GitHub: funziona da qualsiasi PC o browser, non chiede permessi a ogni riavvio e tiene tutte le versioni.</p>
+      <div class="ghf"><label>Repository privato<input id="gRepo" placeholder="mamouse87/gestionale-backup" autocomplete="off" spellcheck="false"></label>
+        <label>Chiave (token)<input id="gTok" type="password" placeholder="github_pat_…" autocomplete="off"></label><button class="pri" id="gGo">Collega</button></div>
+      <p class="small" id="gMsg"></p>
+      <details class="ghhelp"><summary>Come creo il repository e la chiave (una volta sola, 5 minuti)</summary><ol>
+        <li>Apri <a href="https://github.com/new" target="_blank" rel="noreferrer">github.com/new</a>: nome <b>gestionale-backup</b>, scegli <b>Private</b>, premi <b>Create repository</b>.</li>
+        <li>Apri <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">la pagina per creare una chiave "Fine-grained"</a>.</li>
+        <li><b>Token name</b>: Gestionale carte · <b>Expiration</b>: Custom, tra un anno.</li>
+        <li><b>Repository access</b>: <i>Only select repositories</i> → scegli <b>gestionale-backup</b> (solo quello).</li>
+        <li><b>Permissions</b> → <i>Repository permissions</i> → <b>Contents: Read and write</b>. Nient'altro (Metadata si attiva da solo).</li>
+        <li>Premi <b>Generate token</b>, copia la chiave (inizia con <code>github_pat_</code>) e incollala qui sopra, con il repository scritto come <b>mamouse87/gestionale-backup</b>.</li></ol>
+        <p class="small">La chiave resta solo in questo browser e non finisce nei file di backup. Con quei permessi può toccare soltanto il repository del backup. Quando scade, il gestionale ti avvisa: ne crei una nuova e ricolleghi.</p></details>`}
+    </section>
+    <section class="sc ${bkState === 'ok' || bkOk() ? '' : 'attn'}">
+      <h3>💾 Backup in una cartella del PC <span class="stp ${bkTxt[1]}">${bkTxt[0]}</span></h3>
       <p class="small">Tutti i dati del gestionale sono solo in questo browser. Con il backup attivo, a ogni modifica il gestionale salva una copia in una cartella del PC (più una copia al giorno, ultimi ${BK_KEEP} giorni). Consiglio: una cartella di Google Drive o OneDrive.</p>
       <dl class="kv"><dt>Cartella</dt><dd>${bkDir ? esc(bkDir.name) : '—'}</dd><dt>Ultimo salvataggio</dt><dd>${at ? new Date(at).toLocaleString('it-IT') : '—'}</dd>${bkState === 'err' ? `<dt>Errore</dt><dd>${esc(bkErr)}</dd>` : ''}</dl>
       <div class="row">${bkState === 'nosupport' ? '' : bkState === 'paused' ? '<button class="pri" id="sBkRes">Riattiva il backup</button>' : `<button class="pri" id="sBkPick">📁 ${bkDir ? 'Cambia cartella' : 'Scegli la cartella'}</button>`}
@@ -699,7 +778,7 @@ function renderSettings() {
       <div class="rule"><b>Metti in vendita su Cardmarket</b><div class="row">${ruleSel('rU', up)}</div></div>
       <div class="rule"><b>Cambia prezzi su Cardmarket</b><div class="row">${ruleSel('rE', ed)}</div></div>
       <div class="rule"><b>Soglia per variazioni e carte fuori mercato</b>
-        <div class="row">Segnala solo differenze di almeno <input type="number" id="thC" min="0" step="1" value="${thrCfg().c}" style="width:64px"> cent. e almeno <input type="number" id="thP" min="0" step="1" value="${thrCfg().pct}" style="width:64px"> %</div>
+        <div class="row" style="align-items:center">Almeno <input type="number" id="thC" min="0" step="1" value="${thrCfg().c}" style="width:64px"> cent. <span>e almeno</span> <input type="number" id="thP" min="0" step="1" value="${thrCfg().pct}" style="width:64px"> %</div>
         <p class="small">Esempio: con 2 cent. e 10%, una carta da 0,05 € viene segnalata se va sotto 0,03 € o sopra 0,07 €; una da 1 € se si sposta di almeno 0,10 €.</p></div>
     </section>
     <section class="sc">
@@ -725,6 +804,23 @@ function renderSettings() {
     </section>
   </div>`;
   const reload = () => { bkShow(); renderTabs(); renderSettings(); };
+  if ($('gGo')) $('gGo').onclick = async () => {
+    $('gGo').disabled = true; $('gGo').textContent = 'Controllo…'; $('gMsg').textContent = '';
+    try {
+      const sha = await ghConnect($('gRepo').value, $('gTok').value);
+      const empty = !Object.keys(state.listings).length && !Object.keys(state.standby || {}).length;
+      if (sha && (empty ? confirm('Su GitHub c\'è già un backup e questo browser è vuoto: lo ripristino adesso?')
+          : confirm('Su GitHub c\'è già un backup.\n\nOK = sostituisci i dati di questo browser con quelli di GitHub.\nAnnulla = tieni i dati di questo browser (vengono salvati su GitHub; la versione precedente resta nella cronologia).'))) {
+        ghRestore(await ghLoad(), '(ultima versione)');
+      } else await ghWrite();
+      logOp('dati', '', `Backup su GitHub collegato a ${gh.repo}`); save();
+      toast('Backup su GitHub attivo ✔');
+    } catch (e) { $('gMsg').innerHTML = `<b style="color:var(--red)">Non collegato: ${esc(e.message)}</b>`; $('gGo').disabled = false; $('gGo').textContent = 'Collega'; return; }
+    reload();
+  };
+  if ($('gNow')) $('gNow').onclick = async () => { $('gNow').disabled = true; $('gNow').textContent = 'Salvo…'; await ghWrite(); if (ghState === 'ok') toast('Salvato su GitHub ✔'); reload(); };
+  if ($('gVer')) $('gVer').onclick = ghVersionsDlg;
+  if ($('gOff')) $('gOff').onclick = () => { if (!confirm('Scollegare il backup su GitHub? Il repository e le versioni salvate restano su GitHub; da questo browser viene tolta solo la chiave.')) return; gh = null; ghStore(); ghState = 'off'; clearTimeout(ghTimer); ghTimer = null; reload(); };
   if ($('sBkPick')) $('sBkPick').onclick = async () => { await bkChoose(); reload(); };
   if ($('sBkRes')) $('sBkRes').onclick = async () => { await bkResume(); reload(); };
   if ($('sBkNow')) $('sBkNow').onclick = async () => { await bkWrite(); toast('Backup salvato'); reload(); };
@@ -906,36 +1002,77 @@ $('main').addEventListener('click', e => {
   const cm = current.cmByNum[n0];
   const ls = current.byNum[n0] || [], sb = current.sbByNum[n0] || [];
   const srcs = imgSrcs(c.image, cm, c.localId);
-  const mk = M => M ? `${mktGrid(M)}<span class="small">${M.src === 'pg' ? 'Price Guide' : M.src === 'tcgdex' ? 'TCGdex' : 'nessun dato'}${M.upd ? ' · ' + fmtD(M.upd) : ''}${M.x ? ' · ⚠ abbinamento da verificare' : ''}</span>` : '<span class="small">non ancora letto</span>';
   const vs = ls.map(([k, l]) => ({ k, l, v: varOf(k, l) })).filter(x => x.v);
-  openDlg(`<div class="big">${imgTag(srcs, false)}</div>
-    <h3>${esc(c.localId)} ${esc(c.name)} <span class="small">${esc(el.querySelector('.rar').textContent)} · ${esc(current.setName)}</span></h3>
-    ${vs.length ? `<div class="vbox"><b style="color:#e8590c">⚠ Variazione del prezzo di mercato</b>
-      ${vs.map(({ l, v }) => `<div>${l.rev ? 'Reverse' : 'Normale'}: ${BASEN[l.rb || 'low']} ${eur(v.ref)} (${fmtD(l.refAt)}) → <b>${eur(v.cur)}</b> · con la tua regola <b>${eur(v.sugg)}</b> (tuo ${eur(l.price)})</div>`).join('')}
-      <p class="row" style="margin:6px 0 0"><button class="sm pri" id="dVar">Conferma / tieni il prezzo…</button></p></div>` : ''}
-    ${ls.length ? `<h4 style="margin:10px 0 4px">In vendita su Cardmarket</h4><table><tr><th>Variante</th><th>Lingua</th><th>Quantità</th><th>Prezzo €</th><th>Regola</th><th>Mercato oggi</th><th></th></tr>${ls.map(([k, l]) => `<tr data-k="${esc(k)}">
-      <td>${l.rev ? 'Reverse Holo' : 'Normale'}</td><td>${LANGN[l.lang] || l.lang}</td>
-      <td><input type="number" min="0" value="${l.q}" data-f="q" style="width:70px"></td>
-      <td><input type="number" min="0" step="0.01" value="${l.price ?? ''}" data-f="price" style="width:90px"><br><span class="small">dal ${fmtD(l.pAt || l.date)}</span></td>
-      <td>${l.ref != null ? `${ruleTxt(l)}<br><span class="small">riferimento ${eur(l.ref)} (${fmtD(l.refAt)})</span>` : '<span class="small">—</span>'}</td>
-      <td>${mk(mOf(k))}</td>
-      <td><button class="sm" data-sell="1">venduta 1</button></td></tr>`).join('')}</table>
-      <p class="small">In vendita dal ${new Date(ls[0][1].date).toLocaleDateString('it-IT')}${ls[0][1].com ? ` · commento: ${esc(ls[0][1].com)}` : ''}. Se cambi il prezzo qui, il mercato di oggi diventa il nuovo riferimento.</p>` : ''}
-    ${sb.length ? `<h4 style="margin:10px 0 4px">⏸ In Standby (non ancora su Cardmarket)</h4><table><tr><th>Variante</th><th>Lingua</th><th>Quantità</th><th>Stima di mercato</th><th>Dal</th></tr>${sb.map(([k, x]) => `<tr data-sb="${esc(k)}">
-      <td>${x.rev ? 'Reverse Holo' : 'Normale'}</td><td>${LANGN[x.lang] || x.lang}</td>
-      <td><input type="number" min="0" value="${x.q}" data-f="sbq" style="width:70px"></td>
-      <td>${mk(sbmOf(k))}</td><td class="small">${fmtD(x.date)}<br>${esc(x.file || '')}</td></tr>`).join('')}</table>
-      <p class="small">Passano "in vendita" quando le carichi su Cardmarket con il pulsante Card Scanner e premi "Invia al gestionale".</p>` : ''}
-    ${!ls.length && !sb.length ? '<p class="small">Non in vendita.</p>' : ''}
-    ${[...ls.map(([, l]) => l), ...sb.map(([, x]) => x)].filter((l, i, arr) => arr.findIndex(y => histKey(y) === histKey(l)) === i)
-      .map(l => histChart(l, `${l.rev ? 'Reverse' : 'Normale'} · ${LANGN[l.lang] || l.lang}`)).join('')}
-    <p class="small">${srcs.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noreferrer">immagine ${i + 1}</a>`).join(' · ') || 'nessun link immagine'}</p>
-    <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
+  // vendite di questa carta (stesso set e numero)
+  const soldHere = state.sold.filter(s => norm(s.num) === n0 && (s.expName || state.cm[s.exp]?.name || '') === current.setName);
+  const qSold = soldHere.reduce((a, s) => a + s.q, 0), inc = soldHere.reduce((a, s) => a + (s.price || 0) * s.q, 0);
+  const qLs = ls.reduce((a, [, l]) => a + l.q, 0), qSb = sb.reduce((a, [, x]) => a + x.q, 0);
+  const since = ls.map(([, l]) => l.date).filter(Boolean).sort()[0];
+  const lastSold = soldHere.map(s => s.date).sort().pop();
+  const src = M => M ? `${M.src === 'pg' ? 'Price Guide' : M.src === 'tcgdex' ? 'TCGdex' : 'nessun dato'}${M.upd ? ' · ' + fmtD(M.upd) : ''}${M.x ? ' · ⚠ abbinamento da verificare' : ''}` : '';
+  /** i 6 valori in una riga + barra con la posizione del tuo prezzo tra il più basso e il più alto */
+  const market = (M, price, rev) => {
+    if (!M) return '<p class="cd-none">Prezzi di mercato non ancora letti: premi Prezzi ▾ → Aggiorna prezzi.</p>';
+    if (rev && !M.rv) return '<p class="cd-none">Mancano i prezzi di mercato della Reverse (quelli della Normale non li uso).</p>';
+    const L = [['Da', M.lo], ['Tendenza', M.t], ['Media', M.a], ['1 g', M.a1], ['7 g', M.a7], ['30 g', M.a30]];
+    const C = consOf(M);
+    let bar = '';
+    const pts = [M.lo, M.t, M.a, M.a7, M.a30, price, C?.v].filter(v => v != null && isFinite(v));
+    if (C && pts.length > 1) {
+      const lo = Math.min(...pts), hi = Math.max(...pts), X = v => hi > lo ? ((v - lo) / (hi - lo) * 100).toFixed(1) : 50;
+      bar = `<div class="cd-range"><div class="trk"></div>
+        ${price != null && r2(price) === C.v ? `<span class="mk m-c" style="left:${X(C.v)}%"><i></i><em>Tuo prezzo = Consigliato ${eur(C.v)}</em></span>` : `<span class="mk m-c" style="left:${X(C.v)}%"><i></i><em>Consigliato ${eur(C.v)}</em></span>
+        ${price != null ? `<span class="mk m-p" style="left:${X(price)}%"><i></i><em>Tuo ${eur(price)}</em></span>` : ''}`}
+        <span class="ends"><span>${eur(lo)}</span><span>${eur(hi)}</span></span></div>`;
+    }
+    return `<div class="cd-mk">${L.map(([l, v]) => `<div><span>${l}</span><b>${eur(v) || '—'}</b></div>`).join('')}<div class="c"><span>Consigliato</span><b>${C ? eur(C.v) : '—'}</b></div></div>${bar}`;
+  };
+  const verdict = (k, l) => {
+    const M = mOf(k); if (!M || (l.rev && !M.rv) || l.price == null || !consOf(M)) return '';
+    const o = outOf(k, l);
+    return o ? `<span class="cd-tag ${o.dir}">${o.dir === 'hi' ? '▲ troppo alto' : '▼ troppo basso'} di ${eur(Math.abs(o.d))}</span>` : '<span class="cd-tag ok">in linea con il mercato</span>';
+  };
+  const hist = l => { const a = ((state.hist || {})[histKey(l)] || []); return a.length >= 2 ? histChart(l, 'Andamento') : `<p class="cd-none">Andamento: il grafico compare dopo almeno 2 giorni di prezzi raccolti${a.length ? ' (finora 1)' : ''}.</p>`; };
+  const fig = (v, l, cls = '') => `<div class="${cls}"><b>${v}</b><span>${l}</span></div>`;
+  openDlg(`<div class="cdx">
+    <div class="cd-img">${imgTag(srcs, false) || `<div class="cd-ph">${esc(c.localId)}</div>`}<p class="small">${srcs.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noreferrer">immagine ${i + 1}</a>`).join(' · ') || 'nessuna immagine'}</p></div>
+    <div class="cd-main">
+      <div class="cd-head"><div><span class="cd-num">${esc(c.localId)}</span><h3>${esc(c.name)}</h3>
+        <div class="cd-sub">${[el.querySelector('.rar')?.textContent.trim(), current.setName].filter(Boolean).map(esc).join(' · ')}</div></div>
+        <button id="dClose" class="cd-x" title="Chiudi">✕</button></div>
+      <div class="cd-figs">${fig(qLs, 'in vendita', 'g')}${fig(qSb, 'in Standby', 's')}${fig(qSold, qSold === 1 ? 'venduta' : 'vendute', 'v')}${fig(eur(inc) || '0,00 €', 'incassato')}
+        ${fig(since ? daysAgo(since) : '—', since ? `giorni in vendita` : 'non in vendita')}</div>
+      ${vs.length ? `<div class="vbox"><b style="color:var(--var)">⚠ Il prezzo di mercato è cambiato</b>
+        ${vs.map(({ l, v }) => `<div>${l.rev ? 'Reverse' : 'Normale'}: ${BASEN[l.rb || 'low']} ${eur(v.ref)} (${fmtD(l.refAt)}) → <b>${eur(v.cur)}</b> · con la tua regola <b>${eur(v.sugg)}</b> (tuo ${eur(l.price)})</div>`).join('')}
+        <p class="row" style="margin:6px 0 0"><button class="sm pri" id="dVar">Conferma / tieni il prezzo…</button></p></div>` : ''}
+      ${ls.map(([k, l]) => `<section class="cd-v on" data-k="${esc(k)}">
+        <header><b>${l.rev ? '<span class="rv">Reverse Holo</span>' : 'Normale'}</b><span>${LANGN[l.lang] || l.lang}</span><em class="st">In vendita</em>${verdict(k, l)}</header>
+        <div class="cd-row">
+          <label>Prezzo €<input type="number" min="0" step="0.01" value="${l.price ?? ''}" data-f="price"><small>dal ${fmtD(l.pAt || l.date)}</small></label>
+          <label>Copie<input type="number" min="0" value="${l.q}" data-f="q"></label>
+          <div class="cd-rule"><span>Regola</span><b>${l.ref != null ? ruleTxt(l) : '—'}</b>${l.ref != null ? `<small>riferimento ${eur(l.ref)} · ${fmtD(l.refAt)}</small>` : ''}</div>
+          <button class="sm" data-sell="1">Venduta 1</button></div>
+        ${market(mOf(k), l.price, l.rev)}
+        <div class="cd-foot">${hist(l)}<span class="small">${src(mOf(k))}</span></div>
+      </section>`).join('')}
+      ${sb.map(([k, x]) => `<section class="cd-v sb" data-sb="${esc(k)}">
+        <header><b>${x.rev ? '<span class="rv">Reverse Holo</span>' : 'Normale'}</b><span>${LANGN[x.lang] || x.lang}</span><em class="st">Standby</em></header>
+        <div class="cd-row"><label>Copie<input type="number" min="0" value="${x.q}" data-f="sbq"></label>
+          <div class="cd-rule"><span>Dalla lista</span><b>${esc(x.file || '—')}</b><small>caricata il ${fmtD(x.date)}</small></div></div>
+        ${market(sbmOf(k), null, x.rev)}
+        <p class="small">Passa "in vendita" quando la carichi su Cardmarket con lo script e premi "Invia al gestionale".</p>
+      </section>`).join('')}
+      ${!ls.length && !sb.length ? '<p class="cd-none">Questa carta non è né in vendita né in Standby.</p>' : ''}
+      ${soldHere.length ? `<details class="cd-sold"><summary>Vendite di questa carta · ${qSold} ${qSold === 1 ? 'copia' : 'copie'}${lastSold ? ' · ultima il ' + fmtD(lastSold) : ''}</summary>
+        <table><tr><th>Data</th><th>Variante</th><th class="n">Copie</th><th class="n">Prezzo</th><th>Ordine</th></tr>
+        ${soldHere.slice().reverse().map(s => `<tr><td>${fmtD(s.date)}</td><td>${s.rev ? 'Reverse' : 'Normale'}</td><td class="n">${s.q}</td><td class="n">${eur(s.price)}</td><td class="small">${esc(s.order || s.file || s.source || '')}</td></tr>`).join('')}</table></details>` : ''}
+      ${ls.length && ls[0][1].com ? `<p class="small">Commento su Cardmarket: ${esc(ls[0][1].com)}</p>` : ''}
+    </div></div>`, () => {
     $('dClose').onclick = closeDlg;
     if ($('dVar')) $('dVar').onclick = () => varDialog(vs, `Conferma prezzi · ${c.localId} ${c.name}`);
     $('dlgBody').querySelectorAll('input[data-f]').forEach(inp => inp.onchange = () => {
       if (inp.dataset.f === 'sbq') {
-        const k = inp.closest('tr').dataset.sb, X = state.standby[k];
+        const k = inp.closest('[data-sb]').dataset.sb, X = state.standby[k];
         if (!X) return;
         const q0 = X.q;
         X.q = Math.max(0, +inp.value || 0);
@@ -943,7 +1080,7 @@ $('main').addEventListener('click', e => {
         if (!X.q) { delete state.standby[k]; delete (state.sbMarket || {})[k]; }
         save(); refresh(); return;
       }
-      const k = inp.closest('tr').dataset.k, L = state.listings[k];
+      const k = inp.closest('[data-k]').dataset.k, L = state.listings[k];
       if (!L) return;
       const set = L.expName || state.cm[L.exp]?.name;
       if (inp.dataset.f === 'q') {
@@ -960,9 +1097,9 @@ $('main').addEventListener('click', e => {
       save(); refresh();
     });
     $('dlgBody').querySelectorAll('[data-sell]').forEach(b => b.onclick = () => {
-      const L0 = state.listings[b.closest('tr').dataset.k];
+      const L0 = state.listings[b.closest('[data-k]').dataset.k];
       if (L0) logOp('venduta', L0.expName || state.cm[L0.exp]?.name, `${cardTxt(L0)} ×1 a ${eur(L0.price)} (a mano)`, 1);
-      sell(b.closest('tr').dataset.k, 1, 'Cardmarket', 'a mano'); save(); closeDlg(); refresh();
+      sell(b.closest('[data-k]').dataset.k, 1, 'Cardmarket', 'a mano'); save(); closeDlg(); refresh();
     });
   });
 });
@@ -2085,6 +2222,118 @@ async function importCatalog(files) {
   loadMyCodes(); // sigla dei set appena caricati (per il dialogo Apri su Cardmarket)
 }
 
+// ---------- backup su GitHub: un file in un repository PRIVATO dell'utente, con tutta la cronologia ----------
+// La chiave (token) resta solo in questo browser (localStorage 'gestionaleGithub'), mai nello stato né nei file di backup.
+const GH_KEY = 'gestionaleGithub', GH_PATH = 'gestionale-carte.json', GH_EVERY = 10 * 60e3;
+let gh = (() => { try { return JSON.parse(localStorage.getItem(GH_KEY)) || null; } catch (e) { return null; } })();
+let ghState = gh ? 'ok' : 'off', ghErr = '', ghTimer = null, ghDirty = false, ghBusy = false;
+const ghStore = () => { if (gh) localStorage.setItem(GH_KEY, JSON.stringify(gh)); else localStorage.removeItem(GH_KEY); };
+const bkOk = () => bkState === 'ok' || (!!gh && ghState === 'ok');
+function ghMsg(st, m) {
+  return st === 401 ? 'chiave (token) non valida o scaduta: creane una nuova e ricollega'
+    : st === 403 ? 'la chiave non ha il permesso di scrivere (serve "Contents: Read and write")'
+    : st === 404 ? 'repository non trovato: controlla il nome e che la chiave possa accedervi'
+    : st === 409 || st === 422 ? 'conflitto con la versione su GitHub'
+    : `errore ${st}${m ? ': ' + m : ''}`;
+}
+async function ghApi(path, opt = {}, accept) {
+  let r;
+  try {
+    r = await fetch('https://api.github.com/repos/' + gh.repo + path, Object.assign({}, opt, { headers: Object.assign({
+      Authorization: 'Bearer ' + gh.token, Accept: accept || 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+      opt.body ? { 'Content-Type': 'application/json' } : {}) }));
+  } catch (e) { throw new Error('GitHub non raggiungibile (sei connesso a internet?)'); }
+  if (!r.ok) { let m = ''; try { m = (await r.json()).message; } catch (e) {} const e = new Error(ghMsg(r.status, m)); e.status = r.status; throw e; }
+  return accept === 'application/vnd.github.raw+json' ? r.text() : r.json();
+}
+function ghB64(txt) {
+  const b = new TextEncoder().encode(txt); let s = '';
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+/** sha del file su GitHub (null se non c'è ancora) */
+async function ghSha() {
+  try { return (await ghApi('/contents/' + GH_PATH, {}, 'application/vnd.github.object')).sha; }
+  catch (e) { if (e.status === 404) return null; throw e; }
+}
+async function ghWrite() {
+  if (!gh || ghBusy) return;
+  ghBusy = true; clearTimeout(ghTimer); ghTimer = null;
+  try {
+    const ls = Object.values(state.listings), sbq = Object.values(state.standby || {}).reduce((a, x) => a + x.q, 0);
+    const body = sha => JSON.stringify(Object.assign({ message: `Backup ${new Date().toLocaleString('it-IT')} · ${ls.reduce((a, l) => a + l.q, 0)} in vendita, ${sbq} in Standby`,
+      content: ghB64(JSON.stringify(state)) }, sha ? { sha } : {}));
+    let sha = gh.sha !== undefined ? gh.sha : await ghSha(), r;
+    try { r = await ghApi('/contents/' + GH_PATH, { method: 'PUT', body: body(sha) }); }
+    catch (e) { if (e.status !== 409 && e.status !== 422) throw e; sha = await ghSha(); r = await ghApi('/contents/' + GH_PATH, { method: 'PUT', body: body(sha) }); }
+    gh.sha = r.content.sha; gh.at = new Date().toISOString(); ghStore();
+    ghDirty = false; ghState = 'ok'; ghErr = '';
+  } catch (e) { ghState = 'err'; ghErr = e.message; }
+  ghBusy = false; bkShow(); renderTabs();
+  if (selected === '__set') renderSettings();
+}
+/** dopo una modifica: salva entro 1 minuto, ma al massimo una volta ogni 10 minuti */
+function ghSchedule() {
+  if (!gh) return;
+  ghDirty = true;
+  if (ghTimer) return;
+  const wait = Math.max(60e3, (gh.at ? new Date(gh.at).getTime() + GH_EVERY : 0) - Date.now());
+  ghTimer = setTimeout(() => { ghTimer = null; if (ghDirty) ghWrite(); }, wait);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && gh && ghDirty) ghWrite(); });
+async function ghConnect(repo, token) {
+  repo = String(repo || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
+  token = String(token || '').trim();
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('scrivi il repository come utente/nome, per esempio mamouse87/gestionale-backup');
+  if (!token) throw new Error('incolla la chiave (token) creata su GitHub');
+  const prev = gh;
+  gh = { repo, token };
+  try {
+    const info = await ghApi('');
+    if (!info.private) throw new Error('il repository è PUBBLICO: chiunque vedrebbe i tuoi dati. Rendilo privato su GitHub (Settings → Danger Zone → Change visibility) e riprova');
+    if (info.permissions && !info.permissions.push) throw new Error('la chiave può leggere ma non scrivere: serve il permesso "Contents: Read and write"');
+    gh.sha = await ghSha();
+  } catch (e) { gh = prev; throw e; }
+  ghStore(); ghState = 'ok'; ghErr = '';
+  return gh.sha;
+}
+async function ghVersions() {
+  const list = await ghApi(`/commits?path=${encodeURIComponent(GH_PATH)}&per_page=50`);
+  return list.map(c => ({ sha: c.sha, at: c.commit.committer?.date || c.commit.author?.date, msg: c.commit.message }));
+}
+async function ghLoad(ref) {
+  const s = JSON.parse(await ghApi(`/contents/${GH_PATH}${ref ? '?ref=' + ref : ''}`, {}, 'application/vnd.github.raw+json'));
+  if (!s || !s.listings) throw new Error('il file su GitHub non è un backup del gestionale');
+  return s;
+}
+function ghRestore(s, label) {
+  state = Object.assign({ cm: {}, sold: [], standby: {} }, s);
+  logOp('dati', '', `Ripristinato il backup di GitHub ${label}`);
+  save(); refresh(); toast('Dati ripristinati da GitHub ✔');
+}
+async function ghVersionsDlg() {
+  openDlg('<h3>Versioni salvate su GitHub</h3><p>Leggo la cronologia…</p>');
+  let v;
+  try { v = await ghVersions(); } catch (e) { openDlg(`<h3>Versioni salvate su GitHub</h3><p>Non riesco a leggerle: ${esc(e.message)}</p><p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => $('dClose').onclick = closeDlg); return; }
+  openDlg(`<h3>Versioni salvate su GitHub</h3>
+    <p class="small">Le ultime ${v.length} copie di <b>${esc(gh.repo)}</b>, dalla più recente. Ripristinando, i dati di questo browser vengono sostituiti (la versione attuale resta comunque nella cronologia di GitHub).</p>
+    <div style="max-height:56vh;overflow:auto"><table class="rtable"><thead><tr><th>Data e ora</th><th>Contenuto</th><th></th></tr></thead><tbody>
+    ${v.map((x, i) => `<tr><td style="white-space:nowrap">${fmtDT(x.at)}${i === 0 ? ' <span class="small">(ultima)</span>' : ''}</td><td class="small">${esc(x.msg.replace(/^Backup [^·]*·\s*/, ''))}</td>
+      <td style="text-align:right"><button class="sm" data-ref="${esc(x.sha)}" data-at="${esc(x.at)}">Ripristina</button></td></tr>`).join('') || '<tr><td colspan="3" class="small">Nessuna versione: premi "Salva adesso".</td></tr>'}
+    </tbody></table></div>
+    <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
+    $('dClose').onclick = closeDlg;
+    $('dlgBody').querySelectorAll('[data-ref]').forEach(b => b.onclick = async () => {
+      b.disabled = true; b.textContent = 'Leggo…';
+      try {
+        const s = await ghLoad(b.dataset.ref);
+        if (!confirm(`Sostituire i dati di questo browser con la versione del ${fmtDT(b.dataset.at)} (${Object.keys(s.listings).length} righe in vendita, ${(s.sold || []).length} vendite)?`)) { b.disabled = false; b.textContent = 'Ripristina'; return; }
+        closeDlg(); ghRestore(s, 'del ' + fmtDT(b.dataset.at));
+      } catch (e) { alert('Non riesco a leggere quella versione: ' + e.message); b.disabled = false; b.textContent = 'Ripristina'; }
+    });
+  });
+}
+
 // ---------- backup automatico in una cartella del PC (es. dentro Google Drive o OneDrive) ----------
 const BK_FILE = 'gestionale-carte.json', BK_SUB = 'copie-giornaliere', BK_KEEP = 30;
 let bkDir = null, bkState = 'off', bkErr = '', bkTimer = null;
@@ -2143,10 +2392,16 @@ async function bkResume() {
 }
 function bkShow() {
   const b = $('btnBk'); if (!b) return;
+  const t = d => d ? new Date(d).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '—';
   const at = localStorage.getItem('gestionaleBackupAt');
-  const t = at ? new Date(at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
-  const L = { ok: [`Backup attivo · ultimo salvataggio ${t}`, 'on', ''], paused: ['Backup in pausa: clicca per riattivarlo', 'warn', 'In pausa'], off: ['Backup non attivo: clicca per attivarlo', 'warn', 'Backup spento'], err: ['Backup non riuscito', 'warn', 'Errore backup'], nosupport: ['Backup', '', ''] }[bkState];
-  b.innerHTML = `💾<i class="dot"></i>${L[2] ? `<span class="lb">${L[2]}</span>` : ''}`; b.title = L[0]; b.className = 'ticon ' + L[1];
+  const err = (gh && ghState === 'err') || bkState === 'err';
+  const lines = [];
+  if (gh) lines.push(ghState === 'ok' ? `GitHub: attivo · ultimo salvataggio ${t(gh.at)}` : `GitHub: errore · ${ghErr}`);
+  if (bkState !== 'off' && bkState !== 'nosupport') lines.push({ ok: `Cartella: attiva · ultimo salvataggio ${t(at)}`, paused: 'Cartella: in pausa', err: 'Cartella: errore' }[bkState]);
+  if (!lines.length) lines.push('Backup non attivo: clicca per attivarlo');
+  const lb = err ? 'Errore backup' : bkOk() ? '' : bkState === 'paused' ? 'In pausa' : 'Backup spento';
+  b.innerHTML = `💾<i class="dot"></i>${lb ? `<span class="lb">${lb}</span>` : ''}`; b.title = lines.join('\n');
+  b.className = 'ticon ' + (err ? 'warn' : bkOk() ? 'on' : 'warn');
 }
 function bkDialog() {
   if (bkState === 'paused') { bkResume(); return; }
@@ -2184,7 +2439,7 @@ function downloadBackup() {
 }
 
 // ---------- comandi ----------
-function openDlg(html, wire) { $('dlgBody').innerHTML = html; if (!$('dlg').open) $('dlg').showModal(); wire && wire(); }
+function openDlg(html, wire) { $('dlgBody').innerHTML = html; $('dlg').classList.toggle('cdw', html.includes('class="cdx"')); if (!$('dlg').open) $('dlg').showModal(); wire && wire(); }
 function closeDlg() { $('dlg').close(); }
 function refresh() {
   const ls = Object.values(state.listings);
@@ -2211,7 +2466,7 @@ $('btnUpd').onclick = async () => {
   if (r) toast(`Prezzi aggiornati su tutto il catalogo: ${r.tot} carte diverse (${r.copies} copie) · ` +
     Object.entries(r.bySet).map(([n, c]) => `${n} ${c}`).join(' · ') + ` · ${r.nNew ? r.nNew + ' con variazione' : 'nessuna variazione'}`);
 };
-$('btnBk').onclick = bkDialog;
+$('btnBk').onclick = () => { if (bkState === 'paused' && !(gh && ghState === 'ok')) bkResume(); else goTab('__set'); };
 $('btnMore').onclick = () => goTab('__set');
 $('tabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) goTab(b.dataset.tab); };
 $('fRestore').onchange = async e => {

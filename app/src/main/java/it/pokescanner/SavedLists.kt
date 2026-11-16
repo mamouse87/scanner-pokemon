@@ -54,6 +54,10 @@ object SavedLists {
             .split(Regex("[^A-Za-z0-9]+")).filter { it.isNotEmpty() }
             .joinToString("") { it.replaceFirstChar { c -> c.uppercase() } }.ifEmpty { "Set" }
 
+    /** Numero che avrà la prossima lista del set (senza consumarlo): per mostrare il nome prima di chiuderla. */
+    fun peekN(ctx: Context, lang: String, setId: String): Int =
+        maxOf(prefs(ctx).getInt("n_${lang}_$setId", 0), lists.filter { it.lang == lang && it.setId == setId }.maxOfOrNull { it.n } ?: 0) + 1
+
     /** Prossimo numero per il set (non riusa mai un numero, anche se una lista è stata cancellata). */
     private fun nextN(ctx: Context, lang: String, setId: String): Int {
         val p = prefs(ctx)

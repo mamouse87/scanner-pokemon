@@ -38,7 +38,13 @@ object Inventory {
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("inventory", Context.MODE_PRIVATE)
 
+    private var loaded = false
+
+    /** Carica la lista solo se non è già in memoria (es. l'app è stata chiusa da Android mentre eri nella schermata Lista). */
+    fun ensureLoaded(ctx: Context) { if (!loaded) load(ctx) }
+
     fun load(ctx: Context) {
+        loaded = true
         items.clear()
         val s = prefs(ctx).getString("data", null) ?: return
         try {
@@ -86,7 +92,8 @@ object Inventory {
 
     /** Aggiunge altre [n] copie dell'ultima carta aggiunta (stessa variante). Ogni copia si può annullare una alla volta. */
     fun addAgain(ctx: Context, n: Int = 1): Pair<String, Item>? {
-        val k = history.lastOrNull { items.containsKey(it) } ?: return null
+        // solo l'ultima carta aggiunta davvero: se è già finita in una lista chiusa non aggiungo copie a un'altra carta
+        val k = history.lastOrNull() ?: return null
         val item = items[k] ?: return null
         item.qty += n
         repeat(n) { history.addLast(k) }

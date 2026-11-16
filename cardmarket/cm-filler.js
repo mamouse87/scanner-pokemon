@@ -184,7 +184,7 @@
         const id = row.id.replace('stockRow', '');
         const a = row.querySelector('.col-seller a');
         const name = (a ? a.textContent : '').replace(/\s+/g, ' ').trim();
-        const mm = name.match(/^(.*?)\s*\(([A-Z0-9]+)\s+([A-Z]*\d+[a-z]?)\)\s*$/i);
+        const mm = name.match(/^(.*?)\s*\(([A-Z0-9-]+)\s+([A-Z]*\d+[a-z]?)\)\s*$/i);
         const expEl = row.querySelector('.expansion-symbol');
         const exp = expEl ? (expEl.getAttribute('aria-label') || expEl.getAttribute('data-bs-original-title') || expEl.getAttribute('title') || '') : '';
         let lang = '';
@@ -781,7 +781,7 @@
     if (state === 'sent') { b.classList.remove('hide'); b.disabled = true; b.dataset.sent = '1'; b.textContent = '✓ Inviate al gestionale'; steps(); return; }
     b.disabled = false; b.dataset.sent = '';
     b.classList.toggle('hide', !n);
-    b.textContent = `📤 Ho messo in vendita: invia al gestionale (${n} copie)`;
+    b.textContent = `📤 Invia al gestionale (${n} copie)`;
     steps();
   }
   function sendCompiled() {

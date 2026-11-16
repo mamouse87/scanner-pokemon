@@ -299,7 +299,6 @@ dialog.cdw{width:min(1040px,95vw);padding:0}
     <a class="tlink" href="https://www.cardmarket.com/it/Pokemon" target="cardmarketPokemon" rel="noreferrer" title="Apri Cardmarket (Pokémon)">Cardmarket <span class="car">↗</span></a>
     <button id="btnBk" class="ticon" title="Backup automatico">💾</button>
     <button id="btnMore" class="ticon" title="Impostazioni">⚙</button>
-    <button id="btnSold" class="hide">📈 Vendite</button>
   </div>
 </div>
 <nav class="tabs" id="tabs"></nav>
@@ -364,15 +363,41 @@ function load() {
   } catch (e) {}
   return s;
 }
-function save() { const js = JSON.stringify(state); undoRecord(js); try { localStorage.setItem(KEY, js); } catch (e) { alert('Il browser non riesce a salvare: fai un Backup da "Altro".'); } bkSchedule(); ghSchedule(); }
+/** toglie dal browser le copie temporanee dei dati TCGdex (si riscaricano da sole): all = tutte, altrimenti solo quelle inutili o vecchie */
+function tcgPurge(all) {
+  const del = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith('tcg:')) continue;
+    if (all || /^tcg:(@en)?\/cards\//.test(k)) { del.push(k); continue; }
+    try { if (Date.now() - JSON.parse(localStorage.getItem(k)).t > 30 * 86400e3) del.push(k); } catch (e) { del.push(k); }
+  }
+  del.forEach(k => localStorage.removeItem(k));
+  return del.length;
+}
+let saveFailed = false;
+function save() {
+  const js = JSON.stringify(state); undoRecord(js);
+  try { localStorage.setItem(KEY, js); saveFailed = false; }
+  catch (e) {
+    // spazio del browser finito: libero le copie temporanee di TCGdex e riprovo
+    tcgPurge(true);
+    try { localStorage.setItem(KEY, js); saveFailed = false; }
+    catch (e2) { if (!saveFailed) alert('Il browser non riesce più a salvare i dati (spazio finito).\n\nScarica subito un backup: Impostazioni → Backup nel PC → "Scarica un backup".'); saveFailed = true; }
+  }
+  bkSchedule(); ghSchedule();
+}
 const lkey = (p, rev, lang) => `${p}|${rev ? 'R' : 'N'}|${lang || 'it'}`;
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 4000); }
 
 // ---------- TCGdex: set e carte in italiano (con cache nel browser) ----------
 const mem = {};
-async function tcg(path, maxAgeH) {
+async function tcg(path, maxAgeH, noStore) {
   if (mem[path]) return mem[path];
   const ck = 'tcg:' + path;
+  if (noStore) {
+    try { const r = await fetch(path.startsWith('@en') ? API_EN + path.slice(3) : API + path); if (!r.ok) return null; return (mem[path] = await r.json()); } catch (e) { return null; }
+  }
   try {
     const c = JSON.parse(localStorage.getItem(ck));
     if (c && Date.now() - c.t < (maxAgeH || 24) * 3600e3) return (mem[path] = c.d);
@@ -460,8 +485,9 @@ async function loadRarities(setId, cards) {
   const worker = async () => {
     while (i < todo.length && rarJob === job) {
       const c = todo[i++];
-      const d = await tcg('/cards/' + encodeURIComponent(c.id), 24 * 30);
-      cache[norm(c.localId)] = rarIt(d?.rarity || '');
+      const d = await tcg('/cards/' + encodeURIComponent(c.id), 0, true);
+      if (!d) continue;                                  // senza internet: riprovo la prossima volta
+      cache[norm(c.localId)] = rarIt(d.rarity || '');
       const el = document.querySelector(`.card[data-n="${CSS.escape(norm(c.localId))}"] .rar`);
       if (el) el.textContent = cache[norm(c.localId)];
     }
@@ -620,8 +646,10 @@ async function renderSet() {
     setName = E?.name || mine[0]?.[1].expName || '';
     cards = Object.values(E?.cards || {}).map(c => ({ localId: c.u, name: c.n, image: '', rarity: rarIt(c.r) }));
   } else {
-    main.innerHTML = '<p class="empty">Carico le carte del set…</p>';
+    const mySel = selected;
+    if (!mem['/sets/' + encodeURIComponent(selected)]) main.innerHTML = '<p class="empty">Carico le carte del set…</p>';
     const S = await tcg('/sets/' + encodeURIComponent(selected), 24);
+    if (selected !== mySel) return;
     if (!S) { main.innerHTML = '<p class="empty">Non riesco a caricare il set da TCGdex (serve internet).</p>'; return; }
     setId = S.id; setName = S.name || enSets[S.id]?.name || S.id; logo = S.logo || enSets[S.id]?.logo || ''; official = S.cardCount?.official || 0;
     cards = (S.cards || []).map(c => ({ id: c.id, localId: c.localId, name: c.name, image: c.image || '' }));
@@ -784,7 +812,9 @@ function renderSettings() {
       ${gh ? `<p class="small">I dati vengono salvati nel tuo repository privato al massimo ogni 10 minuti dopo una modifica, e quando chiudi la pagina. Ogni salvataggio resta nella cronologia di GitHub: puoi tornare a qualsiasi versione, anche da un altro PC.</p>
       <dl class="kv"><dt>Repository</dt><dd><a href="https://github.com/${esc(gh.repo)}" target="_blank" rel="noreferrer">${esc(gh.repo)}</a> (privato)</dd>
         <dt>Ultimo salvataggio</dt><dd>${gh.at ? fmtDT(gh.at) : 'non ancora'}${ghDirty ? ' · modifiche in attesa' : ''}</dd>${ghState === 'err' ? `<dt>Errore</dt><dd style="color:var(--red)">${esc(ghErr)}</dd>` : ''}</dl>
-      <div class="row"><button class="pri" id="gNow">Salva adesso</button><button id="gVer">🕘 Versioni salvate…</button><button id="gOff">Scollega</button></div>`
+      ${ghConflict ? `<div class="notice var" style="margin:8px 0"><span>Su GitHub c'è una versione salvata da un altro PC o browser. Quale vuoi tenere? (L'altra resta comunque nella cronologia di GitHub o in ↶ Annulla.)</span></div>
+      <div class="row"><button class="pri" id="gUseR">⬇ Carica la versione di GitHub</button><button id="gUseL">⬆ Tieni i dati di questo browser</button></div>` : ''}
+      <div class="row">${ghConflict ? '' : '<button class="pri" id="gNow">Salva adesso</button>'}<button id="gVer">🕘 Versioni salvate…</button><button id="gOff">Scollega</button></div>`
       : `<p class="small">Una copia dei dati in un tuo repository <b>privato</b> su GitHub: funziona da qualsiasi PC o browser, non chiede permessi a ogni riavvio e tiene tutte le versioni.</p>
       <div class="ghf"><label>Repository privato<input id="gRepo" placeholder="mamouse87/gestionale-backup" autocomplete="off" spellcheck="false"></label>
         <label>Chiave (token)<input id="gTok" type="password" placeholder="github_pat_…" autocomplete="off"></label><button class="pri" id="gGo">Collega</button></div>
@@ -870,13 +900,15 @@ function renderSettings() {
         ghRestore(await ghLoad(), '(ultima versione)');
       } else await ghWrite();
       logOp('dati', '', `Backup su GitHub collegato a ${gh.repo}`); save();
-      toast('Backup su GitHub attivo ✔');
+      if (ghState === 'ok') toast('Backup su GitHub attivo ✔');
     } catch (e) { $('gMsg').innerHTML = `<b style="color:var(--red)">Non collegato: ${esc(e.message)}</b>`; $('gGo').disabled = false; $('gGo').textContent = 'Collega'; return; }
     reload();
   };
   if ($('gNow')) $('gNow').onclick = async () => { $('gNow').disabled = true; $('gNow').textContent = 'Salvo…'; await ghWrite(); if (ghState === 'ok') toast('Salvato su GitHub ✔'); reload(); };
   if ($('gVer')) $('gVer').onclick = ghVersionsDlg;
-  if ($('gOff')) $('gOff').onclick = () => { if (!confirm('Scollegare il backup su GitHub? Il repository e le versioni salvate restano su GitHub; da questo browser viene tolta solo la chiave.')) return; gh = null; ghStore(); ghState = 'off'; clearTimeout(ghTimer); ghTimer = null; reload(); };
+  if ($('gUseR')) $('gUseR').onclick = async () => { $('gUseR').disabled = true; $('gUseR').textContent = 'Carico…'; await ghResolve('remote'); };
+  if ($('gUseL')) $('gUseL').onclick = async () => { $('gUseL').disabled = true; $('gUseL').textContent = 'Salvo…'; await ghResolve('local'); if (ghState === 'ok') toast('Salvato su GitHub ✔'); };
+  if ($('gOff')) $('gOff').onclick = () => { if (!confirm('Scollegare il backup su GitHub? Il repository e le versioni salvate restano su GitHub; da questo browser viene tolta solo la chiave.')) return; gh = null; ghStore(); ghState = 'off'; ghConflict = false; clearTimeout(ghTimer); ghTimer = null; reload(); };
   if ($('sBkPick')) $('sBkPick').onclick = async () => { await bkChoose(); reload(); };
   if ($('sBkRes')) $('sBkRes').onclick = async () => { await bkResume(); reload(); };
   if ($('sBkNow')) $('sBkNow').onclick = async () => { await bkWrite(); toast('Backup salvato'); reload(); };
@@ -897,7 +929,7 @@ function renderSettings() {
   });
   bindRule('rU', up); bindRule('rE', ed);
   ['thC', 'thP'].forEach(id => $(id).onchange = () => { const t = thrCfg(); t.c = Math.max(0, parseInt($('thC').value, 10) || 0); t.pct = Math.max(0, parseInt($('thP').value, 10) || 0); save(); renderTabs(); renderSets(); toast('Soglia salvata'); });
-  $('sWipe').onclick = () => { if (confirm('Cancellare tutte le carte in vendita e le vendite? Fai prima un backup.')) { state = { cm: state.cm, listings: {}, sold: [], standby: state.standby || {}, log: state.log || [] }; logOp('dati', '', 'Svuotate tutte le carte in vendita e le vendite'); save(); refresh(); } };
+  $('sWipe').onclick = () => { if (confirm('Cancellare tutte le carte in vendita e le vendite? Fai prima un backup.')) { state = Object.assign({}, state, { listings: {}, sold: [], orders: {}, market: {} }); logOp('dati', '', 'Svuotate tutte le carte in vendita e le vendite'); save(); refresh(); } };
 }
 
 // ---------- carte fuori mercato: il tuo prezzo è lontano dal Consigliato ----------
@@ -977,13 +1009,17 @@ function undoRecord(js) {
   if (undoLast != null && js !== undoLast && ops.length && !undoBusy) {
     const sets = [...new Set(ops.map(o => o.set).filter(Boolean))];
     const label = ops.length === 1 ? ops[0].txt : `${ops.length} operazioni: ${ops[0].txt}`;
-    undoStack.push({ at: new Date().toISOString(), label: label.length > 140 ? label.slice(0, 137) + '…' : label, set: sets.join(', '), types: [...new Set(ops.map(o => o.t))], before: undoLast });
+    undoStack.push({ at: new Date().toISOString(), label: label.length > 140 ? label.slice(0, 137) + '…' : label, set: sets.join(', '), types: [...new Set(ops.map(o => o.t))], before: undoSlim(undoLast) });
     if (undoStack.length > UNDO_MAX) undoStack.splice(0, undoStack.length - UNDO_MAX);
     redoStack = [];
     undoPersist();
   }
   undoLast = js;
   undoShow();
+}
+/** stato da tenere in un punto di annullamento: senza catalogo, storico prezzi, registro e Price Guide (restano quelli attuali) */
+function undoSlim(js) {
+  try { const o = JSON.parse(js); ['log', 'pg', 'hist', 'cm'].forEach(k => delete o[k]); return JSON.stringify(o); } catch (e) { return js; }
 }
 function undoApply(js) {
   const s = JSON.parse(js), cur = state;
@@ -1001,7 +1037,7 @@ function undoDo(steps = 1) {
   undoBusy = true;
   for (let i = 0; i < steps && undoStack.length; i++) {
     const e = undoStack.pop();
-    const after = JSON.stringify(state);
+    const after = undoSlim(JSON.stringify(state));
     undoApply(e.before);
     redoStack.push(Object.assign({}, e, { after, before: undefined }));
     logOp('dati', e.set, `Annullato: ${e.label}`);
@@ -1016,7 +1052,7 @@ function redoDo() {
   if (!redoStack.length) return;
   const e = redoStack.pop();
   undoBusy = true;
-  const before = JSON.stringify(state);
+  const before = undoSlim(JSON.stringify(state));
   undoApply(e.after);
   undoStack.push(Object.assign({}, e, { before, after: undefined }));
   logOp('dati', e.set, `Ripetuto: ${e.label}`);
@@ -1062,10 +1098,6 @@ document.addEventListener('keydown', e => {
 });
 
 // ---------- azioni su più carte del set + annulla ----------
-let undoSnap = null;
-function snapshot(label) {
-  undoSnap = { label, d: JSON.stringify({ listings: state.listings, standby: state.standby || {}, market: state.market || {}, sbMarket: state.sbMarket || {} }) };
-}
 function showUndo(msg) {
   document.querySelectorAll('.undobar').forEach(x => x.remove());
   const b = document.createElement('div');
@@ -1098,7 +1130,6 @@ function bulkAction(kind, sid, setName) {
       const v = document.querySelector('input[name="bv"]:checked').value;
       const pick = src.filter(([, x]) => v === 'all' || (v === 'R') === !!x.rev);
       if (!pick.length) { alert('Nessuna copia con questa variante.'); return; }
-      snapshot(what);
       let n = 0;
       pick.forEach(([k, x]) => {
         n += x.q;
@@ -1181,7 +1212,7 @@ $('main').addEventListener('click', e => {
   const srcs = imgSrcs(c.image, cm, c.localId);
   const vs = ls.map(([k, l]) => ({ k, l, v: varOf(k, l) })).filter(x => x.v);
   // vendite di questa carta (stesso set e numero)
-  const soldHere = state.sold.filter(s => norm(s.num) === n0 && (s.expName || state.cm[s.exp]?.name || '') === current.setName);
+  const soldHere = state.sold.filter(s => { const sn = s.expName || state.cm[s.exp]?.name || ''; return norm(s.num) === n0 && (simp(sn) === simp(current.setName) || (!selected.startsWith('cm:') && tcgIdFor(sn) === selected)); });
   const qSold = soldHere.reduce((a, s) => a + s.q, 0), inc = soldHere.reduce((a, s) => a + (s.price || 0) * s.q, 0);
   const qLs = ls.reduce((a, [, l]) => a + l.q, 0), qSb = sb.reduce((a, [, x]) => a + x.q, 0);
   const since = ls.map(([, l]) => l.date).filter(Boolean).sort()[0];
@@ -1337,7 +1368,7 @@ function renderDash() {
   }).sort((a, b) => b.v + b.sv - (a.v + a.sv));
 
   // prezzi da rivedere (confronto con la tendenza di Cardmarket)
-  ls.forEach(l => { const M = mOf(l.k); if (M && M.t != null) l.c = Object.assign({}, l.c, { t: M.t }); });
+  ls.forEach(l => { const M = mOf(l.k); if (M && M.t != null && !(l.rev && !M.rv)) l.c = Object.assign({}, l.c, { t: M.t }); });
   const withT = ls.filter(l => l.price != null && l.c.t);
   const high = withT.filter(l => l.price > l.c.t * 1.5 && l.price - l.c.t >= 0.05).sort((a, b) => (b.price / b.c.t) - (a.price / a.c.t)).slice(0, 15);
   const low = withT.filter(l => l.price < l.c.t * 0.7 && l.c.t - l.price >= 0.05).sort((a, b) => (a.price / a.c.t) - (b.price / b.c.t)).slice(0, 15);
@@ -1369,14 +1400,14 @@ function renderDash() {
     <div class="panel"><h3>Per set</h3>${perSet.length ? `<table><tr><th>Set</th><th>In vendita</th><th>Valore</th><th>Vendute</th><th>Incasso</th><th>% vendute</th></tr>
       ${perSet.map(x => `<tr><td>${esc(x.n)}</td><td>${x.q}</td><td>${eur(x.v)}</td><td>${x.sq}</td><td>${eur(x.sv)}</td><td>${x.pct}%</td></tr>`).join('')}</table>` : '<p class="small">Nessun dato.</p>'}</div>
     <div class="panel"><h3>Prezzi da rivedere (rispetto alla tendenza Cardmarket)</h3>
-      ${!withT.length ? '<p class="small">Serve la tendenza di Cardmarket: arriva quando invii carte o l\'elenco del set con lo script aggiornato.</p>' : ''}
+      ${!withT.length ? '<p class="small">Serve la tendenza di Cardmarket: premi Prezzi ▾ → Aggiorna prezzi di mercato.</p>' : ''}
       ${high.length ? `<p class="small up">Molto sopra la tendenza (difficili da vendere):</p><table><tr><th>Carta</th><th>Set</th><th>Tuo</th><th>Tendenza</th></tr>${high.map(l => row(l) + `<td class="up">${eur(l.price)}</td><td>${eur(l.c.t)}</td></tr>`).join('')}</table>` : ''}
       ${low.length ? `<p class="small down" style="margin-top:10px">Molto sotto la tendenza (stai regalando?):</p><table><tr><th>Carta</th><th>Set</th><th>Tuo</th><th>Tendenza</th></tr>${low.map(l => row(l) + `<td class="down">${eur(l.price)}</td><td>${eur(l.c.t)}</td></tr>`).join('')}</table>` : ''}
       ${withT.length && !high.length && !low.length ? '<p class="small">Tutti i prezzi sono in linea con la tendenza ✔</p>' : ''}</div>
     <div class="panel"><h3>Le carte di valore più alto in vendita</h3>${topVal.length ? `<table><tr><th>Carta</th><th>Set</th><th>Prezzo</th><th>Q.tà</th></tr>${topVal.map(l => row(l) + `<td>${eur(l.price)}</td><td>${l.q}</td></tr>`).join('')}</table>` : '<p class="small">Nessun dato.</p>'}</div>
     <div class="panel"><h3>Le più vendute</h3>${topSoldCards.length ? bars(topSoldCards, v => v + ' copie') : '<p class="small">Ancora nessuna vendita registrata.</p>'}</div>
     ${noPrice.length ? `<div class="panel"><h3>Senza prezzo (${noPrice.length})</h3><table><tr><th>Carta</th><th>Set</th><th>Q.tà</th></tr>${noPrice.slice(0, 30).map(l => row(l) + `<td>${l.q}</td></tr>`).join('')}</table>
-      <p class="small">Clicca la carta nel suo set per inserire il prezzo, oppure reinvia l'elenco del set dallo script per prendere il tuo prezzo attuale.</p></div>` : ''}
+      <p class="small">Clicca la carta nel suo set per scrivere il prezzo.</p></div>` : ''}
   </div>`;
   $('xInv').onclick = () => downloadCsv(`magazzino-${now.toISOString().slice(0, 10)}.csv`,
     [['Set', 'Numero', 'Nome', 'Rarità', 'Variante', 'Lingua', 'Quantità', 'Prezzo', 'Valore', 'Tendenza CM', 'In vendita dal', 'Giorni', 'Commento']].concat(
@@ -1559,7 +1590,7 @@ function renderSales() {
     <div class="kpi"><span>Prezzo medio per carta</span><b>${eur(K.avgP)}${delta(K.avgP, P?.avgP)}</b><small>&nbsp;</small></div>
     <div class="kpi"><span>Tempo medio di vendita</span><b>${K.days == null ? '—' : Math.round(K.days) + ' gg'}${K.days != null && P?.days != null ? delta(K.days, P.days, true) : ''}</b><small>dalla messa in vendita</small></div>
   </div>
-  ${!list.length ? `<div class="empty">Nessuna vendita in questo periodo${salesF.ch || salesF.set || salesF.q ? ' con questi filtri' : ''}.<br>Le vendite arrivano caricando gli ordini con "🧾 Carica vendite".</div>` : `
+  ${!list.length ? `<div class="empty">Nessuna vendita in questo periodo${salesF.ch || salesF.set || salesF.q ? ' con questi filtri' : ''}.<br>Le vendite arrivano caricando i PDF degli ordini: Carica ▾ → Ordini venduti.</div>` : `
   <div class="panels">
     <div class="panel wide"><h3>Andamento incasso (${daily ? 'per giorno' : 'per mese'})</h3>
       <div class="cols" style="height:180px">${buckets.map(k => `<div class="c" title="${k}: ${eur(bv[k] || 0)} · ${bq[k] || 0} copie"><b>${bv[k] ? eur(bv[k]).replace(' €', '') : ''}</b><i style="height:${(bv[k] || 0) / maxB * 100}%"></i>${lab(k)}</div>`).join('')}</div></div>
@@ -1591,12 +1622,17 @@ function renderSales() {
   document.querySelectorAll('[data-undo]').forEach(bt => bt.onclick = e => {
     e.stopPropagation();
     const s = state.sold[+bt.dataset.undo];
-    if (!s || !confirm(`Annullare la vendita di ${s.q} × ${s.name}? La carta torna tra quelle in vendita.`)) return;
-    const k = lkey(s.p, s.rev, s.lang);
-    const L = state.listings[k] || (state.listings[k] = { p: s.p, exp: s.exp, expName: s.expName, u: s.num, rev: s.rev, lang: s.lang, q: 0, price: s.price, date: s.listed || s.date, com: '' });
-    L.q += s.q;
+    // copie da rimettere in vendita: solo quelle tolte davvero dal magazzino (una vendita registrata senza carta nel gestionale non ne rimette)
+    if (!s) return;
+    const back = s.nolist || !s.p ? 0 : Math.min(s.q, s.took ?? s.q);
+    if (!confirm(`Annullare la vendita di ${s.q} × ${s.name}?${back ? ` ${back === 1 ? 'La carta torna' : back + ' copie tornano'} tra quelle in vendita.` : ' Viene tolta solo dalle vendite (la carta non era nel magazzino del gestionale).'}`)) return;
+    if (back) {
+      const k = lkey(s.p, s.rev, s.lang);
+      const L = state.listings[k] || (state.listings[k] = { p: s.p, exp: s.exp, expName: s.expName, u: s.num, rev: s.rev, lang: s.lang, q: 0, price: s.price, date: s.listed || s.date, com: '' });
+      L.q += back;
+    }
     state.sold.splice(+bt.dataset.undo, 1);
-    logOp('riportata', s.expName || '', `Annullata la vendita di ${s.num} ${s.name}${s.rev ? ' Reverse' : ''} ×${s.q}${s.order ? ' (ordine #' + s.order + ')' : ''}: torna in vendita`, s.q);
+    logOp('riportata', s.expName || '', `Annullata la vendita di ${s.num} ${s.name}${s.rev ? ' Reverse' : ''} ×${s.q}${s.order ? ' (ordine #' + s.order + ')' : ''}${back ? `: ${back} tornano in vendita` : ''}`, s.q);
     save(); refresh();
   });
   $('xSales').onclick = () => downloadCsv(`vendite-${dayKey(a)}_${dayKey(+b - 1)}.csv`,
@@ -1690,7 +1726,13 @@ function parseOrder(text) {
   const seller = (text.match(/Venditore\s*-\s*(\S+)/i) || [])[1] || '';
   return { id, date, buyer, seller, items, x };
 }
-const setCode = l => state.cm[l.exp]?.cards?.[l.p]?.c || Object.values(state.cm[l.exp]?.cards || {}).find(c => c.c)?.c || '';
+const setCodeMemo = {};
+const setCode = l => {
+  const c = state.cm[l.exp]?.cards?.[l.p]?.c; if (c) return c;
+  const mk = l.exp + '|' + (l.expName || '');
+  if (!(mk in setCodeMemo)) { const nm = l.expName || state.cm[l.exp]?.name || ''; setCodeMemo[mk] = Object.values(state.cm[l.exp]?.cards || {}).find(c => c.c)?.c || siglaOf(tcgIdFor(nm), nm) || ''; }
+  return setCodeMemo[mk];
+};
 function orderCandidates(it) {
   // stessa sigla del set e stesso numero; prima quelle con stessa variante e lingua
   return Object.entries(state.listings)
@@ -1703,7 +1745,7 @@ function expByCode(code) {
   code = String(code || '').toUpperCase();
   return Object.values(state.cm).find(e => Object.values(e.cards || {}).some(c => String(c.c || '').toUpperCase() === code)) || null;
 }
-function orderReview(o, file) {
+function orderReview(o, file, pos) {
   state.orders = state.orders || {};
   const dup = o.id && state.orders[o.id];
   const tot = o.items.reduce((a, it) => a + it.price * it.qty, 0);
@@ -1732,7 +1774,7 @@ function orderReview(o, file) {
       rem[c.k] = Math.max(0, rem[c.k] - qn);
     });
   };
-  openDlg(`<h3>Ordine Cardmarket ${o.id ? '#' + esc(o.id) : ''}</h3>
+  openDlg(`<h3>Ordine Cardmarket ${o.id ? '#' + esc(o.id) : ''}${pos ? ` <span class="small">· ${pos}</span>` : ''}</h3>
     <p class="small">Pagato il ${new Date(o.date).toLocaleDateString('it-IT')}${o.buyer ? ' · acquirente ' + esc(o.buyer) : ''} · ${n} carte · ${eur(tot)}${o.x?.ship != null ? ` + spedizione ${eur(o.x.ship)}` : ''} ·
       <b>${found}/${rows.length}</b> righe trovate tra le carte in vendita</p>
     ${dup ? `<p style="color:#c8372d;font-weight:600">⚠ Questo ordine è già stato caricato il ${new Date(dup.at).toLocaleDateString('it-IT')}. ${miss ? (miss === 1 ? 'È spuntata solo la riga che manca nelle vendite del gestionale.' : `Sono spuntate solo le ${miss} righe che mancano nelle vendite del gestionale.`) : 'Tutte le righe sono già registrate: non serve fare nulla (aggiorno solo i dettagli dell\'ordine).'}</p>` : ''}
@@ -1743,10 +1785,19 @@ function orderReview(o, file) {
       <td>${r.cands.length ? `<select data-s="${i}">${r.cands.map((c, j) => `<option value="${j}">${esc(c.l.u)} ${esc(state.cm[c.l.exp]?.cards?.[c.l.p]?.n || '')} · ${c.l.rev ? 'Reverse' : 'Normale'} · ${esc((c.l.lang || '').toUpperCase())} (${c.l.q} in vendita)${c.exact ? '' : ' ⚠ variante diversa'}</option>`).join('')}</select>` : ''}
         <div class="small" data-w="${i}" style="color:var(--var)"></div></td>
       <td><input type="number" min="1" value="${r.left || r.qty}" data-q="${i}" style="width:56px"></td><td>${eur(r.price)}</td></tr>`).join('')}</table></div>
-    <p style="text-align:right"><button id="dClose">Annulla</button> <button class="pri" id="dApply">Registra la vendita</button></p>`, () => {
+    <p class="row" style="justify-content:space-between"><span class="small" id="oSum"></span><span><button id="dClose">${pos ? 'Salta questo ordine' : 'Annulla'}</button> <button class="pri" id="dApply">Registra la vendita</button></span></p>`, () => {
     $('dClose').onclick = closeDlg;
-    $('dlgBody').querySelectorAll('[data-i],[data-q],[data-s]').forEach(x => x.onchange = warnOf);
-    warnOf();
+    // riepilogo: quello che registro deve tornare con il totale dell'ordine
+    const sumOf = () => {
+      const B = $('dlgBody'); let q = 0, v = 0;
+      rows.forEach((r, i) => { if (!B.querySelector(`[data-i="${i}"]`).checked) return; const n0 = Math.max(1, +B.querySelector(`[data-q="${i}"]`).value || 1); q += n0; v += n0 * r.price; });
+      const leftQ = rows.reduce((a, r) => a + r.left, 0), leftV = rows.reduce((a, r) => a + r.left * r.price, 0);
+      const okk = q === leftQ && Math.abs(v - leftV) < 0.005;
+      $('oSum').innerHTML = `Registro <b>${q}</b> carte per <b>${eur(v)}</b>` + (dup ? ` (mancavano ${leftQ} carte, ${eur(leftV)})` : ` su ${n} carte, ${eur(tot)} dell'ordine`) +
+        (okk ? ' ✔' : ` · <b style="color:var(--var)">⚠ non corrisponde: controlla le righe non spuntate</b>`);
+    };
+    $('dlgBody').querySelectorAll('[data-i],[data-q],[data-s]').forEach(x => x.onchange = () => { warnOf(); sumOf(); });
+    warnOf(); sumOf();
     $('dApply').onclick = () => {
       const B = $('dlgBody'), ref = o.id ? 'Ordine #' + o.id : file, meta = { order: o.id, buyer: o.buyer };
       let q = 0; const soldTxt = [];
@@ -1772,15 +1823,30 @@ function orderReview(o, file) {
 }
 
 async function importSales(files) {
-  const rows = [];
+  const rows = [], orders = [], other = [];
   for (const f of files) {
     let text;
     try { text = /\.pdf$/i.test(f.name) ? await pdfText(f) : textOf(await f.text()); } catch (e) { alert(`"${f.name}": ${e.message}`); continue; }
     const order = parseOrder(text);
-    if (order) { orderReview(order, f.name); return; }   // ordine Cardmarket: riconoscimento preciso
+    if (order) { orders.push({ o: order, f: f.name }); continue; }   // ordine Cardmarket: riconoscimento preciso
+    other.push(f.name);
     matchSales(text).forEach(r => rows.push(Object.assign(r, { file: f.name })));
   }
+  if (orders.length) {
+    // più ordini insieme: un riquadro alla volta, il successivo si apre quando chiudi quello prima
+    if (other.length) toast(`Carico prima i ${orders.length} ordini di Cardmarket; ${other.join(', ')}: caricalo a parte`);
+    const tot = orders.length; let i = 0;
+    const next = () => {
+      const x = orders.shift(); if (!x) return;
+      i++;
+      $('dlg').addEventListener('close', () => setTimeout(next, 150), { once: true });
+      orderReview(x.o, x.f, tot > 1 ? `ordine ${i} di ${tot}` : '');
+    };
+    next();
+    return;
+  }
   const names = files.map(f => f.name).join(', ');
+  if (!files.length) return;
   if (!rows.length) return openDlg(`<h3>${esc(names)}</h3><p>Non ho trovato nella fattura carte che hai in vendita.</p>
     <p class="small">Se ci sono, mandami un esempio di questa fattura e sistemo la lettura.</p><p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => { $('dClose').onclick = closeDlg; });
   const guess = /ebay/i.test(names) ? 'eBay' : 'Cardmarket';
@@ -1819,28 +1885,8 @@ function sell(k, q, source, file, price, date, meta) {
   L.q -= n;
   if (meta?.force) n0 = q; else n0 = n;
   state.sold.push({ date: date || today(), listed: L.date, p: L.p, exp: L.exp, expName: L.expName, name: c.n || '', num: L.u || c.u || '', rev: L.rev, lang: L.lang, q: n0,
-    price: price != null ? price : L.price, source, file: file || '', order: meta?.order || '', buyer: meta?.buyer || '' });
+    price: price != null ? price : L.price, source, file: file || '', order: meta?.order || '', buyer: meta?.buyer || '', took: n });
   if (L.q <= 0) delete state.listings[k];
-}
-function showSold() {
-  const list = state.sold.map((s, i) => [s, i]).reverse();
-  const tot = state.sold.reduce((a, s) => a + (s.price || 0) * s.q, 0);
-  openDlg(`<h3>Carte vendute (${state.sold.reduce((a, s) => a + s.q, 0)} · ${eur(tot)} ai prezzi di listino)</h3>
-    <div style="max-height:62vh;overflow:auto">${list.length ? `<table><tr><th>Data</th><th>Carta</th><th>Set</th><th>Q.tà</th><th>Prezzo</th><th>Dove</th><th></th></tr>
-    ${list.map(([s, i]) => `<tr><td>${new Date(s.date).toLocaleDateString('it-IT')}</td><td>${esc(s.num)} ${esc(s.name)}${s.rev ? ' (Reverse)' : ''}</td>
-      <td>${esc(s.expName || state.cm[s.exp]?.name || '')}</td><td>${s.q}</td><td>${eur(s.price)}</td><td>${esc(s.source)}<div class="small">${esc(s.file)}</div></td>
-      <td><button class="sm" data-undo="${i}">annulla</button></td></tr>`).join('')}</table>` : '<p>Nessuna vendita.</p>'}</div>
-    <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
-    $('dClose').onclick = closeDlg;
-    $('dlgBody').querySelectorAll('[data-undo]').forEach(b => b.onclick = () => {
-      const s = state.sold[+b.dataset.undo];
-      const k = lkey(s.p, s.rev, s.lang);
-      const L = state.listings[k] || (state.listings[k] = { p: s.p, exp: s.exp, expName: s.expName, u: s.num, rev: s.rev, lang: s.lang, q: 0, price: s.price, date: s.date, com: '' });
-      L.q += s.q;
-      state.sold.splice(+b.dataset.undo, 1);
-      save(); refresh(); showSold();
-    });
-  });
 }
 
 // ---------- prezzi di mercato (automatici: TCGdex + Price Guide di Cardmarket) ----------
@@ -1965,16 +2011,6 @@ function fromVals(l, v) {
 }
 /** "Consigliato": a metà tra "Da" (l'offerta più bassa) e il prezzo a cui la carta si vende davvero
  *  (mediana di Tendenza, Media, Media 7 g, Media 30 g; la media di 1 giorno è troppo ballerina e non la uso). */
-/** i 6 valori di mercato + il consigliato, per il dettaglio carta */
-function mktGrid(M) {
-  const L = ['Da', 'Tendenza', 'Media', 'Media 1 g', 'Media 7 g', 'Media 30 g'];
-  const old = M.a === undefined; // letto prima che salvassi tutti e 6 i valori
-  const C = M.rn ? null : consOf(M);
-  return `<div class="mk6">${MF.map((f, i) => `<span><i>${L[i]}</i><b>${eur(M[f]) || '—'}</b></span>`).join('')}</div>
-    ${M.rn ? '<div class="small">valori della carta normale: per la Reverse non li uso</div>' : ''}
-    ${C ? `<div class="mkc">Consigliato <b>${eur(C.v)}</b> <span class="small">${C.med != null && M.lo != null && M.lo < C.med ? `a metà tra Da ${eur(M.lo)} e il prezzo di vendita tipico ${eur(r2(C.med))}` : 'unico valore disponibile'}</span></div>` : ''}
-    ${old ? '<div class="small">Premi "Aggiorna adesso" per leggere anche le medie.</div>' : ''}`;
-}
 function consOf(M) {
   if (!M) return null;
   const s = [M.t, M.a, M.a7, M.a30].filter(v => v != null && isFinite(v)).sort((a, b) => a - b);
@@ -2018,7 +2054,7 @@ async function updatePrices(force) {
     showProg(prog);
     await pgAuto();
     state.market = state.market || {}; state.sbMarket = state.sbMarket || {};
-    let i = 0, nNew = 0;
+    let i = 0, nNew = 0, fetched = 0, failed = 0;
     const before = new Set(variations().map(x => x.k));
     const worker = async () => {
       while (i < jobs.length) {
@@ -2027,7 +2063,10 @@ async function updatePrices(force) {
         const old = store[k];
         if (!force && old && old.v === 2 && Date.now() - new Date(old.at) < AUTO_H * 3600e3) { prog.done++; continue; }
         const M = await readMarket(l, sb ? sbPid(l) : l.p);
-        store[k] = Object.assign(M || { v: 2, src: '', lo: null, t: null }, { at: today() });
+        fetched++;
+        const st2 = sb ? state.sbMarket : state.market;   // (lo stato può essere stato sostituito da un Annulla nel frattempo)
+        if (!M && old && old.v === 2 && (old.lo != null || old.t != null)) { failed++; prog.done++; showProg(prog); continue; }
+        st2[k] = Object.assign(M || { v: 2, src: '', lo: null, t: null }, { at: today() });
         if (M && (!l.rev || M.rv)) histAdd(l, M);
         if (!sb) {
           // carte messe in vendita prima di questa versione: il primo valore letto diventa il riferimento
@@ -2040,7 +2079,10 @@ async function updatePrices(force) {
       }
     };
     await Promise.all([1, 2, 3, 4, 5, 6].map(worker));
-    state.revAt = today();
+    const bySet = {};
+    jobs.forEach(({ l, sb }) => { const n = sb ? (l.sn || l.s) : (l.expName || state.cm[l.exp]?.name || '?'); bySet[n] = (bySet[n] || 0) + 1; });
+    if (!fetched) { showProg(null); return { nNew, tot: jobs.length, copies: prog.copies, bySet, failed }; }   // erano già tutti aggiornati
+    if (failed < fetched) state.revAt = today();
     const fresh = variations().filter(x => !before.has(x.k));
     const bySetV = {};
     fresh.forEach(({ l, v }) => { const sn = l.expName || state.cm[l.exp]?.name || ''; (bySetV[sn] = bySetV[sn] || []).push(`${cardTxt(l)} ${BASEN[l.rb || 'low']} ${eur(v.ref)} → ${eur(v.cur)}`); });
@@ -2048,9 +2090,8 @@ async function updatePrices(force) {
     save();
     showProg(null);
     refresh();
-    const bySet = {};
-    jobs.forEach(({ l, sb }) => { const n = sb ? (l.sn || l.s) : (l.expName || state.cm[l.exp]?.name || '?'); bySet[n] = (bySet[n] || 0) + 1; });
-    return { nNew, tot: jobs.length, copies: prog.copies, bySet };
+    if (failed && force) toast(`${failed} carte non lette (TCGdex non risponde o manca internet): ho tenuto i prezzi di prima`);
+    return { nNew, tot: jobs.length, copies: prog.copies, bySet, failed };
   })();
   try { return await upd; } finally { upd = null; }
 }
@@ -2107,7 +2148,8 @@ function varDialog(rows, title) {
     $('vAll').onclick = () => {
       const trs = [...$('dlgBody').querySelectorAll('tbody tr')].filter(tr => !tr.querySelector('[data-ok]').disabled);
       if (!trs.length || !confirm(`Confermi di aver messo su Cardmarket il prezzo consigliato a tutte le ${trs.length} carte rimaste?`)) return;
-      trs.forEach(tr => { const k = tr.dataset.k; confirmVar(k, varOf(k, state.listings[k])?.sugg); done(tr); });
+      trs.forEach(tr => { const k = tr.dataset.k; confirmVar(k, varOf(k, state.listings[k])?.sugg); tr.style.opacity = '.35'; tr.querySelectorAll('button,input').forEach(x => x.disabled = true); });
+      save(); refresh();
     };
   });
 }
@@ -2143,7 +2185,7 @@ async function pdfVariations(rows, setName) {
   const nUp = rows.filter(r => r.v.d > 0).length, nDown = rows.length - nUp;
   const dVal = rows.reduce((a, r) => a + (r.v.diff || 0) * r.l.q, 0);
   doc.text(pdfT(`Creato il ${new Date().toLocaleString('it-IT')} · prezzi di mercato Cardmarket del ${upds.length ? fmtD(upds[upds.length - 1]) : '—'} · ${rows.length} righe con variazione (${nUp} in aumento, ${nDown} in calo) · effetto sul valore se applichi i consigliati: ${dVal >= 0 ? '+' : '-'}${eurP(Math.abs(dVal))}`), 12, 21);
-  doc.text(pdfT('Mercato = "Da" (prezzo minimo) o Tendenza di Cardmarket, secondo la regola scelta al caricamento. Consigliato = mercato di oggi con la stessa regola. Dopo aver cambiato il prezzo su Cardmarket, conferma nel gestionale.'), 12, 26, { maxWidth: W - 24 });
+  doc.text(pdfT('Mercato = "Da" (prezzo minimo), Tendenza o Consigliato, secondo la regola scelta al caricamento. Consigliato = mercato di oggi con la stessa regola. Dopo aver cambiato il prezzo su Cardmarket, conferma nel gestionale.'), 12, 26, { maxWidth: W - 24 });
   doc.autoTable({
     startY: 35, margin: { left: 8, right: 8 }, theme: 'grid',
     styles: { fontSize: 8.6, cellPadding: 1.6, valign: 'middle', lineColor: [210, 214, 220] },
@@ -2231,7 +2273,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
     <div style="max-height:46vh;overflow:auto"><table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n" title="a metà tra Da e il prezzo a cui la carta si vende davvero">Consigliato</th><th class="n">Prezzo</th></tr></thead><tbody id="upBody"></tbody></table></div>
     <ol class="small" style="line-height:1.7"><li>Premi <b>Apri Cardmarket</b>: si apre la pagina <b>Inserisci carte bulk</b> di Cardmarket.</li>
     <li>Scegli il set <b>${esc(setName)}</b> in "Edizione", poi premi il pulsante <b>Card Scanner</b> nei preferiti: l'elenco e i prezzi sono già caricati. (Se il set nella pagina non è quello giusto, lo script ti propone "Vai a ${esc(setName)}".)</li>
-    <li>Premi <b>Compila la pagina</b>, controlla, metti in vendita su Cardmarket e premi <b>📤 Invia al gestionale</b>.</li></ol>
+    <li>Premi <b>Compila la pagina</b> e controlla i prezzi. Poi premi <b>📤 Invia al gestionale</b> e metti in vendita su Cardmarket.</li></ol>
     <p class="small">Se lo script non trova l'elenco (per esempio se usi una scheda di Cardmarket già aperta), nel riquadro dello script clicca "Incolla elenco dal gestionale": l'elenco è anche negli appunti.</p>
     <p class="row" style="justify-content:flex-end"><button id="dClose">Annulla</button><button class="pri" id="upGo">Apri Cardmarket ↗</button></p>`, () => {
     $('upBase').value = cfg.base; $('upSign').value = (+cfg.plus || 0) < 0 ? '-1' : '1'; $('upPlus').value = Math.abs(+cfg.plus || 0);
@@ -2326,7 +2368,7 @@ async function openPriceEdit(scopeSet, opt = {}) {
     <div style="max-height:44vh;overflow:auto"><table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Prezzo ora</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n">Consigliato</th><th class="n">Nuovo prezzo</th></tr></thead><tbody id="peBody"></tbody></table></div>
     <ol class="small" style="line-height:1.7"><li>Premi il pulsante qui sotto: si apre la pagina delle tue offerte su Cardmarket.</li>
       <li>Premi il pulsante <b>Card Scanner</b>: legge tutte le pagine delle tue offerte e trova quelle da cambiare.</li>
-      <li>Premi <b>▶ Inizia</b>: apre una carta alla volta e scrive il prezzo; tu controlli e premi <b>MODIFICA ARTICOLO</b> (oppure scegli la conferma automatica).</li>
+      <li>Premi <b>▶ Cambia i prezzi</b>: apre una carta alla volta e scrive il prezzo; tu controlli e premi <b>MODIFICA ARTICOLO</b> (oppure scegli la conferma automatica).</li>
       <li>Alla fine premi <b>📤 Invia al gestionale</b>: i nuovi prezzi entrano qui, con la nuova regola.</li></ol>
     <p class="row" style="justify-content:flex-end"><button id="dClose">Annulla</button><button class="pri" id="peGo">Apri le mie offerte su Cardmarket ↗</button></p>`, () => {
     $('peBase').value = cfg.base; $('peSign').value = (+cfg.plus || 0) < 0 ? '-1' : '1'; $('pePlus').value = Math.abs(+cfg.plus || 0);
@@ -2430,12 +2472,12 @@ function parseCatalog(text) {
   text.replace(/ /g, ' ').split(/\r?\n/).forEach(line => {
     const l = line.trim();
     const li = l.match(/^#\s*LISTA\s+(\S+)/i);
-    if (li) { listId = li[1]; if (cur) cur.listId = listId; return; }
+    if (li) { if (cur && !cur.items.length && !cur.listId) cur.listId = li[1]; else listId = li[1]; return; }
     if (!l || l.startsWith('#') || /^CARDSCANNER/i.test(l)) return;
     let m = l.match(/^COMMENTO\s+(.*)$/i);
     if (m) { com = m[1].trim(); if (cur) cur.com = com; return; }
     m = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*(?:\|\s*([^|]*?))?\s*$/i);
-    if (m) { cur = { name: m[1].trim(), lang: m[2].toLowerCase(), id: (m[3] || '').trim(), com, listId, items: [] }; sets.push(cur); return; }
+    if (m) { cur = { name: m[1].trim(), lang: m[2].toLowerCase(), id: (m[3] || '').trim(), com, listId, items: [] }; listId = ''; sets.push(cur); return; }
     if (!cur) return;
     m = l.match(/^([A-Z]*\d+[a-z]?)\s*\|\s*x\s*(\d+)\s*\|\s*([NR])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|]*?))?\s*$/i);
     if (m) { cur.items.push({ u: m[1], q: +m[2], rev: m[3].toUpperCase() === 'R', n: m[4] || '', r: m[5] || '' }); return; }
@@ -2515,6 +2557,10 @@ async function importCatalog(files) {
 const GH_KEY = 'gestionaleGithub', GH_PATH = 'gestionale-carte.json', GH_EVERY = 10 * 60e3;
 let gh = (() => { try { return JSON.parse(localStorage.getItem(GH_KEY)) || null; } catch (e) { return null; } })();
 let ghState = gh ? 'ok' : 'off', ghErr = '', ghTimer = null, ghDirty = false, ghBusy = false;
+// ghConflict: su GitHub c'è una versione che questo browser non conosce (salvata da un altro PC o browser): non la sovrascrivo da solo
+let ghConflict = false;
+const GH_CONFLICT = 'su GitHub c\'è una versione più recente, salvata da un altro PC o browser. Scegli quale tenere in Impostazioni → Backup su GitHub';
+function ghSetConflict() { ghConflict = true; ghState = 'err'; ghErr = GH_CONFLICT; }
 const ghStore = () => { if (gh) localStorage.setItem(GH_KEY, JSON.stringify(gh)); else localStorage.removeItem(GH_KEY); };
 const bkOk = () => bkState === 'ok' || (!!gh && ghState === 'ok');
 function ghMsg(st, m) {
@@ -2544,8 +2590,9 @@ async function ghSha() {
   try { return (await ghApi('/contents/' + GH_PATH, {}, 'application/vnd.github.object')).sha; }
   catch (e) { if (e.status === 404) return null; throw e; }
 }
-async function ghWrite() {
+async function ghWrite(force) {
   if (!gh || ghBusy) return;
+  if (ghConflict && !force) return;
   ghBusy = true; clearTimeout(ghTimer); ghTimer = null;
   try {
     const ls = Object.values(state.listings), sbq = Object.values(state.standby || {}).reduce((a, x) => a + x.q, 0);
@@ -2553,9 +2600,15 @@ async function ghWrite() {
       content: ghB64(JSON.stringify(state)) }, sha ? { sha } : {}));
     let sha = gh.sha !== undefined ? gh.sha : await ghSha(), r;
     try { r = await ghApi('/contents/' + GH_PATH, { method: 'PUT', body: body(sha) }); }
-    catch (e) { if (e.status !== 409 && e.status !== 422) throw e; sha = await ghSha(); r = await ghApi('/contents/' + GH_PATH, { method: 'PUT', body: body(sha) }); }
+    catch (e) {
+      if (e.status !== 409 && e.status !== 422) throw e;
+      // il file su GitHub è cambiato senza passare da qui: lo sovrascrivo solo se me lo chiedi
+      sha = await ghSha();
+      if (sha && !force) { ghSetConflict(); throw new Error(GH_CONFLICT); }
+      r = await ghApi('/contents/' + GH_PATH, { method: 'PUT', body: body(sha) });
+    }
     gh.sha = r.content.sha; gh.at = new Date().toISOString(); ghStore();
-    ghDirty = false; ghState = 'ok'; ghErr = '';
+    ghDirty = false; ghState = 'ok'; ghErr = ''; ghConflict = false;
   } catch (e) { ghState = 'err'; ghErr = e.message; }
   ghBusy = false; bkShow(); renderTabs();
   if (selected === '__set') renderSettings();
@@ -2569,13 +2622,34 @@ function ghSchedule() {
   ghTimer = setTimeout(() => { ghTimer = null; if (ghDirty) ghWrite(); }, wait);
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && gh && ghDirty) ghWrite(); });
+/** all'apertura: su GitHub c'è una versione che questo browser non ha mai visto? (gestionale usato su un altro PC) */
+async function ghCheck() {
+  if (!gh) return;
+  try {
+    const remote = await ghSha();
+    if (!remote) { if (gh.sha) { gh.sha = null; ghStore(); } return; }
+    if (gh.sha && remote !== gh.sha) { ghSetConflict(); bkShow(); renderTabs(); if (selected === '__set') renderSettings(); toast('Backup su GitHub: c\'è una versione più recente salvata da un altro PC. Apri Impostazioni per scegliere quale tenere.'); }
+    else if (!gh.sha) { gh.sha = remote; ghStore(); }
+  } catch (e) { /* senza internet riprovo al prossimo salvataggio */ }
+}
+/** risolve il conflitto: 'remote' = carico la versione di GitHub, 'local' = tengo i dati di questo browser */
+async function ghResolve(which) {
+  try {
+    if (which === 'remote') {
+      const st = await ghLoad(); gh.sha = await ghSha(); ghStore();
+      ghConflict = false; ghState = 'ok'; ghErr = '';
+      ghRestore(st, '(versione salvata da un altro PC)');
+    } else { ghConflict = false; await ghWrite(true); }
+  } catch (e) { ghState = 'err'; ghErr = e.message; }
+  bkShow(); renderTabs(); if (selected === '__set') renderSettings();
+}
 async function ghConnect(repo, token) {
   repo = String(repo || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
   token = String(token || '').trim();
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('scrivi il repository come utente/nome, per esempio mamouse87/gestionale-backup');
   if (!token) throw new Error('incolla la chiave (token) creata su GitHub');
   const prev = gh;
-  gh = { repo, token };
+  gh = { repo, token }; ghConflict = false;
   try {
     const info = await ghApi('');
     if (!info.private) throw new Error('il repository è PUBBLICO: chiunque vedrebbe i tuoi dati. Rendilo privato su GitHub (Settings → Danger Zone → Change visibility) e riprova');
@@ -2616,6 +2690,7 @@ async function ghVersionsDlg() {
       try {
         const s = await ghLoad(b.dataset.ref);
         if (!confirm(`Sostituire i dati di questo browser con la versione del ${fmtDT(b.dataset.at)} (${Object.keys(s.listings).length} righe in vendita, ${(s.sold || []).length} vendite)?`)) { b.disabled = false; b.textContent = 'Ripristina'; return; }
+        try { gh.sha = await ghSha(); ghStore(); ghConflict = false; ghState = 'ok'; ghErr = ''; } catch (er) {}
         closeDlg(); ghRestore(s, 'del ' + fmtDT(b.dataset.at));
       } catch (e) { alert('Non riesco a leggere quella versione: ' + e.message); b.disabled = false; b.textContent = 'Ripristina'; }
     });
@@ -2691,34 +2766,6 @@ function bkShow() {
   b.innerHTML = `💾<i class="dot"></i>${lb ? `<span class="lb">${lb}</span>` : ''}`; b.title = lines.join('\n');
   b.className = 'ticon ' + (err ? 'warn' : bkOk() ? 'on' : 'warn');
 }
-function bkDialog() {
-  if (bkState === 'paused') { bkResume(); return; }
-  const at = localStorage.getItem('gestionaleBackupAt');
-  openDlg(`<h3>💾 Backup automatico</h3>
-    ${bkState === 'nosupport' ? '<p>Questo browser non permette di salvare da solo in una cartella: usa <b>Chrome</b> o <b>Edge</b> sul PC. Intanto puoi scaricare il backup a mano.</p>' : `
-    <p>Scegli una volta una cartella del PC: da quel momento, a ogni modifica, il gestionale ci salva da solo <b>${BK_FILE}</b> e una copia per ogni giorno nella sottocartella <b>${BK_SUB}</b> (tiene gli ultimi ${BK_KEEP} giorni).</p>
-    <p>Consiglio: scegli una cartella dentro <b>Google Drive</b> (programma "Drive per desktop") o <b>OneDrive</b>, così il backup finisce anche online. Dal telefono puoi aprire il gestionale e fare <b>Ripristina backup</b> scegliendo quel file da Drive per consultarlo.</p>
-    <p>Stato: <b>${{ ok: 'attivo ✔', off: 'non attivo', err: 'errore: ' + esc(bkErr), paused: 'in pausa' }[bkState]}</b>${bkDir ? ` · cartella <b>${esc(bkDir.name)}</b>` : ''}${at ? ` · ultimo salvataggio ${new Date(at).toLocaleString('it-IT')}` : ''}</p>
-    <p class="small">Per sicurezza Chrome può chiedere di nuovo il permesso quando riapri il gestionale: in quel caso il pulsante in alto diventa "Backup in pausa", cliccalo e scegli <b>Consenti a ogni visita</b>.</p>`}
-    <p class="row">${bkState !== 'nosupport' ? `<button class="pri" id="bkPick">📁 ${bkDir ? 'Cambia cartella' : 'Scegli la cartella'}</button>${bkDir ? '<button id="bkNow">Salva adesso</button><button id="bkLoad">↩ Ripristina dall\'ultimo backup</button><button id="bkOff">Disattiva</button>' : ''}` : ''}
-      <button id="bkDl">⬇ Scarica backup a mano</button><button id="bkUp">↩ Ripristina da file…</button></p>
-    <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
-    $('dClose').onclick = closeDlg;
-    $('bkDl').onclick = downloadBackup;
-    $('bkUp').onclick = () => $('fRestore').click();
-    if ($('bkPick')) $('bkPick').onclick = async () => { await bkChoose(); bkDialog(); };
-    if ($('bkNow')) $('bkNow').onclick = async () => { if (bkState !== 'ok') await bkResume(); else { await bkWrite(); toast('Backup salvato'); } bkDialog(); };
-    if ($('bkOff')) $('bkOff').onclick = async () => { if (!confirm('Disattivare il backup automatico? I file già salvati restano nella cartella.')) return; await bkDb('del'); bkDir = null; bkState = 'off'; bkShow(); bkDialog(); };
-    if ($('bkLoad')) $('bkLoad').onclick = async () => {
-      try {
-        if (bkState !== 'ok') await bkResume();
-        const s = JSON.parse(await (await (await bkDir.getFileHandle(BK_FILE)).getFile()).text());
-        if (!s.listings) throw new Error('file non valido');
-        if (confirm(`Sostituire i dati attuali con il backup della cartella (${Object.keys(s.listings).length} righe in vendita, ${(s.sold || []).length} vendite)?`)) { state = Object.assign({ cm: {}, sold: [], standby: {} }, s); save(); closeDlg(); refresh(); }
-      } catch (e) { alert('Non riesco a leggere il backup: ' + e.message); }
-    };
-  });
-}
 function downloadBackup() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(state)], { type: 'application/json' }));
@@ -2738,14 +2785,15 @@ function refresh() {
   $('stats').innerHTML = `<span><b>${copies}</b>in vendita</span><span><b>${eur(value) || '0,00 €'}</b>valore</span>` +
     (sbq ? `<span><b>${sbq}</b>in Standby</span>` : '') + `<span><b>${state.sold.reduce((a, s) => a + s.q, 0)}</b>vendute</span>` +
     (noPrice ? `<span class="w"><b>${noPrice}</b>senza prezzo</span>` : '');
-  renderSets(); renderSet();
+  const m = $('main'), top = m.scrollTop, was = selected;
+  renderSets();
+  Promise.resolve(renderSet()).then(() => { if (selected === was && top) m.scrollTop = top; });
 }
 document.addEventListener('click', e => {
   document.querySelectorAll('details.menu[open]').forEach(d => { if (!d.contains(e.target) || e.target.closest('.mn button')) d.removeAttribute('open'); });
 });
 $('btnSale').onclick = () => $('fSale').click();
 $('fSale').onchange = e => { importSales([...e.target.files]); e.target.value = ''; };
-$('btnSold').onclick = () => { selected = '__sales'; renderSets(); renderSet(); };
 $('btnCat').onclick = () => $('fCat').click();
 $('btnEditCM').onclick = () => openPriceEdit('');
 $('fCat').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) importCatalog(fs); };
@@ -2821,15 +2869,17 @@ function otherTab() {
     return;
   }
   undoLast = JSON.stringify(state);
-  const edited = importEditFromHash();
-  const arrived = importFromHash();
+  tcgPurge(false);
   bkInit(); undoInit();
   await loadSets();
+  const edited = importEditFromHash();
+  const arrived = importFromHash();
   const bySet = listingsBySet();
   selected = (arrived && tcgIdFor(arrived)) || Object.keys(bySet).sort((a, b) => bySet[b].length - bySet[a].length)[0] || (tcgSets[0] && tcgSets[0].id) || null;
   refresh();
   updatePrices(false); // aggiorna da solo i prezzi più vecchi di 12 ore
   loadMyCodes();
+  ghCheck();
   setInterval(() => updatePrices(false), 3600e3); // e ricontrolla ogni ora se la pagina resta aperta
 })();
 </script>

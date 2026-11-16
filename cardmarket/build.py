@@ -16,23 +16,23 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <li>Se avevi già il pulsante, eliminalo (tasto destro → Elimina) e trascina di nuovo questo:</li></ol>
 <p><a class="bm" href="{html.escape(bm, quote=True)}">📋 Card Scanner → CM</a></p>
 <h2>2. Ogni set (consigliato: dal gestionale)</h2>
-<ol><li>Nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a> carica il file .txt dell'app (<b>📥 Carica liste dall'app</b>): le carte vanno in <b>Standby</b>.</li>
+<ol><li>Nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a> carica i file .txt dell'app (<b>Carica ▾ → Liste dall'app</b>): le carte vanno in <b>Standby</b>.</li>
 <li>Apri il set e premi <b>Metti in vendita su Cardmarket</b>: scegli il prezzo ("Da", Tendenza o Consigliato, ± centesimi). Il gestionale calcola il prezzo di ogni carta, <b>Normali e Reverse separate</b>; se serve puoi cambiarne uno a mano.</li>
 <li>Si apre Cardmarket: premi <b>📋 Card Scanner → CM</b>. Se non sei già sulla pagina "Inserisci carte bulk" del set ti ci porta; lì premilo di nuovo. L'elenco e i prezzi sono già caricati.</li>
 <li>Premi <b>Compila la pagina</b> e controlla. Le righe con il <b>bordo rosso</b> non hanno un prezzo (per esempio una Reverse senza prezzo Reverse): scrivilo tu. Lo script non usa mai il prezzo della versione normale per una Reverse.</li>
-<li>Metti in vendita su Cardmarket tu stesso, poi premi il pulsante verde <b>📤 Invia al gestionale</b>: le carte passano da Standby a In vendita.</li>
+<li>Premi il pulsante verde <b>📤 Invia al gestionale</b> (le carte passano da Standby a In vendita) e metti in vendita su Cardmarket tu stesso.</li>
 <li>Se il set ha più pagine: vai alla pagina successiva, premi di nuovo il pulsante (l'elenco resta caricato) e ripeti.</li></ol>
 <p>Lo script non invia nulla a Cardmarket e non legge password.</p>
 <h2>Cambiare i prezzi delle carte già in vendita</h2>
-<ol><li>Nel gestionale premi <b>✏️ Cambia prezzi su Cardmarket</b> (in alto per tutti i set, oppure nella pagina di un set): scegli il nuovo prezzo ("Da" o Tendenza ± centesimi) e controlla l'elenco.</li>
+<ol><li>Nel gestionale premi <b>Prezzi ▾ → Cambia prezzi su Cardmarket</b> (per tutti i set), oppure <b>✏️ Cambia prezzi di questo set</b> nella pagina di un set, oppure parti dalla scheda <b>Fuori mercato</b>: scegli il nuovo prezzo ("Da", Tendenza o Consigliato, ± centesimi) e controlla l'elenco.</li>
 <li>Si apre la pagina <b>Le mie offerte</b> di Cardmarket: premi <b>📋 Card Scanner → CM</b>. Lo script legge da solo tutte le pagine delle tue offerte (Normali e Reverse) e trova quelle da cambiare.</li>
-<li>Premi <b>▶ Inizia</b>: apre il riquadro "Modifica" di una carta alla volta e scrive il nuovo prezzo (campo giallo). Tu controlli e premi <b>MODIFICA ARTICOLO</b>; chiudendo il riquadro la carta viene saltata. Con "Conferma automatica" lo preme lo script, una carta ogni 3 secondi (puoi fermarlo con ⏸).</li>
+<li>Premi <b>▶ Cambia i prezzi</b>: apre il riquadro "Modifica" di una carta alla volta e scrive il nuovo prezzo (campo giallo). Tu controlli e premi <b>MODIFICA ARTICOLO</b>; chiudendo il riquadro la carta viene saltata. Con "Conferma automatica" lo preme lo script, una carta ogni 3 secondi (puoi fermarlo con ⏸).</li>
 <li>Alla fine premi <b>🔁 Verifica</b> (rilegge le offerte e controlla i prezzi) e <b>📤 Invia al gestionale</b>: i nuovi prezzi e la nuova regola entrano nel gestionale.</li></ol>
 <h2>Prezzo</h2>
-<p>Il prezzo si sceglie solo nel gestionale ("Metti in vendita su Cardmarket": "Da" o Tendenza ± centesimi, calcolato a parte per Normali e Reverse). Ogni volta che premi "Apri su Cardmarket" l'elenco ha un nome nuovo (es. <code>DLR-Dominio_Delta_20261115-030612</code>), così lo script lo tratta sempre come una lista nuova. Il prezzo non scende mai sotto 0,02 €; le righe senza prezzo hanno il bordo rosso.</p>
+<p>Il prezzo si sceglie solo nel gestionale ("Metti in vendita su Cardmarket": "Da", Tendenza o Consigliato, ± centesimi, calcolato a parte per Normali e Reverse). Ogni volta che premi "Apri Cardmarket" l'elenco ha un nome nuovo (es. <code>DLR-Dominio_Delta_20261115-030612</code>), così lo script lo tratta sempre come una lista nuova. Il prezzo non scende mai sotto 0,02 €; le righe senza prezzo hanno il bordo rosso.</p>
 <p>Dopo "Invia al gestionale" i dati tornano nella pagina del gestionale già aperta (se si apre una scheda nuova, passa i dati a quella già aperta e si chiude da sola).</p>
 <h2>Revisione prezzi</h2>
-<p>Si fa nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a>: i prezzi di mercato si aggiornano da soli e le carte con una variazione (anche di 0,01 €) vengono segnalate nel set, con il PDF della revisione e la conferma dei nuovi prezzi.</p>
+<p>Si fa nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a>: i prezzi di mercato si aggiornano da soli e le carte con una variazione oltre la soglia scelta in Impostazioni vengono segnalate nel set, con il PDF della revisione e la conferma dei nuovi prezzi.</p>
 <h2>In alternativa</h2>
 <p>Se il pulsante non funziona: sulla pagina di Cardmarket premi <code>F12</code> → <b>Console</b>, incolla il codice e premi Invio.</p>
 <pre>{html.escape(code)}</pre>

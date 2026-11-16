@@ -743,8 +743,8 @@ class MainActivity : AppCompatActivity() {
             .setView(LinearLayout(this).apply { setPadding(48, 16, 48, 0); addView(et, ViewGroup.LayoutParams(-1, -2)) })
             .setPositiveButton("Aggiungi") { _, _ ->
                 val v = et.text.toString().trim().substringBefore('/').trim()
-                if (v.isNotEmpty()) addCard(v, "a mano")
-                // per una Reverse inserita a mano: usa il tasto ⇄ Rev subito dopo
+                // con la modalità ✦ REVERSE attiva anche la carta scritta a mano è Reverse (si può cambiare con ⇄ Rev)
+                if (v.isNotEmpty()) addCard(v, "a mano", decideVariant().first)
             }
             .setNegativeButton("Annulla", null)
             .setOnDismissListener { paused = false }
@@ -787,7 +787,7 @@ class MainActivity : AppCompatActivity() {
                 "⇄ Rev cambia l'ultima tra normale e Reverse, ✍ aggiunge a mano, ＋ aggiunge un'altra copia dell'ultima carta (tieni premuto per scegliere quante).\n\n" +
                 "▶ Avvia / ⏸ Ferma scansione: la carta singola viene letta solo a scansione avviata.\n\n" +
                 "SUONI: bip corto = carta nuova aggiunta · campanella = carta già presente nella lista (un'altra copia) · suono basso e lungo = errore di lettura che dura (set sbagliato, nome non letto, due numeri insieme).\n\n" +
-                "6. In 📋 Lista trovi tutte le carte: tocca il nome di un set per mandare il file al PC (Cardmarket e gestionale)."
+                "6. In 📋 Lista trovi tutte le carte: tocca il nome di un set per chiuderle in una lista numerata, poi 📤 Invia liste al gestionale manda i file al PC."
             )
             .setPositiveButton("Ho capito", null).show()
     }

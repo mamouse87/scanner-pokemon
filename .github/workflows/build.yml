@@ -3,6 +3,13 @@ name: Compila APK
 on:
   push:
     branches: [main]
+    # l'app si ricompila solo quando cambia l'app (non a ogni modifica del gestionale o dello script)
+    paths:
+      - "app/**"
+      - "*.gradle*"
+      - "gradle/**"
+      - "gradle.properties"
+      - ".github/workflows/**"
   workflow_dispatch:
 
 permissions:

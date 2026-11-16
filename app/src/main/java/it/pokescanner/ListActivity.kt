@@ -38,6 +38,7 @@ class ListActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_list)
+        Inventory.ensureLoaded(this)
         SavedLists.load(this)
         tvSummary = findViewById(R.id.tvSummary)
         val rv = findViewById<RecyclerView>(R.id.rv)
@@ -163,7 +164,8 @@ class ListActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val code = codeFor(g)
             val first = g.items.first().second
-            val next = (SavedLists.lists.filter { it.lang == g.lang && it.setId == first.setId }.maxOfOrNull { it.n } ?: 0) + 1
+            if (isFinishing || isDestroyed) return@launch
+            val next = SavedLists.peekN(this@ListActivity, g.lang, first.setId)
             val name = "${code.ifEmpty { first.setId.uppercase().replace(Regex("[^A-Z0-9]"), "") }}-${SavedLists.compact(g.setName)}${next.toString().padStart(3, '0')}"
             val n = g.items.sumOf { it.second.qty }
             val rev = g.items.filter { it.second.variant == "R" }.sumOf { it.second.qty }
@@ -216,7 +218,7 @@ class ListActivity : AppCompatActivity() {
             pending.forEach { sb.append("• ${it.id}.txt (${it.copies} carte)\n") }
             sb.append('\n')
         }
-        sb.append("Tutti i file partono insieme. Sul PC caricali nel gestionale (📥 Carica catalogo, anche tutti insieme): ognuno va nello Standby del suo set.")
+        sb.append("Tutti i file partono insieme. Sul PC caricali nel gestionale (Carica → Liste dall'app, anche tutti insieme): ognuno va nello Standby del suo set.")
         val views = ArrayList<View>()
         views.add(TextView(this).apply { text = sb.toString(); setPadding(0, 0, 0, 16) })
         if (groups.isNotEmpty()) views.add(et)

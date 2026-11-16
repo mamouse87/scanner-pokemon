@@ -128,7 +128,7 @@
     window.__csOffers = P;
     const $o = id => R.getElementById(id);
     let tab = 'todo', msg = '';
-    const ruleTxt = j => `${j.base === 'trend' ? 'Tendenza' : '"Da" (prezzo minimo)'}${j.plus ? ` ${j.plus > 0 ? '+' : '−'} ${eur(Math.abs(j.plus) / 100)}` : ''}`;
+    const ruleTxt = j => `${j.base === 'trend' ? 'Tendenza' : j.base === 'cons' ? 'Consigliato' : '"Da" (prezzo minimo)'}${j.plus ? ` ${j.plus > 0 ? '+' : '−'} ${eur(Math.abs(j.plus) / 100)}` : ''}`;
 
     function render() {
       const m = matchAll();
@@ -447,7 +447,7 @@
       <div id="csJob" class="card info"></div>
       <!-- la lista e il prezzo arrivano dal gestionale ("Apri su Cardmarket"): qui non si scelgono più -->
       <div class="hide"><input type="file" id="csFile"><input type="checkbox" id="csPrice" checked>
-        <select id="csBase"><option value="low">Da</option><option value="trend">Tendenza</option></select>
+        <select id="csBase"><option value="low">Da</option><option value="trend">Tendenza</option><option value="cons">Consigliato</option></select>
         <select id="csSign"><option value="1">+</option><option value="-1">−</option></select><input id="csPlus" type="number">
         <textarea id="csInput" readonly></textarea></div>
       <div class="msg" id="csMsg"></div>
@@ -618,19 +618,22 @@
     } catch (e) { pg = null; log('Price Guide non scaricabile da qui (' + (e.message || e) + '): le Reverse senza prezzo restano VUOTE, da scrivere a mano.', '#ff9f43'); }
     return pg;
   }
-  const BASE_NAME = { low: 'Da', trend: 'Tendenza' };
+  const BASE_NAME = { low: 'Da', trend: 'Tendenza', cons: 'Consigliato' };
+  const BASE_ALT = { low: ['trend'], trend: ['low'], cons: ['low', 'trend'] };
+  const normBase = b => (b === 'trend' || b === 'cons') ? b : 'low';
   /** valore dall'elenco del gestionale (Da e Tendenza della variante giusta, Normale o Reverse); null = non c'è */
   function jobValue(ji, rev, base) {
-    const other = base === 'low' ? 'trend' : 'low';
-    const val = { low: ji.lo, trend: ji.t };
+    const val = { low: ji.lo, trend: ji.t, cons: ji.c };
     const tag = rev ? ' Reverse' : '';
-    if (ji.mp != null) return { fixed: +ji.mp, v: val[base] ?? val[other] ?? null, used: val[base] != null ? base : other, src: 'prezzo scritto da te nel gestionale' };
-    if (val[base] != null) return { v: +val[base], used: base, src: `${BASE_NAME[base]}${tag} (gestionale)` };
-    if (val[other] != null) return { v: +val[other], used: other, src: `${BASE_NAME[other]}${tag} (gestionale, manca ${BASE_NAME[base]})`, warn: true };
+    const used = [base, ...(BASE_ALT[base] || [])].find(x => val[x] != null);
+    if (ji.mp != null) return { fixed: +ji.mp, v: used ? +val[used] : null, used: used || base, src: 'prezzo scritto da te nel gestionale' };
+    if (used === base) return { v: +val[base], used: base, src: `${BASE_NAME[base]}${tag} (gestionale)` };
+    if (used) return { v: +val[used], used, src: `${BASE_NAME[used]}${tag} (gestionale, manca ${BASE_NAME[base]})`, warn: true };
     return null;
   }
   /** valore base per la riga: {v, src, warn} */
   function baseValue(tr, rev, base) {
+    if (base === 'cons') base = 'low'; // senza elenco del gestionale il Consigliato non c'è: uso Da
     const pid = (field(tr, 'idProduct') || {}).value;
     const other = base === 'low' ? 'trend' : 'low';
     if (rev && pg && pg[pid]) {
@@ -858,7 +861,7 @@
       $('csInput').value = jobText(j); store.set('list', $('csInput').value);
       $('csComment').value = j.com || ''; store.set('comment', $('csComment').value);
     }
-    $('csBase').value = j.base === 'trend' ? 'trend' : 'low'; store.set('base', $('csBase').value);
+    $('csBase').value = normBase(j.base); store.set('base', $('csBase').value);
     $('csSign').value = j.plus < 0 ? '-1' : '1'; store.set('sign', $('csSign').value);
     $('csPlus').value = String(Math.abs(j.plus || 0)); store.set('plus', $('csPlus').value);
     $('csPrice').checked = true;
@@ -895,7 +898,7 @@
     if (!items.length) { log('Nessuna carta nella lista.', '#ff6b6b'); return; }
     const rows = pageRows();
     const wantPrice = $('csPrice').checked;
-    const base = $('csBase').value === 'trend' ? 'trend' : 'low';
+    const base = normBase($('csBase').value);
     const plus = (+$('csSign').value || 1) * Math.abs(parseInt($('csPlus').value || '0', 10) || 0) / 100;
     const comment = $('csComment').value.trim();
     const fmtPlus = plus ? ` ${plus > 0 ? '+' : '−'} ${Math.abs(plus).toFixed(2).replace('.', ',')} €` : '';

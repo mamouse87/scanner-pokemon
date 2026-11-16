@@ -17,7 +17,7 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <p><a class="bm" href="{html.escape(bm, quote=True)}">📋 Card Scanner → CM</a></p>
 <h2>2. Ogni set (consigliato: dal gestionale)</h2>
 <ol><li>Nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a> carica il file .txt dell'app (<b>📥 Carica liste dall'app</b>): le carte vanno in <b>Standby</b>.</li>
-<li>Apri il set e premi <b>Metti in vendita su Cardmarket</b>: scegli il prezzo ("Da" o Tendenza, ± centesimi). Il gestionale calcola il prezzo di ogni carta, <b>Normali e Reverse separate</b>; se serve puoi cambiarne uno a mano.</li>
+<li>Apri il set e premi <b>Metti in vendita su Cardmarket</b>: scegli il prezzo ("Da", Tendenza o Consigliato, ± centesimi). Il gestionale calcola il prezzo di ogni carta, <b>Normali e Reverse separate</b>; se serve puoi cambiarne uno a mano.</li>
 <li>Si apre Cardmarket: premi <b>📋 Card Scanner → CM</b>. Se non sei già sulla pagina "Inserisci carte bulk" del set ti ci porta; lì premilo di nuovo. L'elenco e i prezzi sono già caricati.</li>
 <li>Premi <b>Compila la pagina</b> e controlla. Le righe con il <b>bordo rosso</b> non hanno un prezzo (per esempio una Reverse senza prezzo Reverse): scrivilo tu. Lo script non usa mai il prezzo della versione normale per una Reverse.</li>
 <li>Metti in vendita su Cardmarket tu stesso, poi premi il pulsante verde <b>📤 Invia al gestionale</b>: le carte passano da Standby a In vendita.</li>

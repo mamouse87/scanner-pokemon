@@ -667,7 +667,7 @@ function goTab(id) {
 function renderSettings() {
   const at = localStorage.getItem('gestionaleBackupAt');
   const up = upCfg(), ed = editCfg();
-  const ruleSel = (id, c) => `<select id="${id}B"><option value="low" ${c.base === 'low' ? 'selected' : ''}>"Da" (prezzo minimo)</option><option value="trend" ${c.base === 'trend' ? 'selected' : ''}>Tendenza</option></select>
+  const ruleSel = (id, c) => `<select id="${id}B"><option value="low" ${c.base === 'low' ? 'selected' : ''}>"Da" (prezzo minimo)</option><option value="trend" ${c.base === 'trend' ? 'selected' : ''}>Tendenza</option><option value="cons" ${c.base === 'cons' ? 'selected' : ''}>Consigliato</option></select>
     <select id="${id}S"><option value="1">+</option><option value="-1" ${(+c.plus || 0) < 0 ? 'selected' : ''}>−</option></select>
     <input type="number" id="${id}P" min="0" step="1" value="${Math.abs(+c.plus || 0)}" style="width:76px"> cent.`;
   const size = new Blob([JSON.stringify(state)]).size;
@@ -1391,10 +1391,12 @@ const r2 = v => Math.round(v * 100) / 100;
 const PG_URL = 'https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_6.json';
 const PG_PAGE = 'https://www.cardmarket.com/it/Pokemon/Data/Price-Guide';
 const AUTO_H = 12;  // ogni quante ore aggiorno da solo
-const BASEN = { low: 'Da', trend: 'Tendenza' };
+const BASEN = { low: 'Da', trend: 'Tendenza', cons: 'Consigliato' };
 const mOf = k => { const M = (state.market || {})[k]; return M && M.v === 2 ? M : null; };
 const sbmOf = k => { const M = (state.sbMarket || {})[k]; return M && M.v === 2 ? M : null; };
-const baseOf = (M, b) => M ? (b === 'trend' ? M.t : M.lo) : null;
+const baseOf = (M, b) => M ? (b === 'trend' ? M.t : b === 'cons' ? consOf(M)?.v ?? null : M.lo) : null;
+// se manca il valore scelto: Da ↔ Tendenza; per il Consigliato prima Da, poi Tendenza
+const BASEALT = { low: ['trend'], trend: ['low'], cons: ['low', 'trend'] };
 const fmtDT = d => d ? new Date(d).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
 const fmtD = d => d ? new Date(d).toLocaleDateString('it-IT') : '—';
 const ruleTxt = L => `${BASEN[L.rb || 'low']}${L.ro ? ` ${L.ro > 0 ? '+' : '−'} ${eur(Math.abs(L.ro) / 100)}` : ''}`;
@@ -1702,7 +1704,7 @@ function upCfg() { return state.upCfg || (state.upCfg = { base: 'trend', plus: 0
 function jobVals(k) {
   const M = sbmOf(k), X = state.standby[k];
   if (!M || (X.rev && !M.rv)) return { lo: null, t: null };
-  return { lo: M.lo ?? null, t: M.t ?? null };
+  return { lo: M.lo ?? null, t: M.t ?? null, c: consOf(M)?.v ?? null };
 }
 async function openOnCardmarket(setId, setName, cmCat) {
   const list = Object.entries(state.standby || {}).filter(([, x]) => x.s === setId)
@@ -1717,9 +1719,9 @@ async function openOnCardmarket(setId, setName, cmCat) {
   const cfg = upCfg(), over = {};
   const priceOf = (k, b, plus) => {
     if (over[k] != null) return { p: over[k], m: 1 };
-    const v = jobVals(k), key = b === 'trend' ? 't' : 'lo', other = b === 'trend' ? 'lo' : 't';
-    const x = v[key] ?? v[other];
-    return x == null ? { p: null } : { p: r2(Math.max(0.02, x + plus)), alt: v[key] == null };
+    const v = jobVals(k), F = { low: 'lo', trend: 't', cons: 'c' };
+    const used = [b, ...BASEALT[b]].find(x => v[F[x]] != null);
+    return used == null ? { p: null } : { p: r2(Math.max(0.02, v[F[used]] + plus)), alt: used !== b, used };
   };
   const draw = () => {
     const b = $('upBase').value, plus = (+$('upSign').value || 1) * Math.abs(parseInt($('upPlus').value || '0', 10) || 0) / 100;
@@ -1729,9 +1731,9 @@ async function openOnCardmarket(setId, setName, cmCat) {
       if (r.p == null) miss++; else tot += r.p * x.q;
       return `<tr data-k="${esc(k)}" style="${r.p == null ? 'background:rgba(229,72,77,.12)' : ''}"><td><b>${esc(cardCode(setId, setName, x.u))}</b> ${esc(x.n)}</td>
         <td>${x.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale'}</td><td class="n">${x.q}</td>
-        <td class="n">${eur(v.lo) || '—'}</td><td class="n">${eur(v.t) || '—'}</td>
+        <td class="n">${eur(v.lo) || '—'}</td><td class="n">${eur(v.t) || '—'}</td><td class="n">${eur(v.c) || '—'}</td>
         <td class="n"><input type="number" min="0.02" step="0.01" class="upP" value="${r.p != null ? r.p.toFixed(2) : ''}" placeholder="scrivilo" style="${r.m ? 'border-color:var(--acc);font-weight:700' : ''}">
-          <small>${r.m ? 'scritto da te' : r.p == null ? (x.rev && M && !M.rv ? 'manca il prezzo Reverse' : 'manca il prezzo') : r.alt ? `da ${BASEN[b === 'trend' ? 'low' : 'trend']}` : ''}</small></td></tr>`;
+          <small>${r.m ? 'scritto da te' : r.p == null ? (x.rev && M && !M.rv ? 'manca il prezzo Reverse' : 'manca il prezzo') : r.alt ? `da ${BASEN[r.used]}` : ''}</small></td></tr>`;
     }).join('');
     $('upInfo').innerHTML = `${list.length} righe · ${list.reduce((a, [, x]) => a + x.q, 0)} copie · valore ${eur(tot)}` +
       (miss ? ` · <b style="color:#e5484d">${miss} senza prezzo: scrivilo qui o lo scrivi tu su Cardmarket</b>` : '');
@@ -1744,10 +1746,10 @@ async function openOnCardmarket(setId, setName, cmCat) {
   openDlg(`<h3>Metti in vendita su Cardmarket · ${esc(setName)}</h3>
     <p class="small">Scegli il prezzo: lo script Card Scanner lo userà così com'è, con i valori giusti per le <b>Normali</b> e per le <b>Reverse</b>.
     Se serve puoi cambiare il prezzo di una singola carta nella tabella.</p>
-    <div class="filters"><label>Prezzo = <select id="upBase"><option value="low">"Da" (prezzo minimo)</option><option value="trend">Tendenza</option></select>
+    <div class="filters"><label>Prezzo = <select id="upBase"><option value="low">"Da" (prezzo minimo)</option><option value="trend">Tendenza</option><option value="cons">Consigliato</option></select>
       <select id="upSign"><option value="1">+</option><option value="-1">−</option></select>
       <input type="number" id="upPlus" min="0" step="1" style="width:70px"> cent.</label><span class="small" id="upInfo"></span></div>
-    <div style="max-height:46vh;overflow:auto"><table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n">Prezzo</th></tr></thead><tbody id="upBody"></tbody></table></div>
+    <div style="max-height:46vh;overflow:auto"><table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n" title="a metà tra Da e il prezzo a cui la carta si vende davvero">Consigliato</th><th class="n">Prezzo</th></tr></thead><tbody id="upBody"></tbody></table></div>
     <ol class="small" style="line-height:1.7"><li>Premi <b>Apri Cardmarket</b>: si apre la pagina <b>Inserisci carte bulk</b> di Cardmarket.</li>
     <li>Scegli il set <b>${esc(setName)}</b> in "Edizione", poi premi il pulsante <b>Card Scanner</b> nei preferiti: l'elenco e i prezzi sono già caricati. (Se il set nella pagina non è quello giusto, lo script ti propone "Vai a ${esc(setName)}".)</li>
     <li>Premi <b>Compila la pagina</b>, controlla, metti in vendita su Cardmarket e premi <b>📤 Invia al gestionale</b>.</li></ol>
@@ -1798,9 +1800,10 @@ async function openPriceEdit(scopeSet) {
     if (over[k] != null) return { p: over[k], m: 1 };
     const M = mOf(k);
     if (!M || (l.rev && !M.rv)) return { p: null, why: l.rev && M ? 'manca il prezzo Reverse' : 'manca il prezzo' };
-    const v = b === 'trend' ? M.t : M.lo, o = b === 'trend' ? M.lo : M.t;
-    const x = v ?? o;
-    return x == null ? { p: null, why: 'manca il prezzo' } : { p: r2(Math.max(0.02, x + plus)), ref: x, used: v != null ? b : (b === 'trend' ? 'low' : 'trend') };
+    const used = [b, ...BASEALT[b]].find(x => baseOf(M, x) != null);
+    if (used == null) return { p: null, why: 'manca il prezzo' };
+    const x = baseOf(M, used);
+    return { p: r2(Math.max(0.02, x + plus)), ref: x, used };
   };
   let cur = [];
   const draw = () => {
@@ -1833,7 +1836,7 @@ async function openPriceEdit(scopeSet) {
   openDlg(`<h3>Cambia prezzi su Cardmarket</h3>
     <p class="small">Scegli il nuovo prezzo: il gestionale calcola quello di ogni offerta (Normali e Reverse separate) e lo script Card Scanner lo scrive su Cardmarket, nella pagina delle tue offerte.</p>
     <div class="filters"><select id="peSet"><option value="">Tutti i set</option>${sets.map(x => `<option ${x === scope ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
-      <label>Nuovo prezzo = <select id="peBase"><option value="low">"Da" (prezzo minimo)</option><option value="trend">Tendenza</option></select>
+      <label>Nuovo prezzo = <select id="peBase"><option value="low">"Da" (prezzo minimo)</option><option value="trend">Tendenza</option><option value="cons">Consigliato</option></select>
       <select id="peSign"><option value="1">+</option><option value="-1">−</option></select>
       <input type="number" id="pePlus" min="0" step="1" style="width:70px"> cent.</label>
       <label><input type="checkbox" id="peOnly" checked> solo quelle da cambiare</label></div>

@@ -246,16 +246,13 @@ dialog.cdw{width:min(1040px,95vw);padding:0}
 .cd-mk{display:grid;grid-template-columns:repeat(7,1fr);margin-top:12px;background:#f6f8fb;border-radius:10px;overflow:hidden}
 .cd-mk>div{padding:7px 8px;min-width:0}.cd-mk span{display:block;font-size:11px;color:var(--mut)}.cd-mk b{font-size:14px;font-variant-numeric:tabular-nums}
 .cd-mk .c{background:#e3f3ea}.cd-mk .c span,.cd-mk .c b{color:var(--ok)}
-.cd-range{position:relative;height:46px;margin:6px 8px 0}
-.cd-range .trk{position:absolute;left:0;right:0;top:20px;height:6px;border-radius:99px;background:linear-gradient(90deg,#cfe9db,#f3f5f8 50%,#f8d9d4)}
-.cd-range .mk{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center}
-.cd-range .mk i{width:3px;height:22px;border-radius:2px;margin-top:12px}
-.cd-range .mk em{font-style:normal;font-size:11px;font-weight:700;white-space:nowrap;position:absolute;top:0;transform:translateY(-2px)}
-.cd-range .mk:first-of-type em{}
-.cd-range .m-c i{background:var(--ok)}.cd-range .m-c em{color:var(--ok);top:auto;bottom:-14px}
-.cd-range .m-p i{background:var(--navy)}.cd-range .m-p em{color:var(--navy);top:-4px}
-.cd-range .ends{position:absolute;left:0;right:0;top:30px;display:flex;justify-content:space-between;font-size:10.5px;color:var(--mut)}
-.cd-range{margin-bottom:12px}
+.cd-range{position:relative;height:18px;margin:12px 6px 0;overflow:hidden}
+.cd-range .trk{position:absolute;left:0;right:0;top:6px;height:6px;border-radius:99px;background:linear-gradient(90deg,#cfe9db,#eef1f6 50%,#f8d9d4)}
+.cd-range .mk{position:absolute;top:0;width:4px;height:18px;border-radius:2px;transform:translateX(-50%);margin-left:0}
+.cd-range .mk[style*="left:0"]{transform:none}.cd-range .mk[style*="left:100"]{transform:translateX(-100%)}
+.cd-range .m-c{background:var(--ok)}.cd-range .m-p{background:var(--navy)}
+.cd-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;font-weight:700;margin:4px 6px 0}
+.cd-leg .p{color:var(--navy)}.cd-leg .c{color:var(--ok)}.cd-leg .r{margin-left:auto;color:var(--mut);font-weight:400}
 .cd-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-top:6px}
 .cd-foot>div{flex:1}
 .cd-none{color:var(--mut);font-size:13px;margin:8px 0}
@@ -1020,10 +1017,11 @@ $('main').addEventListener('click', e => {
     const pts = [M.lo, M.t, M.a, M.a7, M.a30, price, C?.v].filter(v => v != null && isFinite(v));
     if (C && pts.length > 1) {
       const lo = Math.min(...pts), hi = Math.max(...pts), X = v => hi > lo ? ((v - lo) / (hi - lo) * 100).toFixed(1) : 50;
+      const same = price != null && r2(price) === C.v;
       bar = `<div class="cd-range"><div class="trk"></div>
-        ${price != null && r2(price) === C.v ? `<span class="mk m-c" style="left:${X(C.v)}%"><i></i><em>Tuo prezzo = Consigliato ${eur(C.v)}</em></span>` : `<span class="mk m-c" style="left:${X(C.v)}%"><i></i><em>Consigliato ${eur(C.v)}</em></span>
-        ${price != null ? `<span class="mk m-p" style="left:${X(price)}%"><i></i><em>Tuo ${eur(price)}</em></span>` : ''}`}
-        <span class="ends"><span>${eur(lo)}</span><span>${eur(hi)}</span></span></div>`;
+        <span class="mk m-c" style="left:${X(C.v)}%"></span>${price != null && !same ? `<span class="mk m-p" style="left:${X(price)}%"></span>` : ''}</div>
+        <div class="cd-leg">${same ? `<span class="c">● Tuo prezzo = Consigliato ${eur(C.v)}</span>` : `${price != null ? `<span class="p">● Tuo ${eur(price)}</span>` : ''}<span class="c">● Consigliato ${eur(C.v)}</span>`}
+          <span class="r">da ${eur(lo)} a ${eur(hi)}</span></div>`;
     }
     return `<div class="cd-mk">${L.map(([l, v]) => `<div><span>${l}</span><b>${eur(v) || '—'}</b></div>`).join('')}<div class="c"><span>Consigliato</span><b>${C ? eur(C.v) : '—'}</b></div></div>${bar}`;
   };

@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Gestionale carte in vendita</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1d3d7a">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -380,6 +384,8 @@ function tcgPurge(all) {
   del.forEach(k => localStorage.removeItem(k));
   return del.length;
 }
+/** salvataggio di dati che il gestionale aggiorna da solo (prezzi di mercato, sigle): per GitHub non sono "modifiche tue" */
+function softSave() { ghSoft = true; try { save(); } finally { ghSoft = false; } }
 let saveFailed = false;
 function save() {
   const js = JSON.stringify(state); undoRecord(js);
@@ -801,6 +807,12 @@ function goTab(id) {
   $('main').scrollTop = 0;
 }
 let setSec = 'gh';
+// ---------- gestionale installabile come app (Chrome/Edge): manifest.json + sw.js ----------
+let pwaPrompt = null;
+const pwaStandalone = () => { try { return matchMedia('(display-mode: standalone)').matches; } catch (e) { return false; } };
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); pwaPrompt = e; if (selected === '__set') renderSettings(); });
+window.addEventListener('appinstalled', () => { pwaPrompt = null; toast('Gestionale installato: lo trovi sul desktop e nel menu Start ✔'); if (selected === '__set') renderSettings(); });
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 function renderSettings() {
   const at = localStorage.getItem('gestionaleBackupAt');
   const up = upCfg(), ed = editCfg();
@@ -814,7 +826,7 @@ function renderSettings() {
   <div class="setx"><nav class="setnav" id="setNav"></nav><div class="setgrid">
     <section class="sc ${bkOk() && !(gh && ghState === 'err') ? '' : 'attn'}">
       <h3>☁️ Backup su GitHub <span class="stp ${gh ? (ghState === 'ok' ? 'ok' : 'bad') : 'mid'}">${gh ? (ghState === 'ok' ? 'Attivo' : 'Errore') : 'Non collegato'}</span></h3>
-      ${gh ? `<p class="small">I dati vengono salvati nel tuo repository privato al massimo ogni 10 minuti dopo una modifica, e quando chiudi la pagina. Ogni salvataggio resta nella cronologia di GitHub: puoi tornare a qualsiasi versione, anche da un altro PC.</p>
+      ${gh ? `<p class="small">I dati vengono salvati nel tuo repository privato circa un minuto dopo ogni modifica (al massimo ogni 10 minuti) e quando chiudi la pagina. All'apertura, su ogni PC collegato, il gestionale carica da solo l'ultimo salvataggio; ti chiede quale tenere solo se qui ci sono modifiche non ancora salvate. Ogni salvataggio resta nella cronologia di GitHub.</p>
       <dl class="kv"><dt>Repository</dt><dd><a href="https://github.com/${esc(gh.repo)}" target="_blank" rel="noreferrer">${esc(gh.repo)}</a> (privato)</dd>
         <dt>Ultimo salvataggio</dt><dd>${gh.at ? fmtDT(gh.at) : 'non ancora'}${ghDirty ? ' · modifiche in attesa' : ''}</dd>${ghState === 'err' ? `<dt>Errore</dt><dd style="color:var(--red)">${esc(ghErr)}</dd>` : ''}</dl>
       ${ghConflict ? `<div class="notice var" style="margin:8px 0"><span>Su GitHub c'è una versione salvata da un altro PC o browser. Quale vuoi tenere? (L'altra resta comunque nella cronologia di GitHub o in ↶ Annulla.)</span></div>
@@ -859,6 +871,10 @@ function renderSettings() {
     </section>
     <section class="sc">
       <h3>🧰 Strumenti</h3>
+      <div class="rule" id="pwaBox"><b>Gestionale come app sul PC</b>
+        ${pwaStandalone() ? '<p class="small">✔ Stai usando il gestionale installato come app.</p>'
+        : pwaPrompt ? `<p class="small">Icona sul desktop e finestra tutta sua, senza barra degli indirizzi. I dati restano gli stessi e si aggiorna da solo.</p><div class="row"><button class="pri" id="pwaGo">Installa il gestionale come app</button></div>`
+        : `<p class="small">Icona sul desktop e finestra tutta sua. In Chrome: menu <b>⋮</b> in alto a destra → <b>Trasmetti, salva e condividi</b> → <b>Installa pagina come app…</b> (oppure l'icona con il monitor e la freccia, a destra nella barra degli indirizzi). Se l'hai già installato, aprilo dall'icona sul desktop.</p>`}</div>
       <ul class="links">
         <li><a href="../cardmarket/" target="_blank">Pulsante Card Scanner per Cardmarket</a><span class="small">pagina di installazione e istruzioni</span></li>
         <li><a href="https://github.com/mamouse87/scanner-pokemon/releases" target="_blank" rel="noreferrer">App Card Scanner per Android</a><span class="small">ultima versione da installare sul telefono</span></li>
@@ -920,6 +936,7 @@ function renderSettings() {
   };
   if ($('gNow')) $('gNow').onclick = async () => { $('gNow').disabled = true; $('gNow').textContent = 'Salvo…'; await ghWrite(); if (ghState === 'ok') toast('Salvato su GitHub ✔'); reload(); };
   if ($('gVer')) $('gVer').onclick = ghVersionsDlg;
+  if ($('pwaGo')) $('pwaGo').onclick = async () => { const p = pwaPrompt; if (!p) return; pwaPrompt = null; p.prompt(); try { await p.userChoice; } catch (e) {} renderSettings(); };
   if ($('gUseR')) $('gUseR').onclick = async () => { $('gUseR').disabled = true; $('gUseR').textContent = 'Carico…'; await ghResolve('remote'); };
   if ($('gUseL')) $('gUseL').onclick = async () => { $('gUseL').disabled = true; $('gUseL').textContent = 'Salvo…'; await ghResolve('local'); if (ghState === 'ok') toast('Salvato su GitHub ✔'); };
   if ($('gOff')) $('gOff').onclick = () => { if (!confirm('Scollegare il backup su GitHub? Il repository e le versioni salvate restano su GitHub; da questo browser viene tolta solo la chiave.')) return; gh = null; ghStore(); ghState = 'off'; ghConflict = false; clearTimeout(ghTimer); ghTimer = null; reload(); };
@@ -2101,7 +2118,7 @@ async function updatePrices(force) {
     const bySetV = {};
     fresh.forEach(({ l, v }) => { const sn = l.expName || state.cm[l.exp]?.name || ''; (bySetV[sn] = bySetV[sn] || []).push(`${cardTxt(l)} ${BASEN[l.rb || 'low']} ${eur(v.ref)} → ${eur(v.cur)}`); });
     Object.entries(bySetV).forEach(([sn, a]) => logOp('mercato', sn, `Nuove variazioni del prezzo di mercato: ${a.join(', ')}`, null));
-    save();
+    softSave();
     showProg(null);
     refresh();
     if (failed && force) toast(`${failed} carte non lette (TCGdex non risponde o manca internet): ho tenuto i prezzi di prima`);
@@ -2611,6 +2628,7 @@ async function ghWrite(force) {
   if (!gh || ghBusy) return;
   if (ghConflict && !force) return;
   ghBusy = true; clearTimeout(ghTimer); ghTimer = null;
+  const chg = ghChg;
   try {
     const ls = Object.values(state.listings), sbq = Object.values(state.standby || {}).reduce((a, x) => a + x.q, 0);
     const body = sha => JSON.stringify(Object.assign({ message: `Backup ${new Date().toLocaleString('it-IT')} · ${ls.reduce((a, l) => a + l.q, 0)} in vendita, ${sbq} in Standby`,
@@ -2621,41 +2639,79 @@ async function ghWrite(force) {
       if (e.status !== 409 && e.status !== 422) throw e;
       // il file su GitHub è cambiato senza passare da qui: lo sovrascrivo solo se me lo chiedi
       sha = await ghSha();
+      if (sha && !force && !gh.dirty) { ghBusy = false; ghDirty = false; await ghCheck(); return; }
       if (sha && !force) { ghSetConflict(); throw new Error(GH_CONFLICT); }
       r = await ghApi('/contents/' + GH_PATH, { method: 'PUT', body: body(sha) });
     }
-    gh.sha = r.content.sha; gh.at = new Date().toISOString(); ghStore();
-    ghDirty = false; ghState = 'ok'; ghErr = ''; ghConflict = false;
+    gh.sha = r.content.sha; gh.at = new Date().toISOString();
+    if (ghChg === chg) { gh.dirty = false; ghDirty = false; } else ghSchedule();   // altre modifiche durante l'invio: le mando dopo
+    ghStore();
+    ghState = 'ok'; ghErr = ''; ghConflict = false;
   } catch (e) { ghState = 'err'; ghErr = e.message; }
   ghBusy = false; bkShow(); renderTabs();
   if (selected === '__set') renderSettings();
 }
 /** dopo una modifica: salva entro 1 minuto, ma al massimo una volta ogni 10 minuti */
+let ghChg = 0, ghQuiet = false, ghSoft = false;
 function ghSchedule() {
-  if (!gh) return;
-  ghDirty = true;
+  if (!gh || ghQuiet) return;
+  // ghSoft = è cambiato solo ciò che il gestionale aggiorna da solo (prezzi di mercato): va salvato, ma se un altro PC
+  // ha dati più recenti si possono caricare quelli senza chiedere. gh.dirty = modifiche TUE non ancora su GitHub.
+  if (ghSoft) { ghDirty = true; }
+  else {
+    ghChg++;
+    if (!gh.dirty) { gh.dirty = true; ghStore(); }   // lo segno subito, così resta anche se chiudi la pagina
+    ghDirty = true;
+  }
   if (ghTimer) return;
   const wait = Math.max(60e3, (gh.at ? new Date(gh.at).getTime() + GH_EVERY : 0) - Date.now());
   ghTimer = setTimeout(() => { ghTimer = null; if (ghDirty) ghWrite(); }, wait);
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && gh && ghDirty) ghWrite(); });
 /** all'apertura: su GitHub c'è una versione che questo browser non ha mai visto? (gestionale usato su un altro PC) */
-async function ghCheck() {
-  if (!gh) return;
+// Regola: se su GitHub c'è una versione diversa da quella che questo browser ha salvato o caricato per ultima
+// - e qui NON ci sono modifiche non ancora inviate → la carico da sola (è il caso normale: hai lavorato su un altro PC)
+// - e qui ci SONO modifiche non inviate → non tocco nulla e ti chiedo quale tenere
+async function ghCheck(quiet) {
+  if (!gh || ghBusy || ghConflict) return false;
   try {
     const remote = await ghSha();
-    if (!remote) { if (gh.sha) { gh.sha = null; ghStore(); } return; }
-    if (gh.sha && remote !== gh.sha) { ghSetConflict(); bkShow(); renderTabs(); if (selected === '__set') renderSettings(); toast('Backup su GitHub: c\'è una versione più recente salvata da un altro PC. Apri Impostazioni per scegliere quale tenere.'); }
-    else if (!gh.sha) { gh.sha = remote; ghStore(); }
-  } catch (e) { /* senza internet riprovo al prossimo salvataggio */ }
+    if (!remote || remote === gh.sha) return false;
+    if (gh.dirty) {
+      ghSetConflict(); bkShow(); renderTabs(); if (selected === '__set') renderSettings();
+      toast('Backup su GitHub: un altro PC ha salvato dati più recenti, ma anche qui ci sono modifiche non salvate. Apri Impostazioni → Backup su GitHub per scegliere quale tenere.');
+      return false;
+    }
+    if ($('dlg').open) return false;                                   // finestra aperta: riprovo più tardi
+    const st = await ghLoad();
+    if (ghChg && gh.dirty) return false;                               // hai modificato qualcosa mentre leggevo: non sovrascrivo
+    const sel = selected;
+    state = Object.assign({ cm: {}, sold: [], standby: {} }, st);
+    gh.sha = remote; gh.dirty = false; ghDirty = false; clearTimeout(ghTimer); ghTimer = null; ghStore();
+    ghState = 'ok'; ghErr = '';
+    ghQuiet = true;
+    try { logOp('dati', '', 'Caricato da GitHub l\'ultimo salvataggio (fatto su un altro PC)'); save(); } finally { ghQuiet = false; }
+    if (selected !== sel) selected = sel;
+    refresh(); bkShow();
+    if (selected === '__set') renderSettings();
+    toast('☁️ Caricato l\'ultimo salvataggio da GitHub');
+    return true;
+  } catch (e) { return false; /* senza internet riprovo più tardi */ }
 }
+// quando torni su questa scheda dopo un po' (magari hai lavorato su un altro PC), ricontrollo
+let ghHiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') ghHiddenAt = Date.now();
+  else if (gh && ghHiddenAt && Date.now() - ghHiddenAt > 30e3) ghCheck();
+});
+setInterval(() => { if (gh && document.visibilityState === 'visible') ghCheck(); }, 5 * 60e3);
 /** risolve il conflitto: 'remote' = carico la versione di GitHub, 'local' = tengo i dati di questo browser */
 async function ghResolve(which) {
   try {
     if (which === 'remote') {
       const st = await ghLoad(); gh.sha = await ghSha(); ghStore();
       ghConflict = false; ghState = 'ok'; ghErr = '';
-      ghRestore(st, '(versione salvata da un altro PC)');
+      ghRestore(st, '(versione salvata da un altro PC)', true);
     } else { ghConflict = false; await ghWrite(true); }
   } catch (e) { ghState = 'err'; ghErr = e.message; }
   bkShow(); renderTabs(); if (selected === '__set') renderSettings();
@@ -2696,10 +2752,13 @@ async function ghLoad(ref) {
   if (!s || typeof s !== 'object' || !s.listings) throw new Error(`il file ${GH_PATH} su GitHub non contiene i dati del gestionale`);
   return s;
 }
-function ghRestore(s, label) {
+function ghRestore(s, label, same) {
   state = Object.assign({ cm: {}, sold: [], standby: {} }, s);
   logOp('dati', '', `Ripristinato il backup di GitHub ${label}`);
-  save(); refresh(); toast('Dati ripristinati da GitHub ✔');
+  // same = ho caricato proprio l'ultima versione di GitHub: non c'è niente di nuovo da rimandare su
+  if (same) { ghQuiet = true; try { save(); } finally { ghQuiet = false; } if (gh) { gh.dirty = false; ghDirty = false; clearTimeout(ghTimer); ghTimer = null; ghStore(); } }
+  else save();
+  refresh(); toast('Dati ripristinati da GitHub ✔');
 }
 async function ghVersionsDlg() {
   openDlg('<h3>Versioni salvate su GitHub</h3><p>Leggo la cronologia…</p>');
@@ -2899,6 +2958,11 @@ function otherTab() {
   undoLast = JSON.stringify(state);
   tcgPurge(false);
   bkInit(); undoInit();
+  if (gh) {
+    await Promise.race([ghCheck('start'), new Promise(r => setTimeout(r, 8000))]);
+    // modifiche rimaste da inviare dall'ultima volta (pagina chiusa prima del salvataggio)
+    if (gh.dirty && !ghConflict) { ghDirty = true; setTimeout(() => { if (ghDirty && !ghConflict) ghWrite(); }, 4000); }
+  }
   await loadSets();
   const edited = importEditFromHash();
   const arrived = importFromHash();
@@ -2907,7 +2971,6 @@ function otherTab() {
   refresh();
   updatePrices(false); // aggiorna da solo i prezzi più vecchi di 12 ore
   loadMyCodes();
-  ghCheck();
   setInterval(() => updatePrices(false), 3600e3); // e ricontrolla ogni ora se la pagina resta aperta
 })();
 </script>

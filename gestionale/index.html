@@ -900,13 +900,22 @@ function renderSettings() {
     try {
       const sha = await ghConnect($('gRepo').value, $('gTok').value);
       const empty = !Object.keys(state.listings).length && !Object.keys(state.standby || {}).length;
-      if (sha && (empty ? confirm('Su GitHub c\'è già un backup e questo browser è vuoto: lo ripristino adesso?')
-          : confirm('Su GitHub c\'è già un backup.\n\nOK = sostituisci i dati di questo browser con quelli di GitHub.\nAnnulla = tieni i dati di questo browser (vengono salvati su GitHub; la versione precedente resta nella cronologia).'))) {
-        ghRestore(await ghLoad(), '(ultima versione)');
+      if (sha) {
+        // leggo prima il backup, così ti mostro cosa c'è da una parte e dall'altra
+        const remote = await ghLoad();
+        const sum = st => { const ls = Object.values(st.listings || {}), sb = Object.values(st.standby || {});
+          return `${ls.reduce((a, l) => a + (l.q || 0), 0)} in vendita, ${sb.reduce((a, x) => a + (x.q || 0), 0)} in Standby, ${(st.sold || []).reduce((a, x) => a + (x.q || 0), 0)} vendute`; };
+        const lastLog = st => (st.log || []).slice(-1)[0]?.at;
+        const useRemote = empty || confirm(`Su GitHub c'è già un backup.\n\n• GitHub: ${sum(remote)}${lastLog(remote) ? ' (ultima operazione ' + fmtDT(lastLog(remote)) + ')' : ''}\n• Questo browser: ${sum(state)}${lastLog(state) ? ' (ultima operazione ' + fmtDT(lastLog(state)) + ')' : ''}\n\nOK = usa i dati di GitHub (consigliato se arrivi da un altro PC).\nAnnulla = tieni i dati di questo browser e salvali su GitHub (la versione di GitHub resta comunque nella cronologia).`);
+        if (useRemote) ghRestore(remote, '(ultima versione)'); else await ghWrite(true);
       } else await ghWrite();
       logOp('dati', '', `Backup su GitHub collegato a ${gh.repo}`); save();
       if (ghState === 'ok') toast('Backup su GitHub attivo ✔');
-    } catch (e) { $('gMsg').innerHTML = `<b style="color:var(--red)">Non collegato: ${esc(e.message)}</b>`; $('gGo').disabled = false; $('gGo').textContent = 'Collega'; return; }
+    } catch (e) {
+      // non resto collegato a metà: il backup su GitHub non va toccato finché non scegli tu
+      gh = null; ghStore(); ghState = 'off'; ghConflict = false; clearTimeout(ghTimer); ghTimer = null; ghDirty = false;
+      $('gMsg').innerHTML = `<b style="color:var(--red)">Non collegato: ${esc(e.message)}</b>`; $('gGo').disabled = false; $('gGo').textContent = 'Collega'; return;
+    }
     reload();
   };
   if ($('gNow')) $('gNow').onclick = async () => { $('gNow').disabled = true; $('gNow').textContent = 'Salvo…'; await ghWrite(); if (ghState === 'ok') toast('Salvato su GitHub ✔'); reload(); };
@@ -2581,7 +2590,7 @@ function ghMsg(st, m) {
 async function ghApi(path, opt = {}, accept) {
   let r;
   try {
-    r = await fetch('https://api.github.com/repos/' + gh.repo + path, Object.assign({}, opt, { headers: Object.assign({
+    r = await fetch('https://api.github.com/repos/' + gh.repo + path, Object.assign({ cache: 'no-store' }, opt, { headers: Object.assign({
       Authorization: 'Bearer ' + gh.token, Accept: accept || 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
       opt.body ? { 'Content-Type': 'application/json' } : {}) }));
   } catch (e) { throw new Error('GitHub non raggiungibile (sei connesso a internet?)'); }
@@ -2671,9 +2680,20 @@ async function ghVersions() {
   const list = await ghApi(`/commits?path=${encodeURIComponent(GH_PATH)}&per_page=50`);
   return list.map(c => ({ sha: c.sha, at: c.commit.committer?.date || c.commit.author?.date, msg: c.commit.message }));
 }
+function ghUnB64(b64) {
+  const bin = atob(String(b64 || '').replace(/\s+/g, '')), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(u);
+}
 async function ghLoad(ref) {
-  const s = JSON.parse(await ghApi(`/contents/${GH_PATH}${ref ? '?ref=' + ref : ''}`, {}, 'application/vnd.github.raw+json'));
-  if (!s || !s.listings) throw new Error('il file su GitHub non è un backup del gestionale');
+  // 1) dati del file (sha del contenuto); 2) contenuto letto per sha: sempre quello giusto, anche oltre 1 MB
+  const meta = await ghApi(`/contents/${GH_PATH}${ref ? '?ref=' + ref : ''}`, {}, 'application/vnd.github.object');
+  if (!meta || meta.type !== 'file') throw new Error(`su GitHub non trovo il file ${GH_PATH}`);
+  let txt = meta.encoding === 'base64' && meta.content ? ghUnB64(meta.content) : '';
+  if (!txt) { const b = await ghApi('/git/blobs/' + meta.sha); txt = ghUnB64(b.content); }
+  let s;
+  try { s = JSON.parse(txt); } catch (e) { throw new Error(`il file ${GH_PATH} su GitHub non si riesce a leggere (${txt.length} caratteri)`); }
+  if (!s || typeof s !== 'object' || !s.listings) throw new Error(`il file ${GH_PATH} su GitHub non contiene i dati del gestionale`);
   return s;
 }
 function ghRestore(s, label) {

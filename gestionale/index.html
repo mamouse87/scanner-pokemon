@@ -68,6 +68,8 @@ h1{margin:0;font-size:17px;letter-spacing:-.005em;color:#fff;white-space:nowrap}
 .undo .mn button small{white-space:normal}.undo .mh{font-size:11.5px;font-weight:700;color:var(--mut);padding:8px 12px 2px;border-top:1px solid var(--line)}
 .tm .car{opacity:.7;font-size:11px;margin-left:2px}
 .tm .mn{min-width:300px}
+.tm .mn a{display:flex;flex-direction:column;gap:1px;padding:9px 12px;border-radius:6px;text-decoration:none;color:var(--fg)}
+.tm .mn a:hover{background:#f1f4f9}.tm .mn a b{font-size:14px;color:var(--navy)}.tm .mn a small{font-size:12px;color:var(--mut)}
 .tm .mn button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:9px 12px;color:var(--fg)}
 .tm .mn button b{font-size:14px;color:var(--navy)}.tm .mn button small{font-size:12px;color:var(--mut);font-weight:400}
 .tlink{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:#fff;padding:7px 13px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;line-height:1.2}
@@ -296,7 +298,10 @@ dialog.cdw{width:min(1040px,95vw);padding:0}
       <button id="btnEditCM"><b>Cambia prezzi su Cardmarket</b><small>Tutti i set, es. da Tendenza a prezzo minimo</small></button>
     </div></details>
     <details class="menu tm undo" id="undoMenu"><summary id="undoSum">↶ <span class="car">▾</span></summary><div class="mn" id="undoList"></div></details>
-    <a class="tlink" href="https://www.cardmarket.com/it/Pokemon" target="cardmarketPokemon" rel="noreferrer" title="Apri Cardmarket (Pokémon)">Cardmarket <span class="car">↗</span></a>
+    <details class="menu tm" id="cmMenu"><summary>Cardmarket <span class="car">▾</span></summary><div class="mn">
+      <a href="https://www.cardmarket.com/it/Pokemon" target="cardmarketPokemon" rel="noreferrer"><b>Apri Cardmarket ↗</b><small>pagina Pokémon</small></a>
+      <a href="https://www.cardmarket.com/it/Pokemon/Stock/Offers/Singles" target="cardmarketPokemon" rel="noreferrer"><b>Le mie offerte ↗</b><small>le carte che hai in vendita</small></a>
+      <a href="../cardmarket/" target="_blank"><b>Pulsante Card Scanner</b><small>installalo o aggiornalo nei preferiti</small></a></div></details>
     <button id="btnBk" class="ticon" title="Backup automatico">💾</button>
     <button id="btnMore" class="ticon" title="Impostazioni">⚙</button>
   </div>
@@ -2273,7 +2278,9 @@ async function openOnCardmarket(setId, setName, cmCat) {
     <div style="max-height:46vh;overflow:auto"><table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n" title="a metà tra Da e il prezzo a cui la carta si vende davvero">Consigliato</th><th class="n">Prezzo</th></tr></thead><tbody id="upBody"></tbody></table></div>
     <ol class="small" style="line-height:1.7"><li>Premi <b>Apri Cardmarket</b>: si apre la pagina <b>Inserisci carte bulk</b> di Cardmarket.</li>
     <li>Scegli il set <b>${esc(setName)}</b> in "Edizione", poi premi il pulsante <b>Card Scanner</b> nei preferiti: l'elenco e i prezzi sono già caricati. (Se il set nella pagina non è quello giusto, lo script ti propone "Vai a ${esc(setName)}".)</li>
-    <li>Premi <b>Compila la pagina</b> e controlla i prezzi. Poi premi <b>📤 Invia al gestionale</b> e metti in vendita su Cardmarket.</li></ol>
+    <li>Premi <b>Compila la pagina</b> e controlla i prezzi.</li>
+    <li><b>Metti in vendita su Cardmarket</b>, poi premi <b>📤 Invia al gestionale</b>: così qui arrivano solo le carte davvero in vendita.</li></ol>
+    <p class="small">Non hai il pulsante Card Scanner nei preferiti? <a href="../cardmarket/" target="_blank">Installalo da qui</a> (lo trovi anche in Impostazioni → Strumenti).</p>
     <p class="small">Se lo script non trova l'elenco (per esempio se usi una scheda di Cardmarket già aperta), nel riquadro dello script clicca "Incolla elenco dal gestionale": l'elenco è anche negli appunti.</p>
     <p class="row" style="justify-content:flex-end"><button id="dClose">Annulla</button><button class="pri" id="upGo">Apri Cardmarket ↗</button></p>`, () => {
     $('upBase').value = cfg.base; $('upSign').value = (+cfg.plus || 0) < 0 ? '-1' : '1'; $('upPlus').value = Math.abs(+cfg.plus || 0);
@@ -2370,6 +2377,7 @@ async function openPriceEdit(scopeSet, opt = {}) {
       <li>Premi il pulsante <b>Card Scanner</b>: legge tutte le pagine delle tue offerte e trova quelle da cambiare.</li>
       <li>Premi <b>▶ Cambia i prezzi</b>: apre una carta alla volta e scrive il prezzo; tu controlli e premi <b>MODIFICA ARTICOLO</b> (oppure scegli la conferma automatica).</li>
       <li>Alla fine premi <b>📤 Invia al gestionale</b>: i nuovi prezzi entrano qui, con la nuova regola.</li></ol>
+      <p class="small">Non hai il pulsante Card Scanner nei preferiti? <a href="../cardmarket/" target="_blank">Installalo da qui</a> (lo trovi anche in Impostazioni → Strumenti).</p>
     <p class="row" style="justify-content:flex-end"><button id="dClose">Annulla</button><button class="pri" id="peGo">Apri le mie offerte su Cardmarket ↗</button></p>`, () => {
     $('peBase').value = cfg.base; $('peSign').value = (+cfg.plus || 0) < 0 ? '-1' : '1'; $('pePlus').value = Math.abs(+cfg.plus || 0);
     if (opt.out) { $('peOut').checked = true; $('peBase').value = 'cons'; $('peSign').value = '1'; $('pePlus').value = 0; }
@@ -2790,7 +2798,7 @@ function refresh() {
   Promise.resolve(renderSet()).then(() => { if (selected === was && top) m.scrollTop = top; });
 }
 document.addEventListener('click', e => {
-  document.querySelectorAll('details.menu[open]').forEach(d => { if (!d.contains(e.target) || e.target.closest('.mn button')) d.removeAttribute('open'); });
+  document.querySelectorAll('details.menu[open]').forEach(d => { if (!d.contains(e.target) || e.target.closest('.mn button, .mn a')) d.removeAttribute('open'); });
 });
 $('btnSale').onclick = () => $('fSale').click();
 $('fSale').onchange = e => { importSales([...e.target.files]); e.target.value = ''; };

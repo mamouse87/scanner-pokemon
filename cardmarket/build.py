@@ -20,7 +20,7 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <li>Apri il set e premi <b>Metti in vendita su Cardmarket</b>: scegli il prezzo ("Da", Tendenza o Consigliato, ± centesimi). Il gestionale calcola il prezzo di ogni carta, <b>Normali e Reverse separate</b>; se serve puoi cambiarne uno a mano.</li>
 <li>Si apre Cardmarket: premi <b>📋 Card Scanner → CM</b>. Se non sei già sulla pagina "Inserisci carte bulk" del set ti ci porta; lì premilo di nuovo. L'elenco e i prezzi sono già caricati.</li>
 <li>Premi <b>Compila la pagina</b> e controlla. Le righe con il <b>bordo rosso</b> non hanno un prezzo (per esempio una Reverse senza prezzo Reverse): scrivilo tu. Lo script non usa mai il prezzo della versione normale per una Reverse.</li>
-<li>Premi il pulsante verde <b>📤 Invia al gestionale</b> (le carte passano da Standby a In vendita) e metti in vendita su Cardmarket tu stesso.</li>
+<li><b>Metti in vendita su Cardmarket</b> tu stesso. Poi premi il pulsante verde <b>📤 Invia al gestionale</b>: le carte passano da Standby a In vendita.</li>
 <li>Se il set ha più pagine: vai alla pagina successiva, premi di nuovo il pulsante (l'elenco resta caricato) e ripeti.</li></ol>
 <p>Lo script non invia nulla a Cardmarket e non legge password.</p>
 <h2>Cambiare i prezzi delle carte già in vendita</h2>

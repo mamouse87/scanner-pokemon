@@ -473,7 +473,7 @@
     const j = jobGet(), act = activeJob();
     const compiled = snapshot().length > 0, sent = $('csGest').dataset.sent === '1';
     const st = !act ? 0 : sent ? 3 : compiled ? 2 : 1;
-    $('csSteps').innerHTML = j ? stepsHtml(['Elenco dal gestionale', 'Compila la pagina', 'Invia al gestionale'], Math.min(st, 2), st) : '';
+    $('csSteps').innerHTML = j ? stepsHtml(['Elenco dal gestionale', 'Compila la pagina', 'Metti in vendita e invia'], Math.min(st, 2), st) : '';
     $('csGo').classList.toggle('hide', !act);
   }
 
@@ -781,7 +781,7 @@
     if (state === 'sent') { b.classList.remove('hide'); b.disabled = true; b.dataset.sent = '1'; b.textContent = '✓ Inviate al gestionale'; steps(); return; }
     b.disabled = false; b.dataset.sent = '';
     b.classList.toggle('hide', !n);
-    b.textContent = `📤 Invia al gestionale (${n} copie)`;
+    b.textContent = `📤 Le ho messe in vendita: invia al gestionale (${n} copie)`;
     steps();
   }
   function sendCompiled() {
@@ -799,7 +799,7 @@
     const left = [...w.entries()].reduce((a, [k, x]) => a + Math.max(0, x.qty - (done[k] || 0)), 0);
     const aj = activeJob();
     if (aj && !left) { aj.done = true; try { localStorage.setItem(JKEY, JSON.stringify(aj)); } catch (e) {} }
-    log(`Inviate al gestionale ${rows.reduce((a, r) => a + r.q, 0)} copie. Ora puoi metterle in vendita su Cardmarket.` +
+    log(`Inviate al gestionale ${rows.reduce((a, r) => a + r.q, 0)} copie: ora nel gestionale risultano In vendita.` +
       (left ? ` Restano ${left} copie della lista da compilare in altre pagine.` : ' Tutta la lista è stata inviata ✔'), left ? '#ff9f43' : '#3ecf6e');
   }
   function sendToGest(listed) {
@@ -854,7 +854,7 @@
       box.innerHTML = `<div class="nm">${esc(j.name || j.set)}</div><div>Il gestionale ha preparato <b>${esc(j.set)}</b> (${copies} copie), ma questa pagina è <b>${esc(exp.name || '?')}</b>.</div>` +
         (id ? `<button class="big navy" id="csJobGo" style="margin-top:10px">Vai a ${esc(j.set)}</button><div class="mut" style="margin-top:6px">Quando la pagina si apre, premi di nuovo il pulsante Card Scanner.</div>` : '<div class="mut">Scegli il set giusto in "Edizione" e premi di nuovo il pulsante.</div>');
       if (id) $('csJobGo').onclick = e => { e.preventDefault(); location.href = location.pathname + '?idExpansion=' + encodeURIComponent(id); };
-      $('csGo').classList.add('hide'); $('csSteps').innerHTML = stepsHtml(['Elenco dal gestionale', 'Compila la pagina', 'Invia al gestionale'], 0, 0);
+      $('csGo').classList.add('hide'); $('csSteps').innerHTML = stepsHtml(['Elenco dal gestionale', 'Compila la pagina', 'Metti in vendita e invia'], 0, 0);
       return;
     }
     if (!activeJob()) {
@@ -988,6 +988,6 @@
     if (noPrice) log(`\n⚠ ${noPrice} righe SENZA PREZZO (bordo rosso): scrivi tu il prezzo prima di metterle in vendita.`, '#ff3b3b');
     log(`\nCompilate ${total} copie. Verde = normali, viola = Reverse, arancione = da controllare (${warnings}).`, '#3ecf6e');
     showGest();
-    if (filled.length) log('Controlla la pagina, poi premi il pulsante verde "Invia al gestionale". La messa in vendita su Cardmarket la fai tu.', '#3ecf6e');
+    if (filled.length) log('Controlla la pagina e metti in vendita su Cardmarket (lo fai tu). Poi premi il pulsante verde "Invia al gestionale".', '#3ecf6e');
   }
 })();

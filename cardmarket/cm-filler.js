@@ -77,12 +77,15 @@
   const jobGet = () => { try { return JSON.parse(localStorage.getItem(JKEY)) || null; } catch (e) { return null; } };
   /** elenco del gestionale: csjob= (carte da mettere in vendita) o csedit= (prezzi da cambiare) */
   function intakeAny(txt) {
+    // cscheck= : il gestionale chiede il controllo del magazzino (leggo le offerte e gliele mando)
+    if (/^cscheck=/.test(String(txt || '').trim())) { localStorage.setItem('cs_check', String(Date.now())); return true; }
     const m = String(txt || '').trim().match(/^csedit=(.+)$/);
     if (!m) return intake(txt);
     try {
       const j = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));
       if (!j || !Array.isArray(j.items)) return false;
       localStorage.setItem('cs_edit', JSON.stringify(j));
+      localStorage.setItem('cs_check', '0');   // elenco di prezzi nuovo: esco dal controllo del magazzino
       return true;
     } catch (e) { return false; }
   }
@@ -97,7 +100,7 @@
     } catch (e) { return false; }
   }
   if (intakeAny(window.name)) {
-    const wasEdit = /^csedit=/.test(window.name);
+    const wasEdit = /^cs(edit|check)=/.test(window.name);
     try { window.name = ''; } catch (e) {}
     if (!wasEdit && window.__csPanel) { window.__csPanel.remove(); window.__csPanel = null; } // elenco nuovo: rifaccio il pannello
     if (wasEdit && window.__csOffers) { window.__csOffers.remove(); window.__csOffers = null; }
@@ -122,6 +125,7 @@
     let done = ls.get(DKEY, {});
     if (job && done.__job !== job.name) { done = { __job: job.name }; ls.set(DKEY, done); }
     let offers = ls.get(OKEY, null);           // {at, list:[…]} ultima lettura delle offerte
+    let check = +ls.get('cs_check', 0) || 0;   // controllo del magazzino chiesto dal gestionale (ora della richiesta)
     let running = false, stopReq = false;
 
     const { host: P, root: R } = csPanel('Cambia prezzi');
@@ -130,7 +134,34 @@
     let tab = 'todo', msg = '';
     const ruleTxt = j => `${j.base === 'trend' ? 'Tendenza' : j.base === 'cons' ? 'Consigliato' : '"Da" (prezzo minimo)'}${j.plus ? ` ${j.plus > 0 ? '+' : '−'} ${eur(Math.abs(j.plus) / 100)}` : ''}`;
 
+    // ---- controllo del magazzino: leggo tutte le offerte e le mando al gestionale (qui non cambio nulla) ----
+    function renderCheck() {
+      const fresh = offers && new Date(offers.at).getTime() >= check - 1000;
+      R.querySelector('.hd .m').textContent = 'Controllo magazzino';
+      const sent = ls.get('cs_check_sent', 0) === check;
+      R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
+        <div class="card info"><div class="nm">Controllo del magazzino</div>
+          <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse) e le mando al gestionale, che ti mostra le differenze.</div>
+          <div class="mut">Su Cardmarket non cambio nulla.</div></div>
+        <div class="msg" id="oProg">${escH(msg)}</div>
+        ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
+        ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
+      </div><div class="ft">${fresh ? '<a href="#" id="oRead">Rileggi le offerte</a>' : ''}<a href="#" id="kExit">Esci dal controllo</a></div>`;
+      R.querySelectorAll('#oRead').forEach(b => b.onclick = e => { e.preventDefault(); readAll(); });
+      if ($o('kSend')) $o('kSend').onclick = sendCheck;
+      $o('kExit').onclick = e => { e.preventDefault(); check = 0; ls.set('cs_check', 0); msg = ''; render(); };
+    }
+    function sendCheck() {
+      const ex = [], o = offers.list.map(x => { let i = ex.indexOf(x.exp); if (i < 0) i = ex.push(x.exp) - 1; return [x.code, x.num, x.rev ? 1 : 0, x.lang, x.qty || 1, x.price, x.name, i]; });
+      const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, at: offers.at, ex, o }))));
+      window.open(GEST + '#cmchk=' + encodeURIComponent(enc), 'gestionaleCarte');
+      ls.set('cs_check_sent', check);
+      prog(`Inviate ${o.length} offerte al gestionale ✓ Guarda il risultato nella scheda "Controllo".`);
+      renderCheck();
+    }
     function render() {
+      if (check) return renderCheck();
+      R.querySelector('.hd .m').textContent = 'Cambia prezzi';
       const m = matchAll();
       const found = m.filter(x => x.o), miss = m.filter(x => !x.o);
       const fatte = m.filter(x => x.o && (x.st === 'ok' || x.st === 'same'));
@@ -148,7 +179,8 @@
         ${job ? `<div class="card info"><div class="nm">${escH(job.name)}</div>
             <div>${job.items.length} offerte da cambiare · nuovo prezzo <b>${ruleTxt(job)}</b></div>
             <div class="mut">Il gestionale ha calcolato il prezzo di ogni carta, Normali e Reverse separate.</div></div>`
-          : `<div class="card warn"><b>Nessun elenco di prezzi.</b><br>Nel gestionale premi <b>✏️ Cambia prezzi su Cardmarket</b>, scegli il prezzo e premi "Apri le mie offerte": poi premi di nuovo questo pulsante.</div>`}
+          : `<div class="card warn"><b>Nessun elenco di prezzi.</b><br>Nel gestionale premi <b>✏️ Cambia prezzi su Cardmarket</b>, scegli il prezzo e premi "Apri le mie offerte": poi premi di nuovo questo pulsante.</div>
+             <button class="big navy" id="kStart">🔎 Controlla il magazzino con il gestionale</button>`}
         ${msg ? `<div class="msg" id="oProg">${escH(msg)}</div>` : '<div class="msg" id="oProg"></div>'}
         ${primary}
         ${job && offers ? `
@@ -175,6 +207,7 @@
       if ($o('oAuto')) $o('oAuto').onchange = () => ls.set('cs_edit_auto', $o('oAuto').checked);
       if ($o('oVer')) $o('oVer').onclick = e => { e.preventDefault(); verify(); };
       R.querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.t; render(); });
+      if ($o('kStart')) $o('kStart').onclick = () => { check = Date.now(); ls.set('cs_check', check); msg = ''; render(); };
     }
     const prog = t => { msg = t; const e = $o('oProg'); if (e) e.textContent = t; };
 

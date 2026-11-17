@@ -31,6 +31,8 @@ h1{margin:0;font-size:17px;letter-spacing:-.005em;color:#fff;white-space:nowrap}
 .ghf label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:3px}.ghf input{width:250px}
 .ghhelp{margin-top:6px}.ghhelp summary{cursor:pointer;font-weight:700;color:var(--navy);font-size:13.5px}.ghhelp ol{padding-left:20px;font-size:13.5px;line-height:1.6}
 .tabs .tb i.w{background:#fde7e4;color:var(--red)}.tabs .tb i.o{background:#fdebdc;color:var(--var)}
+.ktag{font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px;white-space:nowrap;background:#eef1f6;color:var(--mut)}
+.ktag.k-qty,.ktag.k-price{background:#fdebdc;color:var(--var)}.ktag.k-miss{background:#fde7e4;color:var(--red)}.ktag.k-extra{background:#e3edfa;color:#2d6cc0}
 .odir{font-weight:700;white-space:nowrap}.odir.hi{color:var(--red)}.odir.lo{color:#2d6cc0}
 .fig.f-hi b{color:var(--red)}.fig.f-lo b{color:#2d6cc0}
 .wrap.nosets aside{display:none}
@@ -305,6 +307,7 @@ dialog.cdw{width:min(1040px,95vw);padding:0}
     <details class="menu tm" id="cmMenu"><summary>Cardmarket <span class="car">▾</span></summary><div class="mn">
       <a href="https://www.cardmarket.com/it/Pokemon" target="cardmarketPokemon" rel="noreferrer"><b>Apri Cardmarket ↗</b><small>pagina Pokémon</small></a>
       <a href="https://www.cardmarket.com/it/Pokemon/Stock/Offers/Singles" target="cardmarketPokemon" rel="noreferrer"><b>Le mie offerte ↗</b><small>le carte che hai in vendita</small></a>
+      <a href="#" id="mChk"><b>Controlla il magazzino</b><small>confronta il gestionale con le tue offerte</small></a>
       <a href="../cardmarket/" target="_blank"><b>Pulsante Card Scanner</b><small>installalo o aggiornalo nei preferiti</small></a></div></details>
     <button id="btnBk" class="ticon" title="Backup automatico">💾</button>
     <button id="btnMore" class="ticon" title="Impostazioni">⚙</button>
@@ -640,6 +643,7 @@ async function renderSet() {
   if (selected === '__log') { renderLog(); return; }
   if (selected === '__set') { renderSettings(); return; }
   if (selected === '__out') { renderOut(); return; }
+  if (selected === '__chk') { renderChk(); return; }
   if (selected) lastSet = selected;
   if (!selected) {
     main.innerHTML = `<div class="empty">Scegli un set dalla lista a sinistra.<br>
@@ -793,11 +797,14 @@ async function renderSet() {
 }
 // ---------- schede in alto e impostazioni ----------
 let lastSet = null;   // ultimo set aperto nella scheda "Carte"
-const TABS = [['cards', 'Carte'], ['__out', 'Fuori mercato'], ['__dash', 'Statistiche'], ['__sales', 'Vendite'], ['__log', 'Registro'], ['__set', 'Impostazioni']];
+const TABS = [['cards', 'Carte'], ['__out', 'Fuori mercato'], ['__chk', 'Controllo'], ['__dash', 'Statistiche'], ['__sales', 'Vendite'], ['__log', 'Registro'], ['__set', 'Impostazioni']];
 function renderTabs() {
   const cur = selected && selected.startsWith('__') ? selected : 'cards';
   const sold = state.sold.reduce((a, x) => a + x.q, 0), nOut = outAll().length;
-  $('tabs').innerHTML = TABS.map(([id, l]) => `<button class="tb ${cur === id ? 'on' : ''}" data-tab="${id}">${l}${id === '__sales' && sold ? `<i>${sold}</i>` : ''}${id === '__out' && nOut ? `<i class="o" title="carte con il prezzo lontano dal Consigliato">${nOut}</i>` : ''}${id === '__set' && (!bkOk() || (gh && ghState === 'err')) ? '<i class="w" title="Backup non attivo o in errore">!</i>' : ''}</button>`).join('');
+  // Controllo: numero di differenze dell'ultimo controllo; "!" se è passato più di un giorno (o non l'hai mai fatto) e hai carte in vendita
+  const nChk = chkDiffs().length, chkOld = Object.keys(state.listings).length && (!state.chkAt || daysAgo(state.chkAt) >= 1);
+  const chkBadge = nChk ? `<i class="o" title="differenze con Cardmarket">${nChk}</i>` : chkOld ? `<i class="w" title="${state.chkAt ? 'Ultimo controllo con Cardmarket: ' + daysAgo(state.chkAt) + ' giorni fa' : 'Controllo con Cardmarket mai fatto'}">!</i>` : '';
+  $('tabs').innerHTML = TABS.map(([id, l]) => `<button class="tb ${cur === id ? 'on' : ''}" data-tab="${id}">${l}${id === '__sales' && sold ? `<i>${sold}</i>` : ''}${id === '__chk' ? chkBadge : ''}${id === '__out' && nOut ? `<i class="o" title="carte con il prezzo lontano dal Consigliato">${nOut}</i>` : ''}${id === '__set' && (!bkOk() || (gh && ghState === 'err')) ? '<i class="w" title="Backup non attivo o in errore">!</i>' : ''}</button>`).join('');
   document.querySelector('.wrap').classList.toggle('nosets', cur !== 'cards');
 }
 function goTab(id) {
@@ -961,6 +968,145 @@ function renderSettings() {
   bindRule('rU', up); bindRule('rE', ed);
   ['thC', 'thP'].forEach(id => $(id).onchange = () => { const t = thrCfg(); t.c = Math.max(0, parseInt($('thC').value, 10) || 0); t.pct = Math.max(0, parseInt($('thP').value, 10) || 0); save(); renderTabs(); renderSets(); toast('Soglia salvata'); });
   $('sWipe').onclick = () => { if (confirm('Cancellare tutte le carte in vendita e le vendite? Fai prima un backup.')) { state = Object.assign({}, state, { listings: {}, sold: [], orders: {}, market: {} }); logOp('dati', '', 'Svuotate tutte le carte in vendita e le vendite'); save(); refresh(); } };
+}
+
+// ---------- controllo con Cardmarket: le offerte lette dallo script (tu collegato) confrontate con il magazzino ----------
+// Lo script manda '#cmchk=' con tutte le offerte delle singole Pokémon. L'elenco resta solo in questo browser
+// (localStorage 'gestionaleCheck'); nello stato c'è solo la data dell'ultimo controllo (state.chkAt).
+const CHK_KEY = 'gestionaleCheck';
+let chk = (() => { try { return JSON.parse(localStorage.getItem(CHK_KEY)) || null; } catch (e) { return null; } })();
+function importCheckFromHash() {
+  const m = location.hash.match(/^#cmchk=(.+)$/);
+  if (!m) return false;
+  history.replaceState(null, '', location.pathname);
+  let d;
+  try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Elenco delle offerte non leggibile.'); return true; }
+  const list = (d.o || []).map(r => ({ code: String(r[0] || '').toUpperCase(), num: r[1], rev: !!r[2], lang: r[3] || 'it', q: +r[4] || 1, price: r[5], name: r[6] || '', exp: (d.ex || [])[r[7]] || '' }));
+  if (!list.length) { alert('Lo script non ha letto nessuna offerta: controllo non fatto. Riprova da "Le mie offerte".'); return true; }
+  chk = { at: d.at || new Date().toISOString(), list };
+  try { localStorage.setItem(CHK_KEY, JSON.stringify(chk)); } catch (e) {}
+  state.chkAt = chk.at; softSave();
+  selected = '__chk';
+  const n = chkDiffs().length;
+  setTimeout(() => toast(n ? `Controllo con Cardmarket: ${n} differenze da guardare` : 'Controllo con Cardmarket: tutto allineato ✔'), 300);
+  return true;
+}
+/** differenze tra magazzino e offerte lette: [{type, k?, l?, os, ...}] */
+function chkDiffs() {
+  if (!chk) return [];
+  const tailOf = (num, rev, lang) => `|${norm(num)}|${rev ? 'R' : 'N'}|${lang || 'it'}`;
+  const byCode = {}, byExp = {}, used = new Set();
+  chk.list.forEach(o => {
+    const t = tailOf(o.num, o.rev, o.lang);
+    if (o.code) (byCode[o.code + t] = byCode[o.code + t] || []).push(o);
+    if (o.exp) (byExp[simp(o.exp) + t] = byExp[simp(o.exp) + t] || []).push(o);
+  });
+  const out = [];
+  for (const [k, l] of Object.entries(state.listings)) {
+    const t = tailOf(l.u, l.rev, l.lang), code = String(setCode(l) || '').toUpperCase();
+    const os = (code && byCode[code + t]) || byExp[simp(l.expName || state.cm[l.exp]?.name) + t] || [];
+    os.forEach(o => used.add(o));
+    if (!os.length) { out.push({ type: 'miss', k, l, os }); continue; }
+    const q = os.reduce((a, o) => a + o.q, 0), prices = [...new Set(os.map(o => r2(o.price)))];
+    if (q !== l.q) out.push({ type: 'qty', k, l, os, q });
+    if (prices.length > 1) out.push({ type: 'multi', k, l, os });
+    else if (prices[0] != null && (l.price == null || Math.abs(prices[0] - l.price) > 0.004)) out.push({ type: 'price', k, l, os, price: prices[0] });
+  }
+  // offerte su Cardmarket che il gestionale non ha: raggruppate per carta
+  const extra = {};
+  chk.list.forEach(o => { if (used.has(o)) return; const key = (o.code || simp(o.exp)) + tailOf(o.num, o.rev, o.lang); (extra[key] = extra[key] || []).push(o); });
+  Object.values(extra).forEach(os => {
+    const o = os[0], E = expByCode(o.code) || Object.values(state.cm).find(e => simp(e.name) === simp(o.exp));
+    const card = E && Object.values(E.cards || {}).find(c => norm(c.u) === norm(o.num));
+    out.push({ type: 'extra', os, o, E, card, q: os.reduce((a, x) => a + x.q, 0) });
+  });
+  return out;
+}
+/** applica una correzione al gestionale (mai a Cardmarket). Ritorna il testo per il registro. */
+function chkApply(d) {
+  const nm = l => `${l.u}${l.rev ? ' R' : ''} ${info(l).name || ''}`.trim();
+  if (d.type === 'qty') { const L = state.listings[d.k], q0 = L.q; L.q = d.q; return [L.expName, `${nm(L)}: copie ${q0} → ${d.q}`]; }
+  if (d.type === 'price') {
+    const L = state.listings[d.k], p0 = L.price; L.price = d.price; L.pAt = today();
+    const cur = baseOf(mOf(d.k), L.rb || 'low'); if (cur != null && (!L.rev || mOf(d.k)?.rv)) { L.ref = cur; L.refAt = today(); }
+    return [L.expName, `${nm(L)}: prezzo ${eur(p0) || '—'} → ${eur(d.price)}`];
+  }
+  if (d.type === 'miss') { const L = state.listings[d.k]; delete state.listings[d.k]; delete (state.market || {})[d.k]; return [L.expName, `${nm(L)} ×${L.q}: tolta dalle carte in vendita`]; }
+  if (d.type === 'extra' && d.E && d.card) {
+    const o = d.o, k = lkey(d.card.p, o.rev, o.lang), prices = [...new Set(d.os.map(x => r2(x.price)))];
+    const L = state.listings[k] || (state.listings[k] = { p: d.card.p, exp: d.E.id, expName: d.E.name, u: d.card.u || o.num, rev: o.rev, lang: o.lang, q: 0, price: null, date: today(), com: '' });
+    L.q += d.q; L.price = Math.max(...prices); L.pAt = today();
+    // se erano in Standby, escono da lì
+    const sid = tcgIdFor(d.E.name);
+    const sk = Object.keys(state.standby || {}).find(x => { const X = state.standby[x]; return (X.s === sid || simp(X.sn) === simp(d.E.name)) && norm(X.u) === norm(o.num) && !!X.rev === !!o.rev && (X.lang || 'it') === (o.lang || 'it'); });
+    let fromSb = 0;
+    if (sk) { const X = state.standby[sk]; fromSb = Math.min(X.q, d.q); X.q -= fromSb; if (X.q <= 0) { delete state.standby[sk]; delete (state.sbMarket || {})[sk]; } }
+    return [d.E.name, `${nm(L)} ×${d.q} a ${eur(L.price)}: aggiunta alle carte in vendita${fromSb ? ` (${fromSb} tolte dallo Standby)` : ''}`];
+  }
+  return null;
+}
+function chkApplyMany(list, what) {
+  const bySet = {};
+  list.forEach(d => { const r = chkApply(d); if (r) (bySet[r[0] || ''] = bySet[r[0] || ''] || []).push(r[1]); });
+  const n = Object.values(bySet).reduce((a, x) => a + x.length, 0);
+  if (!n) return;
+  Object.entries(bySet).forEach(([set, a]) => logOp(what === 'miss' ? 'tolta' : what === 'extra' ? 'vendita' : what === 'price' ? 'prezzo' : 'quantita', set, `Controllo con Cardmarket: ${a.join(', ')}`, null));
+  save(); refresh(); toast(`Gestionale allineato a Cardmarket: ${n} ${n === 1 ? 'riga' : 'righe'}`);
+}
+const chkF = { type: '' };
+function openStockCheck() {
+  openDlg(`<h3>Controlla il magazzino con Cardmarket</h3>
+    <p>Lo script legge tutte le tue offerte di carte singole Pokémon (tutte le pagine, Normali e Reverse) e le manda qui. Il gestionale ti mostra le differenze. <b>Su Cardmarket non viene cambiato nulla.</b></p>
+    <ol><li>Premi <b>Apri le mie offerte</b>: si apre la pagina di Cardmarket (devi essere collegato).</li>
+      <li>Lì premi <b>📋 Card Scanner → CM</b> nei preferiti, poi <b>🔎 Leggi le mie offerte</b>.</li>
+      <li>Alla fine premi <b>📤 Invia al gestionale</b>: torni qui con il risultato.</li></ol>
+    <p class="small">Non hai il pulsante Card Scanner nei preferiti, o è vecchio? <a href="../cardmarket/" target="_blank">Installalo da qui</a>: per il controllo serve la versione nuova.</p>
+    <p style="text-align:right"><button id="dClose">Annulla</button> <button class="pri" id="kGo">Apri le mie offerte</button></p>`, () => {
+    $('dClose').onclick = closeDlg;
+    $('kGo').onclick = () => { const w = window.open(OFFERS_URL, 'cscheck=' + Date.now()); if (!w) alert('Il browser ha bloccato la nuova scheda: permetti i popup per questa pagina e riprova.'); closeDlg(); };
+  });
+}
+function renderChk() {
+  const all = chkDiffs(), T = { qty: 'Quantità diverse', price: 'Prezzi diversi', multi: 'Più offerte a prezzi diversi', miss: 'Solo nel gestionale', extra: 'Solo su Cardmarket' };
+  const cnt = t => all.filter(d => d.type === t).length;
+  if (chkF.type && !cnt(chkF.type)) chkF.type = '';
+  const list = all.filter(d => !chkF.type || d.type === chkF.type);
+  const old = state.chkAt ? daysAgo(state.chkAt) : null;
+  const nL = Object.keys(state.listings).length, qL = Object.values(state.listings).reduce((a, l) => a + l.q, 0);
+  const offs = o => o.map(x => `${x.q} × ${eur(x.price)}`).join(' · ');
+  const row = (d, i) => {
+    const l = d.l, o = d.o || d.os[0];
+    const card = l ? `<b>${esc(setCode(l))}${esc(l.u)}</b> ${esc(info(l).name || o?.name || '')}<small>${esc(l.expName || '')}</small>` : `<b>${esc(o.code)}${esc(o.num)}</b> ${esc(o.name)}<small>${esc(d.E?.name || o.exp)}</small>`;
+    const rev = (l ? l.rev : o.rev) ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale';
+    const g = l ? `${l.q} × ${eur(l.price) || '—'}` : '—', c = d.os.length ? offs(d.os) : '—';
+    const act = d.type === 'qty' ? `<button class="sm" data-a="${i}">Usa ${d.q} copie</button>`
+      : d.type === 'price' ? `<button class="sm" data-a="${i}">Usa ${eur(d.price)}</button>`
+      : d.type === 'miss' ? `<button class="sm" data-a="${i}">Togli dal gestionale</button>`
+      : d.type === 'extra' ? (d.E && d.card ? `<button class="sm" data-a="${i}">Aggiungi al gestionale</button>` : '<span class="small" title="Sulla pagina Inserisci carte bulk del set premi Card Scanner e poi Aggiorna i dati del set nel gestionale">carta non ancora nel catalogo del gestionale</span>')
+      : '<span class="small">il gestionale tiene un solo prezzo per carta</span>';
+    return `<tr><td>${card}</td><td>${rev}</td><td><span class="ktag k-${d.type}">${T[d.type]}</span></td><td class="n">${g}</td><td class="n">${c}</td><td style="text-align:right">${act}</td></tr>`;
+  };
+  const bulk = t => { const n = list.filter(d => d.type === t && (t !== 'extra' || (d.E && d.card))).length; return n > 1 && chkF.type === t ? `<button id="kAll" data-t="${t}">${{ qty: 'Usa le quantità di Cardmarket', price: 'Usa i prezzi di Cardmarket', miss: 'Togli tutte dal gestionale', extra: 'Aggiungi tutte al gestionale' }[t]} (${n})</button>` : ''; };
+  $('main').innerHTML = `<div class="sethead"><div><h2>Controllo con Cardmarket</h2>
+    <div class="sub">Confronta le carte in vendita nel gestionale con le offerte lette sul tuo negozio. Le correzioni cambiano solo il gestionale, mai Cardmarket.</div></div>
+    <button class="pri" id="kNew">🔎 ${chk ? 'Nuovo controllo' : 'Controlla adesso'}</button></div>
+    ${chk ? `<div class="figs"><div class="fig ${all.length ? 'f-hi' : 'f-ok'}"><b>${all.length}</b><span>${all.length === 1 ? 'differenza' : 'differenze'}</span></div>
+      <div class="fig"><b>${chk.list.length}</b><span>offerte su Cardmarket · ${chk.list.reduce((a, o) => a + o.q, 0)} copie</span></div>
+      <div class="fig"><b>${nL}</b><span>righe nel gestionale · ${qL} copie</span></div>
+      <div class="fig"><b>${old === 0 ? 'oggi' : old === 1 ? 'ieri' : old + ' gg fa'}</b><span>ultimo controllo · ${fmtDT(chk.at)}</span></div></div>
+    ${old >= 1 ? `<div class="notice var"><span>Le offerte sono state lette ${old === 1 ? 'ieri' : old + ' giorni fa'}: se nel frattempo hai venduto o messo in vendita carte, fai un nuovo controllo prima di correggere.</span></div>` : ''}
+    ${all.length ? `<div class="filters"><span class="chips" id="kChips">${[['', 'Tutte', all.length], ...Object.keys(T).map(t => [t, T[t], cnt(t)]).filter(x => x[2])].map(([f, l, n]) => `<button class="chip ${chkF.type === f ? 'on' : ''}" data-f="${f}">${l}<i>${n}</i></button>`).join('')}</span>${chkF.type ? bulk(chkF.type) : ''}</div>
+    <table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th>Differenza</th><th class="n">Gestionale</th><th class="n">Cardmarket</th><th></th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>`
+      : '<p class="empty">Tutto allineato: le carte in vendita nel gestionale corrispondono alle offerte su Cardmarket ✔</p>'}`
+    : `<p class="empty">Non hai ancora fatto un controllo.<br>Premi <b>Controlla adesso</b>: lo script legge le tue offerte su Cardmarket (con te collegato) e qui compaiono le differenze.</p>`}`;
+  $('kNew').onclick = openStockCheck;
+  if ($('kChips')) $('kChips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; chkF.type = b.dataset.f; renderChk(); };
+  $('main').querySelectorAll('[data-a]').forEach(b => b.onclick = () => { const d = list[+b.dataset.a];
+    if (d.type === 'miss' && !confirm(`Togliere ${d.l.u} ${info(d.l).name || ''} (×${d.l.q}) dalle carte in vendita del gestionale?\n\nFallo solo se su Cardmarket non è davvero in vendita.`)) return;
+    chkApplyMany([d], d.type); });
+  if ($('kAll')) $('kAll').onclick = () => { const t = $('kAll').dataset.t, sel = list.filter(d => d.type === t);
+    if (!confirm(`${$('kAll').textContent}?\n\nCambia solo il gestionale. Puoi tornare indietro con ↶ Annulla.`)) return;
+    chkApplyMany(sel, t); };
 }
 
 // ---------- carte fuori mercato: il tuo prezzo è lontano dal Consigliato ----------
@@ -2883,6 +3029,7 @@ $('btnSale').onclick = () => $('fSale').click();
 $('fSale').onchange = e => { importSales([...e.target.files]); e.target.value = ''; };
 $('btnCat').onclick = () => $('fCat').click();
 $('btnEditCM').onclick = () => openPriceEdit('');
+$('mChk').onclick = e => { e.preventDefault(); openStockCheck(); };
 $('fCat').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) importCatalog(fs); };
 $('btnUpd').onclick = async () => {
   const r = await updatePrices(true);
@@ -2913,7 +3060,7 @@ document.addEventListener('drop', async e => {
   if (rest.length) importSales(rest);
 });
 $('fPg').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) pgFile(f); };
-window.addEventListener('hashchange', () => { if (importEditFromHash()) { refresh(); return; } const name = importFromHash(); if (name) selected = tcgIdFor(name) || selected; refresh(); });
+window.addEventListener('hashchange', () => { if (importCheckFromHash() || importEditFromHash()) { refresh(); return; } const name = importFromHash(); if (name) selected = tcgIdFor(name) || selected; refresh(); });
 
 // ---------- una sola pagina del gestionale ----------
 // Lo script di Cardmarket rimanda i dati alla scheda chiamata "gestionaleCarte". Se però si apre una scheda nuova
@@ -2946,7 +3093,7 @@ function otherTab() {
   const other = await otherTab();
   if (other) {
     secondary = true;
-    const hasData = /^#(cm2|cmedit)=/.test(location.hash);
+    const hasData = /^#(cm2|cmedit|cmchk)=/.test(location.hash);
     if (hasData) BC.postMessage({ type: 'data', to: other, hash: location.hash });
     history.replaceState(null, '', location.pathname);
     document.body.innerHTML = `<div class="empty" style="margin:80px auto;max-width:560px;font-size:16px">
@@ -2964,10 +3111,11 @@ function otherTab() {
     if (gh.dirty && !ghConflict) { ghDirty = true; setTimeout(() => { if (ghDirty && !ghConflict) ghWrite(); }, 4000); }
   }
   await loadSets();
+  const checked = importCheckFromHash();
   const edited = importEditFromHash();
   const arrived = importFromHash();
   const bySet = listingsBySet();
-  selected = (arrived && tcgIdFor(arrived)) || Object.keys(bySet).sort((a, b) => bySet[b].length - bySet[a].length)[0] || (tcgSets[0] && tcgSets[0].id) || null;
+  selected = (checked && '__chk') || (arrived && tcgIdFor(arrived)) || Object.keys(bySet).sort((a, b) => bySet[b].length - bySet[a].length)[0] || (tcgSets[0] && tcgSets[0].id) || null;
   refresh();
   updatePrices(false); // aggiorna da solo i prezzi più vecchi di 12 ore
   loadMyCodes();

@@ -32,6 +32,10 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <ol><li>Nel gestionale apri la scheda <b>Controllo</b> (o il menu <b>Cardmarket ▾ → Controlla il magazzino</b>) e premi <b>Apri le mie offerte</b>.</li>
 <li>Su Cardmarket premi <b>📋 Card Scanner → CM</b>, poi <b>🔎 Leggi le mie offerte</b>: lo script legge tutte le pagine delle tue carte singole, Normali e Reverse.</li>
 <li>Premi <b>📤 Invia al gestionale</b>: nella scheda Controllo vedi le differenze (quantità, prezzi, carte presenti solo da una parte) e scegli tu cosa correggere nel gestionale. Su Cardmarket non viene cambiato nulla.</li></ol>
+<h2>Correggere le quantità su Cardmarket</h2>
+<ol><li>Nel gestionale, nella scheda <b>Controllo</b>, premi <b>Correggi su Cardmarket</b> su una carta con quantità diverse (oppure conferma una vendita diretta da una lista per i clienti): si aprono le tue offerte con l'elenco.</li>
+<li>Premi <b>📋 Card Scanner → CM</b>, poi <b>🔎 Leggi le mie offerte</b> e <b>▶ Correggi le quantità</b>: lo script apre il riquadro "Modifica" di ogni offerta e scrive le copie giuste. "MODIFICA ARTICOLO" lo premi tu (o la conferma automatica).</li>
+<li>Le offerte che devono scendere a 0 copie lo script non le cancella: le togli tu da Cardmarket. Alla fine premi <b>📤 Invia al gestionale</b>.</li></ol>
 <h2>Prezzo</h2>
 <p>Il prezzo si sceglie solo nel gestionale ("Metti in vendita su Cardmarket": "Da", Tendenza o Consigliato, ± centesimi, calcolato a parte per Normali e Reverse). Ogni volta che premi "Apri Cardmarket" l'elenco ha un nome nuovo (es. <code>DLR-Dominio_Delta_20261115-030612</code>), così lo script lo tratta sempre come una lista nuova. Il prezzo non scende mai sotto 0,02 €; le righe senza prezzo hanno il bordo rosso.</p>
 <p>Dopo "Invia al gestionale" i dati tornano nella pagina del gestionale già aperta (se si apre una scheda nuova, passa i dati a quella già aperta e si chiude da sola).</p>

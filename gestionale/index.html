@@ -31,6 +31,11 @@ h1{margin:0;font-size:17px;letter-spacing:-.005em;color:#fff;white-space:nowrap}
 .ghf label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:3px}.ghf input{width:250px}
 .ghhelp{margin-top:6px}.ghhelp summary{cursor:pointer;font-weight:700;color:var(--navy);font-size:13.5px}.ghhelp ol{padding-left:20px;font-size:13.5px;line-height:1.6}
 .tabs .tb i.w{background:#fde7e4;color:var(--red)}.tabs .tb i.o{background:#fdebdc;color:var(--var)}
+.cl2{display:grid;grid-template-columns:240px 1fr;gap:14px;align-items:start}.clPv img{width:100%;border:1px solid var(--line);border-radius:6px;margin-bottom:6px}
+.clF{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;margin:10px 0 0;padding:10px 12px;background:#f6f8fb;border-radius:10px;font-size:14px}
+.clF label{display:flex;align-items:center;gap:6px}#clBody tr.mut td{color:var(--mut)}
+@media (max-width:760px){.cl2{grid-template-columns:1fr}}
+.figbtn{text-align:left;cursor:pointer;font:inherit;border:1px solid var(--line)}.figbtn:hover,.figbtn.on{border-color:var(--navy)}.figbtn span{color:var(--navy)}
 .ktag{font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px;white-space:nowrap;background:#eef1f6;color:var(--mut)}
 .ktag.k-qty,.ktag.k-price{background:#fdebdc;color:var(--var)}.ktag.k-miss{background:#fde7e4;color:var(--red)}.ktag.k-extra{background:#e3edfa;color:#2d6cc0}
 .odir{font-weight:700;white-space:nowrap}.odir.hi{color:var(--red)}.odir.lo{color:#2d6cc0}
@@ -297,6 +302,7 @@ dialog.cdw{width:min(1040px,95vw);padding:0}
   <div class="tact">
     <details class="menu tm"><summary>📥 Carica <span class="car">▾</span></summary><div class="mn">
       <button id="btnCat"><b>Liste dall'app</b><small>File .txt del telefono: le carte vanno in Standby</small></button>
+      <button id="btnClF"><b>Foto della lista di un cliente</b><small>Le carte segnate sul PDF per i clienti escono dal magazzino</small></button>
       <button id="btnSale"><b>Ordini venduti</b><small>PDF degli ordini di Cardmarket: le carte vendute escono dal magazzino</small></button>
     </div></details>
     <details class="menu tm"><summary id="sumPrezzi">€ Prezzi <span class="car">▾</span></summary><div class="mn">
@@ -706,6 +712,8 @@ async function renderSet() {
       ${copies ? `<button id="bEditCM" title="Cambia su Cardmarket i prezzi delle carte di questo set (es. da Tendenza a prezzo minimo)">✏️ Cambia prezzi di questo set</button>` : ''}
       ${copies || sbQ ? `<details class="menu"><summary>Altro ▾</summary><div class="mn">
         <button id="bSel">☑ Seleziona carte (togli, riporta in Standby…)</button>
+        <button id="bCl">📋 Lista PDF per i clienti</button>
+        <button id="bClF">📷 Foto della lista di un cliente…</button>
         ${vars.length ? `<button id="bPdf2">📄 PDF revisione prezzi</button>` : ''}
         ${cmCat ? `<button id="bBulk">↗ Pagina "Inserisci carte bulk" del set</button>` : ''}</div></details>` : ''}
       ${sbQ ? `<button class="pri" id="bOpenCM" title="Scegli il prezzo e prepara le carte in Standby per lo script Card Scanner">Metti in vendita su Cardmarket (${sbQ} in Standby)</button>` : cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="_blank"><button>Apri su Cardmarket ↗</button></a>` : ''}
@@ -782,6 +790,8 @@ async function renderSet() {
   if ($('bConf')) $('bConf').onclick = () => varDialog(vars, `Conferma prezzi · ${setName}`);
   if ($('bEditCM')) $('bEditCM').onclick = () => openPriceEdit(mine[0]?.[1].expName || state.cm[mine[0]?.[1].exp]?.name || '');
   if ($('bSel')) $('bSel').onclick = () => { selMode = !selMode; sel.clear(); renderSet(); };
+  if ($('bCl')) $('bCl').onclick = () => pdfClients();
+  if ($('bClF')) $('bClF').onclick = () => clPickPhotos();
   if (selMode) {
     const upd = () => { $('selN').textContent = `${sel.size} carte selezionate`; document.querySelectorAll('.card').forEach(el => el.classList.toggle('sel', sel.has(el.dataset.n))); };
     $('sAll').onclick = () => { document.querySelectorAll('.card:not(.hide)').forEach(el => { if (!el.classList.contains('no')) sel.add(el.dataset.n); }); upd(); };
@@ -1022,6 +1032,24 @@ function chkDiffs() {
   });
   return out;
 }
+/** prepara per lo script l'elenco delle quantità da correggere su Cardmarket: rows = [{k, qt}] (qt = copie giuste) */
+function openQtyEdit(rows, why, scope) {
+  rows = rows.filter(r => state.listings[r.k] || r.l);
+  if (!rows.length) return false;
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  const name = `QUANTITA-${scope ? SavedListsName(scope) : 'Tutti'}_${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
+  const job = { v: 1, type: 'qty', at: today(), name,
+    items: rows.map(r => { const l = r.l || state.listings[r.k];
+      return { k: r.k, code: setCode(l), exp: l.expName || state.cm[l.exp]?.name || '', u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q, qt: Math.max(0, r.qt), old: l.price, price: null }; }) };
+  const enc = 'csedit=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
+  try { navigator.clipboard.writeText(enc); } catch (e) {}
+  const win = window.open(OFFERS_URL, enc);
+  if (!win) { alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.'); return false; }
+  logOp('quantita', scope || '', `Preparato "${name}" (${why}): ${job.items.map(i => `${i.code}${i.u}${i.rev ? ' R' : ''} → ${i.qt}`).join(', ')}`, null);
+  save();
+  toast(`Elenco ${name} pronto: su Cardmarket premi Card Scanner e poi ▶ Correggi le quantità`);
+  return true;
+}
 /** applica una correzione al gestionale (mai a Cardmarket). Ritorna il testo per il registro. */
 function chkApply(d) {
   const nm = l => `${l.u}${l.rev ? ' R' : ''} ${info(l).name || ''}`.trim();
@@ -1079,13 +1107,14 @@ function renderChk() {
     const card = l ? `<b>${esc(setCode(l))}${esc(l.u)}</b> ${esc(info(l).name || o?.name || '')}<small>${esc(l.expName || '')}</small>` : `<b>${esc(o.code)}${esc(o.num)}</b> ${esc(o.name)}<small>${esc(d.E?.name || o.exp)}</small>`;
     const rev = (l ? l.rev : o.rev) ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale';
     const g = l ? `${l.q} × ${eur(l.price) || '—'}` : '—', c = d.os.length ? offs(d.os) : '—';
-    const act = d.type === 'qty' ? `<button class="sm" data-a="${i}">Usa ${d.q} copie</button>`
+    const act = d.type === 'qty' ? `<button class="sm" data-a="${i}" title="Il giusto è Cardmarket: correggo il gestionale">Usa ${d.q} copie</button> <button class="sm pri" data-cm="${i}" title="Il giusto è il gestionale: lo script corregge Cardmarket">Correggi su Cardmarket (${d.l.q})</button>`
       : d.type === 'price' ? `<button class="sm" data-a="${i}">Usa ${eur(d.price)}</button>`
       : d.type === 'miss' ? `<button class="sm" data-a="${i}">Togli dal gestionale</button>`
       : d.type === 'extra' ? (d.E && d.card ? `<button class="sm" data-a="${i}">Aggiungi al gestionale</button>` : '<span class="small" title="Sulla pagina Inserisci carte bulk del set premi Card Scanner e poi Aggiorna i dati del set nel gestionale">carta non ancora nel catalogo del gestionale</span>')
       : '<span class="small">il gestionale tiene un solo prezzo per carta</span>';
     return `<tr><td>${card}</td><td>${rev}</td><td><span class="ktag k-${d.type}">${T[d.type]}</span></td><td class="n">${g}</td><td class="n">${c}</td><td style="text-align:right">${act}</td></tr>`;
   };
+  const bulkCm = () => { const n = list.filter(d => d.type === 'qty').length; return n > 1 && chkF.type === 'qty' ? `<button id="kAllCm" class="pri">Correggi tutte su Cardmarket (${n})</button>` : ''; };
   const bulk = t => { const n = list.filter(d => d.type === t && (t !== 'extra' || (d.E && d.card))).length; return n > 1 && chkF.type === t ? `<button id="kAll" data-t="${t}">${{ qty: 'Usa le quantità di Cardmarket', price: 'Usa i prezzi di Cardmarket', miss: 'Togli tutte dal gestionale', extra: 'Aggiungi tutte al gestionale' }[t]} (${n})</button>` : ''; };
   $('main').innerHTML = `<div class="sethead"><div><h2>Controllo con Cardmarket</h2>
     <div class="sub">Confronta le carte in vendita nel gestionale con le offerte lette sul tuo negozio. Le correzioni cambiano solo il gestionale, mai Cardmarket.</div></div>
@@ -1095,7 +1124,7 @@ function renderChk() {
       <div class="fig"><b>${nL}</b><span>righe nel gestionale · ${qL} copie</span></div>
       <div class="fig"><b>${old === 0 ? 'oggi' : old === 1 ? 'ieri' : old + ' gg fa'}</b><span>ultimo controllo · ${fmtDT(chk.at)}</span></div></div>
     ${old >= 1 ? `<div class="notice var"><span>Le offerte sono state lette ${old === 1 ? 'ieri' : old + ' giorni fa'}: se nel frattempo hai venduto o messo in vendita carte, fai un nuovo controllo prima di correggere.</span></div>` : ''}
-    ${all.length ? `<div class="filters"><span class="chips" id="kChips">${[['', 'Tutte', all.length], ...Object.keys(T).map(t => [t, T[t], cnt(t)]).filter(x => x[2])].map(([f, l, n]) => `<button class="chip ${chkF.type === f ? 'on' : ''}" data-f="${f}">${l}<i>${n}</i></button>`).join('')}</span>${chkF.type ? bulk(chkF.type) : ''}</div>
+    ${all.length ? `<div class="filters"><span class="chips" id="kChips">${[['', 'Tutte', all.length], ...Object.keys(T).map(t => [t, T[t], cnt(t)]).filter(x => x[2])].map(([f, l, n]) => `<button class="chip ${chkF.type === f ? 'on' : ''}" data-f="${f}">${l}<i>${n}</i></button>`).join('')}</span>${chkF.type ? bulk(chkF.type) + ' ' + bulkCm() : ''}</div>
     <table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th>Differenza</th><th class="n">Gestionale</th><th class="n">Cardmarket</th><th></th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>`
       : '<p class="empty">Tutto allineato: le carte in vendita nel gestionale corrispondono alle offerte su Cardmarket ✔</p>'}`
     : `<p class="empty">Non hai ancora fatto un controllo.<br>Premi <b>Controlla adesso</b>: lo script legge le tue offerte su Cardmarket (con te collegato) e qui compaiono le differenze.</p>`}`;
@@ -1104,9 +1133,299 @@ function renderChk() {
   $('main').querySelectorAll('[data-a]').forEach(b => b.onclick = () => { const d = list[+b.dataset.a];
     if (d.type === 'miss' && !confirm(`Togliere ${d.l.u} ${info(d.l).name || ''} (×${d.l.q}) dalle carte in vendita del gestionale?\n\nFallo solo se su Cardmarket non è davvero in vendita.`)) return;
     chkApplyMany([d], d.type); });
+  $('main').querySelectorAll('[data-cm]').forEach(b => b.onclick = () => { const d = list[+b.dataset.cm]; openQtyEdit([{ k: d.k, qt: d.l.q }], 'controllo con Cardmarket', d.l.expName); });
+  if ($('kAllCm')) $('kAllCm').onclick = () => { const sel = list.filter(d => d.type === 'qty');
+    if (!confirm(`Lo script porterà su Cardmarket le copie di ${sel.length} carte a quelle del gestionale. Confermi?`)) return;
+    openQtyEdit(sel.map(d => ({ k: d.k, qt: d.l.q })), 'controllo con Cardmarket'); };
   if ($('kAll')) $('kAll').onclick = () => { const t = $('kAll').dataset.t, sel = list.filter(d => d.type === t);
     if (!confirm(`${$('kAll').textContent}?\n\nCambia solo il gestionale. Puoi tornare indietro con ↶ Annulla.`)) return;
     chkApplyMany(sel, t); };
+}
+
+// ---------- lista PDF per i clienti e lettura delle spunte da una foto ----------
+// Il PDF ha 4 quadrati neri agli angoli (per raddrizzare la foto) e una striscia di 24 celle in alto:
+// 16 bit = numero della lista (state.clists), 5 bit = pagina, 3 bit = controllo. Ogni riga ha una casella da spuntare
+// e un riquadro "Prese" dove il cliente può scrivere quante ne vuole.
+const CL = { M: 9, POS: [[8, 8], [193, 8], [193, 280], [8, 280]], BX: 42, BY: 10, BW: 4, BG: 1.2, Y0: 40, RH: 7.4, ROWS: 31, BOXX: 14, BOX: 5.5, PX: 178, PW: 18 };
+const clCenter = i => [CL.POS[i][0] + CL.M / 2, CL.POS[i][1] + CL.M / 2];
+const clRowY = r => CL.Y0 + r * CL.RH + (CL.RH - CL.BOX) / 2;
+function clBits(id, page) {
+  const chk = ((id & 15) + ((id >> 4) & 15) + ((id >> 8) & 15) + ((id >> 12) & 15) + page) & 7;
+  const v = (id << 8) | (page << 3) | chk, b = [];
+  for (let i = 23; i >= 0; i--) b.push((v >> i) & 1);
+  return b;
+}
+function clUnbits(b) {
+  const v = b.reduce((a, x) => a * 2 + x, 0), id = (v >> 8) & 0xffff, page = (v >> 3) & 31, chk = v & 7;
+  return clBits(id, page).every((x, i) => x === b[i]) ? { id, page } : null;
+}
+const clHex = id => id.toString(16).toUpperCase().padStart(4, '0');
+
+/** righe della lista: carte del set in vendita o in Standby, una per numero + variante + lingua */
+function clRowsOfSet() {
+  const rc = rarCache(selected), rows = [];
+  for (const c of current.cards) {
+    const n = norm(c.localId), g = {};
+    (current.byNum[n] || []).forEach(([k, l]) => { const x = g[(l.rev ? 'R' : 'N') + (l.lang || 'it')] = g[(l.rev ? 'R' : 'N') + (l.lang || 'it')] || { u: l.u || c.localId, n: info(l).name || c.name, rev: !!l.rev, lang: l.lang || 'it', avail: 0, lk: '', sk: '' }; x.avail += l.q; x.lk = k; });
+    (current.sbByNum[n] || []).forEach(([k, s]) => { const x = g[(s.rev ? 'R' : 'N') + (s.lang || 'it')] = g[(s.rev ? 'R' : 'N') + (s.lang || 'it')] || { u: s.u || c.localId, n: c.name || s.n || '', rev: !!s.rev, lang: s.lang || 'it', avail: 0, lk: '', sk: '' }; x.avail += s.q; x.sk = k; });
+    Object.values(g).filter(x => x.avail > 0).sort((a, b) => a.rev - b.rev || a.lang.localeCompare(b.lang))
+      .forEach(x => rows.push(Object.assign(x, { rar: rc[n] || c.rarity || '' })));
+  }
+  return rows;
+}
+async function pdfClients() {
+  const rows = clRowsOfSet();
+  if (!rows.length) { alert('In questo set non ci sono carte in vendita o in Standby.'); return; }
+  let JsPDF;
+  try { JsPDF = await pdfLib(); } catch (e) { alert('Non riesco a creare il PDF (serve internet): ' + e.message); return; }
+  state.clists = state.clists || {};
+  let id; do { id = 1 + Math.floor(Math.random() * 65534); } while (state.clists[id]);
+  const pages = Math.ceil(rows.length / CL.ROWS);
+  if (pages > 31) { alert('Il set ha troppe carte per una lista (massimo 31 pagine).'); return; }
+  const d = new Date(), dt = d.toLocaleDateString('it-IT');
+  const name = `Lista ${current.setName} del ${dt} (codice ${clHex(id)})`;
+  state.clists[id] = { at: d.toISOString(), setId: selected, setName: current.setName, name, rows };
+  // tengo le ultime 40 liste
+  Object.keys(state.clists).sort((a, b) => new Date(state.clists[b].at) - new Date(state.clists[a].at)).slice(40).forEach(k => delete state.clists[k]);
+  const doc = new JsPDF({ unit: 'mm', format: 'a4' });
+  const ink = [24, 34, 58], mut = [104, 114, 134];
+  for (let p = 0; p < pages; p++) {
+    if (p) doc.addPage();
+    doc.setFillColor(0, 0, 0);
+    CL.POS.forEach(([x, y]) => doc.rect(x, y, CL.M, CL.M, 'F'));
+    clBits(id, p).forEach((b, i) => { if (b) doc.rect(CL.BX + i * (CL.BW + CL.BG), CL.BY, CL.BW, CL.BW, 'F'); });
+    doc.setTextColor(...ink); doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
+    doc.text(pdfT(current.setName), 24, 24);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...mut);
+    doc.text(pdfT(`Carte disponibili al ${dt} · pagina ${p + 1} di ${pages} · codice ${clHex(id)}`), 24, 29);
+    doc.text(pdfT('Segna con una X le carte che vuoi e scrivi nella colonna "Prese" quante copie.'), 24, 33.5);
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+    doc.text('N°', 24, CL.Y0 - 1.5); doc.text('Carta', 38, CL.Y0 - 1.5); doc.text('Variante', 112, CL.Y0 - 1.5); doc.text(pdfT('Rarità'), 136, CL.Y0 - 1.5);
+    doc.text('Disp.', 174, CL.Y0 - 1.5, { align: 'right' }); doc.text('Prese', CL.PX + CL.PW / 2, CL.Y0 - 1.5, { align: 'center' });
+    rows.slice(p * CL.ROWS, (p + 1) * CL.ROWS).forEach((r, i) => {
+      const yt = CL.Y0 + i * CL.RH, yb = clRowY(i), ym = yt + CL.RH / 2 + 1.2;
+      doc.setDrawColor(40, 40, 40); doc.setLineWidth(0.35); doc.rect(CL.BOXX, yb, CL.BOX, CL.BOX);
+      doc.setDrawColor(150, 150, 150); doc.setLineWidth(0.2); doc.rect(CL.PX, yb, CL.PW, CL.BOX);
+      doc.setDrawColor(225, 229, 236); doc.line(22, yt + CL.RH, CL.PX - 2, yt + CL.RH);
+      doc.setTextColor(...ink); doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+      doc.text(pdfT(r.u), 24, ym);
+      doc.setFont('helvetica', 'bold'); doc.text(pdfT(r.n).slice(0, 42), 38, ym);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+      doc.setTextColor(...(r.rev ? [124, 77, 204] : ink)); doc.text(pdfT((r.rev ? 'Reverse Holo' : 'Normale') + (r.lang !== 'it' ? ' ' + r.lang.toUpperCase() : '')), 112, ym);
+      doc.setTextColor(...mut); doc.text(pdfT(r.rar).slice(0, 22), 136, ym);
+      doc.setTextColor(...ink); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text(String(r.avail), 174, ym, { align: 'right' });
+    });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...mut);
+    doc.text(pdfT(`Lista ${clHex(id)} · pagina ${p + 1}/${pages}`), 105, 286, { align: 'center' });
+  }
+  logOp('dati', current.setName, `Creata la lista PDF per i clienti (codice ${clHex(id)}, ${rows.length} righe, ${rows.reduce((a, r) => a + r.avail, 0)} copie)`, null);
+  softSave();
+  doc.save(`${SavedListsName(current.setName)}_Lista-clienti_${clHex(id)}.pdf`);
+}
+
+// ---- lettura della foto ----
+function clHomography(src, dst) {
+  // src (mm sulla pagina) → dst (pixel nella foto), 4 coppie di punti
+  const A = [], b = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = src[i], [u, v] = dst[i];
+    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+    A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+  }
+  for (let c = 0; c < 8; c++) {
+    let p = c; for (let r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    [A[c], A[p]] = [A[p], A[c]]; [b[c], b[p]] = [b[p], b[c]];
+    if (Math.abs(A[c][c]) < 1e-12) return null;
+    for (let r = 0; r < 8; r++) if (r !== c) { const f = A[r][c] / A[c][c]; for (let k = c; k < 8; k++) A[r][k] -= f * A[c][k]; b[r] -= f * b[c]; }
+  }
+  const h = b.map((v, i) => v / A[i][i]);
+  return (x, y) => { const w = h[6] * x + h[7] * y + 1; return [(h[0] * x + h[1] * y + h[2]) / w, (h[3] * x + h[4] * y + h[5]) / w]; };
+}
+async function clReadPhoto(file, forced) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    const sc = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+    const W = Math.round(img.naturalWidth * sc), H = Math.round(img.naturalHeight * sc);
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, 0, 0, W, H);
+    const px = cx.getImageData(0, 0, W, H).data, g = new Float32Array(W * H);
+    for (let i = 0; i < W * H; i++) g[i] = 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
+    // soglia adattiva (ombre e luce non uniforme): scuro se più scuro del 18% rispetto alla media dei dintorni
+    const I = new Float64Array((W + 1) * (H + 1));
+    for (let y = 0; y < H; y++) { let s = 0; for (let x = 0; x < W; x++) { s += g[y * W + x]; I[(y + 1) * (W + 1) + x + 1] = I[y * (W + 1) + x + 1] + s; } }
+    const R = Math.max(8, Math.round(Math.min(W, H) / 30)), B = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const x0 = Math.max(0, x - R), x1 = Math.min(W, x + R + 1), y0 = Math.max(0, y - R), y1 = Math.min(H, y + R + 1);
+      const m = (I[y1 * (W + 1) + x1] - I[y0 * (W + 1) + x1] - I[y1 * (W + 1) + x0] + I[y0 * (W + 1) + x0]) / ((x1 - x0) * (y1 - y0));
+      B[y * W + x] = g[y * W + x] < m * 0.82 && g[y * W + x] < 170 ? 1 : 0;
+    }
+    // quadrati pieni: componenti connesse scure, quasi quadrate e piene
+    const lab = new Int32Array(W * H), comps = [], st = [];
+    for (let i = 0; i < W * H; i++) {
+      if (!B[i] || lab[i]) continue;
+      const c = { n: 0, sx: 0, sy: 0, x0: 1e9, x1: -1, y0: 1e9, y1: -1 }; lab[i] = comps.length + 1; st.push(i);
+      while (st.length) {
+        const j = st.pop(), x = j % W, y = (j / W) | 0;
+        c.n++; c.sx += x; c.sy += y; if (x < c.x0) c.x0 = x; if (x > c.x1) c.x1 = x; if (y < c.y0) c.y0 = y; if (y > c.y1) c.y1 = y;
+        if (x > 0 && B[j - 1] && !lab[j - 1]) { lab[j - 1] = lab[i]; st.push(j - 1); }
+        if (x < W - 1 && B[j + 1] && !lab[j + 1]) { lab[j + 1] = lab[i]; st.push(j + 1); }
+        if (y > 0 && B[j - W] && !lab[j - W]) { lab[j - W] = lab[i]; st.push(j - W); }
+        if (y < H - 1 && B[j + W] && !lab[j + W]) { lab[j + W] = lab[i]; st.push(j + W); }
+      }
+      comps.push(c);
+    }
+    const minS = Math.min(W, H) * 0.012, maxS = Math.min(W, H) * 0.12;
+    let cand = comps.filter(c => { const bw = c.x1 - c.x0 + 1, bh = c.y1 - c.y0 + 1; return bw >= minS && bh >= minS && bw <= maxS && bh <= maxS && bw / bh > 0.5 && bw / bh < 2 && c.n / (bw * bh) > 0.72; })
+      .map(c => ({ x: c.sx / c.n, y: c.sy / c.n, a: c.n })).sort((a, b) => b.a - a.a);
+    if (cand.length < 4) throw new Error('non trovo i quattro quadrati neri agli angoli del foglio: fotografa la pagina intera, dritta e ben illuminata');
+    cand = cand.filter(c => c.a >= cand[0].a * 0.3);
+    const pick = f => cand.reduce((a, c) => f(c) < f(a) ? c : a);
+    const im = [pick(c => c.x + c.y), pick(c => -(c.x - c.y)), pick(c => -(c.x + c.y)), pick(c => c.x - c.y)];   // TL, TR, BR, BL nella foto
+    if (new Set(im).size < 4) throw new Error('non trovo i quattro quadrati neri agli angoli del foglio: fotografa la pagina intera');
+    const dark = (map, x, y) => { const [u, v] = map(x, y), i = Math.round(v) * W + Math.round(u); return u >= 0 && v >= 0 && u < W && v < H ? B[i] : 0; };
+    const frac = (map, x, y, w, h, n) => { let s = 0; for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) s += dark(map, x + (a + 0.5) * w / n, y + (b + 0.5) * h / n); return s / (n * n); };
+    // provo le 4 rotazioni del foglio: quella giusta ha il codice valido
+    let best = null;
+    for (let rot = 0; rot < 4; rot++) {
+      const map = clHomography([0, 1, 2, 3].map(clCenter), [0, 1, 2, 3].map(i => [im[(i + rot) % 4].x, im[(i + rot) % 4].y]));
+      if (!map) continue;
+      const bits = Array.from({ length: 24 }, (_, i) => frac(map, CL.BX + i * (CL.BW + CL.BG) + 0.8, CL.BY + 0.8, CL.BW - 1.6, CL.BW - 1.6, 5) > 0.5 ? 1 : 0);
+      const code = clUnbits(bits);
+      if (code && (state.clists || {})[code.id]) { best = { map, code }; break; }
+      if (forced && !best && rot === 0) best = { map, code: null };
+    }
+    if (!best || (!best.code && !forced)) throw new Error('non riesco a leggere il codice della lista in alto: scegli tu lista e pagina');
+    const code = best.code || forced, map = best.map, L = state.clists[code.id];
+    if (!L) throw new Error('questa lista non è in questo gestionale (creata su un altro PC prima del backup?)');
+    // per ogni riga: ritrovo la casella esatta (il foglio può essere un po' curvo) e misuro quanto è segnata
+    const refine = (x, y, w, h) => {
+      let bs = -1, bx = x, by = y;
+      for (let dx = -1.6; dx <= 1.6; dx += 0.4) for (let dy = -1.6; dy <= 1.6; dy += 0.4) {
+        let s = 0, n = 0;
+        for (let t = 0; t <= 1; t += 1 / 16) { s += dark(map, x + dx + t * w, y + dy) + dark(map, x + dx + t * w, y + dy + h) + dark(map, x + dx, y + dy + t * h) + dark(map, x + dx + w, y + dy + t * h); n += 4; }
+        if (s / n > bs) { bs = s / n; bx = x + dx; by = y + dy; }
+      }
+      return [bx, by];
+    };
+    const n0 = code.page * CL.ROWS, rows = L.rows.slice(n0, n0 + CL.ROWS).map((r, i) => {
+      const [bx, by] = refine(CL.BOXX, clRowY(i), CL.BOX, CL.BOX), [qx, qy] = refine(CL.PX, clRowY(i), CL.PW, CL.BOX);
+      return { i: n0 + i, f: frac(map, bx + 1.1, by + 1.1, CL.BOX - 2.2, CL.BOX - 2.2, 11), w: frac(map, qx + 1.2, qy + 1.1, CL.PW - 2.4, CL.BOX - 2.2, 13), box: [bx, by] };
+    });
+    const med = [...rows.map(r => r.f)].sort((a, b) => a - b)[rows.length >> 1] || 0;
+    rows.forEach(r => { r.ticked = r.f > Math.max(0.07, med * 3 + 0.03); r.written = r.w > 0.05; });
+    // anteprima: la foto con le caselle lette (verde = segnata)
+    const pv = document.createElement('canvas'), ps = 520 / Math.max(W, H); pv.width = Math.round(W * ps); pv.height = Math.round(H * ps);
+    const pc = pv.getContext('2d'); pc.drawImage(cv, 0, 0, pv.width, pv.height); pc.lineWidth = 2;
+    rows.forEach(r => { const pts = [[0, 0], [CL.BOX, 0], [CL.BOX, CL.BOX], [0, CL.BOX]].map(([a, b]) => map(r.box[0] + a, r.box[1] + b));
+      pc.strokeStyle = r.ticked || r.written ? '#1f8f55' : 'rgba(200,55,45,.5)'; pc.beginPath(); pts.forEach(([u, v], j) => j ? pc.lineTo(u * ps, v * ps) : pc.moveTo(u * ps, v * ps)); pc.closePath(); pc.stroke(); });
+    return { id: code.id, page: code.page, rows, preview: pv.toDataURL('image/jpeg', 0.8) };
+  } finally { URL.revokeObjectURL(url); }
+}
+function clPickPhotos() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
+  inp.onchange = () => { if (inp.files.length) clFromPhotos([...inp.files]); };
+  inp.click();
+}
+async function clFromPhotos(files, forced) {
+  openDlg('<h3>Leggo le foto…</h3><p class="small">Cerco i quadrati agli angoli, il codice della lista e le caselle segnate.</p>');
+  const res = [], errs = [];
+  for (const f of files) { try { res.push(await clReadPhoto(f, forced)); } catch (e) { errs.push([f, e.message]); } }
+  if (!res.length) {
+    const ls = Object.entries(state.clists || {}).sort((a, b) => new Date(b[1].at) - new Date(a[1].at));
+    openDlg(`<h3>Non riesco a leggere la foto</h3><p>${errs.map(([f, m]) => `<b>${esc(f.name)}</b>: ${esc(m)}`).join('<br>')}</p>
+      ${ls.length && errs.some(([, m]) => /codice/.test(m)) ? `<p class="row">Lista <select id="clL">${ls.map(([id, L]) => `<option value="${id}">${esc(L.name)}</option>`).join('')}</select>
+        pagina <input type="number" id="clP" min="1" value="1" style="width:64px"> <button class="pri" id="clRetry">Riprova con questa</button></p>` : ''}
+      <p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => {
+      $('dClose').onclick = closeDlg;
+      if ($('clRetry')) $('clRetry').onclick = () => clFromPhotos(files, { id: +$('clL').value, page: Math.max(0, (+$('clP').value || 1) - 1) });
+    });
+    return;
+  }
+  clSaleDialog(res, errs);
+}
+function clSaleDialog(res, errs) {
+  const id = res[0].id, L = state.clists[id], other = res.filter(r => r.id !== id);
+  res = res.filter(r => r.id === id);
+  const det = {}; res.forEach(r => r.rows.forEach(x => { if (x.ticked || x.written) det[x.i] = x; }));
+  const pagesRead = [...new Set(res.map(r => r.page + 1))].sort((a, b) => a - b);
+  // copie disponibili adesso (la lista può essere di qualche giorno fa)
+  const nowAvail = r => (state.listings[r.lk]?.q || 0) + (state.standby?.[r.sk]?.q || 0);
+  let showAll = false;
+  const draw = () => {
+    const idx = L.rows.map((r, i) => i).filter(i => showAll || det[i]);
+    $('clBody').innerHTML = idx.map(i => { const r = L.rows[i], a = nowAvail(r);
+      return `<tr data-i="${i}" class="${det[i] ? '' : 'mut'}"><td><input type="checkbox" class="clC" ${det[i] ? 'checked' : ''} ${a ? '' : 'disabled'}></td><td><b>${esc(r.u)}</b> ${esc(r.n)}</td>
+        <td>${r.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale'}</td><td class="n">${a}${a !== r.avail ? ` <span class="small">(in lista ${r.avail})</span>` : ''}</td>
+        <td class="n"><input type="number" class="clQ" min="1" max="${a}" placeholder="quante?" value="${det[i] && a === 1 ? 1 : ''}" style="width:72px"></td>
+        <td class="small">${det[i] ? (det[i].ticked ? 'segnata' : '') + (det[i].written ? (det[i].ticked ? ' · ' : '') + 'numero scritto' : '') : ''}</td></tr>`; }).join('')
+      || '<tr><td colspan="6" class="small">Nessuna casella segnata trovata. Premi "Mostra tutte le carte della lista" per sceglierle a mano.</td></tr>';
+    sum();
+  };
+  const sel = () => [...$('clBody').querySelectorAll('tr[data-i]')].filter(tr => tr.querySelector('.clC').checked).map(tr => ({ i: +tr.dataset.i, q: parseInt(tr.querySelector('.clQ').value, 10) || 0 }));
+  const sum = () => {
+    const s = sel(), q = s.reduce((a, x) => a + x.q, 0), tot = parseFloat(String($('clTot').value).replace(',', '.'));
+    const sw = $('clSw').checked;
+    $('clTot').disabled = sw;
+    $('clSum').innerHTML = `${s.length} carte · <b>${q}</b> copie` + (sw ? ' · scambio alla pari (0 €)' : !isNaN(tot) && q ? ` · <b>${eur(tot / q)}</b> a carta` : '') +
+      (s.some(x => !x.q) ? ' · <b style="color:var(--var)">scrivi quante copie per ogni carta spuntata</b>' : '');
+  };
+  openDlg(`<h3>Vendita diretta · ${esc(L.setName)}</h3>
+    <p class="small">${esc(L.name)} · pagine lette: ${pagesRead.join(', ')}${errs.length ? ` · <b style="color:var(--red)">${errs.length} foto non lette</b> (${errs.map(([f]) => esc(f.name)).join(', ')})` : ''}${other.length ? ` · <b style="color:var(--var)">${other.length} foto di un'altra lista ignorate</b>` : ''}</p>
+    <div class="cl2"><div class="clPv">${res.map(r => `<img src="${r.preview}" alt="pagina ${r.page + 1}" title="pagina ${r.page + 1}: in verde le caselle lette come segnate">`).join('')}</div>
+    <div><p class="small" style="margin-top:0">Controlla le carte trovate: la lettura della foto può sbagliare. Spunta o togli, e scrivi quante copie ha preso il cliente.</p>
+      <div style="max-height:42vh;overflow:auto"><table class="rtable"><thead><tr><th></th><th>Carta</th><th>Variante</th><th class="n">Disp.</th><th class="n">Prese</th><th></th></tr></thead><tbody id="clBody"></tbody></table></div>
+      <p><button class="lnk" id="clAll">Mostra tutte le carte della lista</button></p></div></div>
+    <div class="clF"><label><input type="radio" name="clT" id="clSell" checked> Vendita · totale incassato <input type="text" id="clTot" inputmode="decimal" placeholder="es. 12,50" style="width:90px"> €</label>
+      <label><input type="radio" name="clT" id="clSw"> Scambio alla pari (carte per la mia collezione)</label>
+      <label>Cliente <input type="text" id="clWho" placeholder="facoltativo" style="width:160px"></label>
+      <label><input type="checkbox" id="clCm" checked> Abbassa le copie anche su Cardmarket (script)</label></div>
+    <p class="row" style="justify-content:space-between"><span class="small" id="clSum"></span><span><button id="dClose">Annulla</button> <button class="pri" id="clGo">Registra la vendita</button></span></p>`, () => {
+    $('dClose').onclick = closeDlg;
+    draw();
+    $('clAll').onclick = () => { showAll = !showAll; $('clAll').textContent = showAll ? 'Mostra solo quelle segnate' : 'Mostra tutte le carte della lista'; const keep = sel(); draw();
+      keep.forEach(x => { const tr = $('clBody').querySelector(`tr[data-i="${x.i}"]`); if (tr) { tr.querySelector('.clC').checked = true; tr.querySelector('.clQ').value = x.q || ''; } }); sum(); };
+    $('dlgBody').addEventListener('input', sum); $('dlgBody').addEventListener('change', sum);
+    $('clGo').onclick = () => {
+      const s = sel(), sw = $('clSw').checked, tot = parseFloat(String($('clTot').value).replace(',', '.'));
+      if (!s.length) { alert('Nessuna carta spuntata.'); return; }
+      if (s.some(x => !x.q)) { alert('Scrivi quante copie ha preso il cliente per ogni carta spuntata.'); return; }
+      const bad = s.find(x => x.q > nowAvail(L.rows[x.i]));
+      if (bad) { alert(`${L.rows[bad.i].u} ${L.rows[bad.i].n}: ne hai solo ${nowAvail(L.rows[bad.i])}.`); return; }
+      if (!sw && (isNaN(tot) || tot < 0)) { alert('Scrivi il totale incassato (oppure scegli "Scambio").'); return; }
+      clRegister(L, s, sw ? null : tot, $('clWho').value.trim(), $('clCm').checked);
+    };
+  });
+}
+function clRegister(L, sel, tot, who, lowerCm) {
+  const nq = sel.reduce((a, x) => a + x.q, 0), price = tot == null ? 0 : Math.round(tot / nq * 10000) / 10000;
+  const d = new Date(), z = n => String(n).padStart(2, '0'), date = d.toISOString();
+  const oid = `D${String(d.getFullYear()).slice(2)}${z(d.getMonth() + 1)}${z(d.getDate())}${z(d.getHours())}${z(d.getMinutes())}`;
+  const ch = tot == null ? 'Scambio' : 'Cliente diretto', cm = [], txt = [];
+  sel.forEach(({ i, q }) => {
+    const r = L.rows[i];
+    let left = q, sbTook = 0, took = 0, sbx = null;
+    // prima dallo Standby (non è su Cardmarket), poi dalle carte in vendita
+    const X = state.standby?.[r.sk];
+    if (X && X.q > 0) { sbTook = Math.min(left, X.q); sbx = Object.assign({}, X, { q: 0 }); X.q -= sbTook; left -= sbTook; if (X.q <= 0) { delete state.standby[r.sk]; delete (state.sbMarket || {})[r.sk]; } }
+    const Lst = state.listings[r.lk];
+    let snap = null;
+    if (left > 0 && Lst) { snap = Object.assign({}, Lst); took = Math.min(left, Lst.q); Lst.q -= took; left -= took; cm.push({ k: r.lk, l: snap, qt: Lst.q }); if (Lst.q <= 0) delete state.listings[r.lk]; }
+    const base = Lst || snap;
+    state.sold.push({ date, listed: base?.date || null, p: base?.p || null, exp: base?.exp || '', expName: base?.expName || L.setName, name: r.n, num: r.u, rev: r.rev, lang: r.lang, q,
+      price, source: ch, file: L.name, order: oid, buyer: who, took, sbTook, sbk: sbTook ? r.sk : '', sbx, nolist: base ? 0 : 1 });
+    txt.push(`${r.u}${r.rev ? ' R' : ''} ${r.n} ×${q}`);
+  });
+  state.orders = state.orders || {};
+  state.orders[oid] = { at: today(), n: nq, date, buyer: who, ch, file: L.name, x: { tot: tot ?? 0 },
+    items: sel.map(({ i, q }) => { const r = L.rows[i]; return { qty: q, name: r.n, num: r.u, lang: r.lang, cond: '', code: '', rar: r.rar, com: r.rev ? 'Reverse Holo' : '', rev: r.rev, price }; }) };
+  logOp('venduta', L.setName, `${ch === 'Scambio' ? 'Scambio alla pari' : 'Vendita diretta'}${who ? ' a ' + who : ''} (${L.name}): ${txt.join(', ')}${tot != null ? ` · totale ${eur(tot)} (${eur(price)} a carta)` : ''}`, nq);
+  save(); closeDlg(); refresh();
+  toast(`${ch === 'Scambio' ? 'Scambio' : 'Vendita'} registrato: ${nq} copie`);
+  if (cm.length && lowerCm) setTimeout(() => {
+    if (confirm(`${cm.length} ${cm.length === 1 ? 'carta era' : 'carte erano'} anche in vendita su Cardmarket.\n\nApro ora le tue offerte: con lo script (▶ Correggi le quantità) le copie scendono a quelle giuste. Procedo?`))
+      openQtyEdit(cm, ch === 'Scambio' ? 'scambio alla pari' : 'vendita diretta', L.setName);
+  }, 400);
 }
 
 // ---------- carte fuori mercato: il tuo prezzo è lontano dal Consigliato ----------
@@ -1115,10 +1434,13 @@ function renderOut() {
   const setOf = l => l.expName || state.cm[l.exp]?.name || '?';
   const all = outAll(), t = thrCfg();
   const hi = all.filter(x => x.o.dir === 'hi'), lo = all.filter(x => x.o.dir === 'lo');
-  const nList = Object.keys(state.listings).length, noMk = Object.entries(state.listings).filter(([k, l]) => { const M = mOf(k); return !M || (l.rev && !M.rv) || !consOf(M); }).length;
+  const nList = Object.keys(state.listings).length;
+  const noMkL = Object.entries(state.listings).map(([k, l]) => { const M = mOf(k);
+    const why = !M ? 'prezzi di mercato non ancora letti: premi Prezzi ▾ → Aggiorna prezzi' : (l.rev && !M.rv) ? 'TCGdex non ha i prezzi di mercato della Reverse (quelli della Normale non li uso)' : !consOf(M) ? 'TCGdex non ha prezzi di mercato per questa carta' : '';
+    return { k, l, why }; }).filter(x => x.why), noMk = noMkL.length;
   const sets = [...new Set(all.map(x => setOf(x.l)))].sort((a, b) => a.localeCompare(b));
   if (outF.set && !sets.includes(outF.set)) outF.set = '';
-  const list = all.filter(x => (!outF.dir || x.o.dir === outF.dir) && (!outF.set || setOf(x.l) === outF.set))
+  const list = all.filter(x => (!outF.dir || outF.dir === 'none' || x.o.dir === outF.dir) && (!outF.set || setOf(x.l) === outF.set))
     .sort((a, b) => Math.abs(b.o.pct) - Math.abs(a.o.pct));
   const cps = a => a.reduce((s, x) => s + x.l.q, 0);
   $('main').innerHTML = `<div class="sethead"><div><h2>Carte fuori mercato</h2>
@@ -1128,7 +1450,10 @@ function renderOut() {
     <div class="figs"><div class="fig f-hi"><b>${hi.length}</b><span>troppo alte · ${cps(hi)} copie</span></div>
       <div class="fig f-lo"><b>${lo.length}</b><span>troppo basse · ${cps(lo)} copie</span></div>
       <div class="fig f-ok"><b>${nList - all.length - noMk}</b><span>in linea con il mercato</span></div>
-      ${noMk ? `<div class="fig"><b>${noMk}</b><span>senza Consigliato (manca il prezzo di mercato)</span></div>` : ''}</div>
+      ${noMk ? `<button class="fig figbtn ${outF.dir === 'none' ? 'on' : ''}" id="oNone" title="Mostra quali carte"><b>${noMk}</b><span>senza Consigliato (manca il prezzo di mercato) · ${outF.dir === 'none' ? 'nascondi' : 'mostra quali'}</span></button>` : ''}</div>
+    ${outF.dir === 'none' && noMk ? `<table class="rtable" style="margin-bottom:18px"><thead><tr><th>Carta senza Consigliato</th><th>Variante</th><th class="n">Qtà</th><th class="n">Tuo prezzo</th><th>Perché manca</th></tr></thead><tbody>
+      ${noMkL.map(({ l, why }) => `<tr><td><b>${esc(setCode(l))}${esc(l.u)}</b> ${esc(info(l).name)}<small>${esc(setOf(l))}</small></td><td>${l.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale'}</td>
+        <td class="n">${l.q}</td><td class="n">${eur(l.price) || '—'}</td><td class="small">${esc(why)}</td></tr>`).join('')}</tbody></table>` : ''}
     ${all.length ? `<div class="filters"><span class="chips" id="oChips">${[['', 'Tutte', all.length], ['hi', 'Troppo alte', hi.length], ['lo', 'Troppo basse', lo.length]].map(([f, l, n]) => `<button class="chip ${outF.dir === f ? 'on' : ''}" data-f="${f}">${l}<i>${n}</i></button>`).join('')}</span>
       <select id="oSet"><option value="">Tutti i set</option>${sets.map(x => `<option ${x === outF.set ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
     <table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Tuo prezzo</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n">Consigliato</th><th class="n">Scarto</th></tr></thead><tbody>
@@ -1138,6 +1463,7 @@ function renderOut() {
       <td class="n"><span class="odir ${o.dir}">${o.dir === 'hi' ? '▲ +' : '▼ −'}${eur(Math.abs(o.d))} (${o.pct > 0 ? '+' : ''}${o.pct}%)</span></td></tr>`).join('')}
     </tbody></table>` : `<p class="empty">${nList ? (noMk === nList ? 'Mancano i prezzi di mercato: premi <b>Prezzi ▾ → Aggiorna prezzi</b>.' : 'Tutte le tue carte in vendita sono in linea con il Consigliato.') : 'Nessuna carta in vendita.'}</p>`}`;
   if ($('oChips')) $('oChips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; outF.dir = b.dataset.f; renderOut(); };
+  if ($('oNone')) $('oNone').onclick = () => { outF.dir = outF.dir === 'none' ? '' : 'none'; renderOut(); };
   if ($('oSet')) $('oSet').onchange = () => { outF.set = $('oSet').value; renderOut(); };
   if ($('oGo')) $('oGo').onclick = () => openPriceEdit(outF.set, { out: outF.dir || 'all' });
 }
@@ -1802,11 +2128,16 @@ function renderSales() {
     // copie da rimettere in vendita: solo quelle tolte davvero dal magazzino (una vendita registrata senza carta nel gestionale non ne rimette)
     if (!s) return;
     const back = s.nolist || !s.p ? 0 : Math.min(s.q, s.took ?? s.q);
-    if (!confirm(`Annullare la vendita di ${s.q} × ${s.name}?${back ? ` ${back === 1 ? 'La carta torna' : back + ' copie tornano'} tra quelle in vendita.` : ' Viene tolta solo dalle vendite (la carta non era nel magazzino del gestionale).'}`)) return;
+    const sbB = s.sbTook && s.sbk ? s.sbTook : 0;
+    if (!confirm(`Annullare la vendita di ${s.q} × ${s.name}?${back ? ` ${back === 1 ? '1 copia torna' : back + ' copie tornano'} tra quelle in vendita.` : ''}${sbB ? ` ${sbB === 1 ? '1 copia torna' : sbB + ' copie tornano'} in Standby.` : ''}${!back && !sbB ? ' Viene tolta solo dalle vendite (la carta non era nel magazzino del gestionale).' : ''}`)) return;
     if (back) {
       const k = lkey(s.p, s.rev, s.lang);
       const L = state.listings[k] || (state.listings[k] = { p: s.p, exp: s.exp, expName: s.expName, u: s.num, rev: s.rev, lang: s.lang, q: 0, price: s.price, date: s.listed || s.date, com: '' });
       L.q += back;
+    }
+    if (s.sbTook && s.sbk) {
+      const X = state.standby[s.sbk] || (state.standby[s.sbk] = Object.assign({}, s.sbx || { s: '', sn: s.expName, u: s.num, rev: s.rev, lang: s.lang, n: s.name }, { q: 0 }));
+      X.q += s.sbTook;
     }
     state.sold.splice(+bt.dataset.undo, 1);
     logOp('riportata', s.expName || '', `Annullata la vendita di ${s.num} ${s.name}${s.rev ? ' Reverse' : ''} ×${s.q}${s.order ? ' (ordine #' + s.order + ')' : ''}${back ? `: ${back} tornano in vendita` : ''}`, s.q);
@@ -2312,7 +2643,7 @@ function varDialog(rows, title) {
       <td class="n"><input type="number" min="0.02" step="0.01" class="vP" value="${v.sugg.toFixed(2)}"></td>
       <td style="white-space:nowrap"><button class="sm pri" data-ok="1">✔ Prezzo cambiato</button> <button class="sm" data-keep="1">Tengo il mio</button></td></tr>`; }).join('')}
     </tbody></table>
-    <p class="row" style="justify-content:space-between;margin-top:12px"><span><button id="vAll">✔ Ho messo il consigliato a tutte</button> <button id="vScript" title="Lo script Card Scanner scrive i nuovi prezzi su Cardmarket">✏️ Cambiali con lo script</button></span><button id="dClose">Chiudi</button></p>`, () => {
+    <p class="row" style="justify-content:space-between;margin-top:12px"><span><button id="vAll">✔ Ho messo il consigliato a tutte</button> <button id="vKeepAll">Tengo il mio a tutte</button> <button id="vScript" title="Lo script Card Scanner scrive i nuovi prezzi su Cardmarket">✏️ Cambiali con lo script</button></span><button id="dClose">Chiudi</button></p>`, () => {
     $('dClose').onclick = closeDlg;
     $('vScript').onclick = () => { const L0 = rows[0]?.l; openPriceEdit(rows.every(r => (r.l.expName || '') === (L0?.expName || '')) ? (L0?.expName || state.cm[L0?.exp]?.name || '') : ''); };
     const done = tr => { tr.style.opacity = '.35'; tr.querySelectorAll('button,input').forEach(x => x.disabled = true); save(); refresh(); };
@@ -2326,6 +2657,12 @@ function varDialog(rows, title) {
       const trs = [...$('dlgBody').querySelectorAll('tbody tr')].filter(tr => !tr.querySelector('[data-ok]').disabled);
       if (!trs.length || !confirm(`Confermi di aver messo su Cardmarket il prezzo consigliato a tutte le ${trs.length} carte rimaste?`)) return;
       trs.forEach(tr => { const k = tr.dataset.k; confirmVar(k, varOf(k, state.listings[k])?.sugg); tr.style.opacity = '.35'; tr.querySelectorAll('button,input').forEach(x => x.disabled = true); });
+      save(); refresh();
+    };
+    $('vKeepAll').onclick = () => {
+      const trs = [...$('dlgBody').querySelectorAll('tbody tr')].filter(tr => !tr.querySelector('[data-ok]').disabled);
+      if (!trs.length || !confirm(`Tenere il tuo prezzo attuale per tutte le ${trs.length} carte rimaste? La variazione sparisce e il controllo riparte dal mercato di oggi.`)) return;
+      trs.forEach(tr => { confirmVar(tr.dataset.k, null); tr.style.opacity = '.35'; tr.querySelectorAll('button,input').forEach(x => x.disabled = true); });
       save(); refresh();
     };
   });
@@ -2588,6 +2925,16 @@ function importEditFromHash() {
   history.replaceState(null, '', location.pathname);
   let d;
   try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Dati delle modifiche non leggibili.'); return false; }
+  if (d.type === 'qty') {
+    // quantità corrette su Cardmarket: il gestionale aveva già quelle giuste, registro e basta
+    const txtQ = {}, zero = [];
+    (d.res || []).forEach(r => { const L = state.listings[r.k]; const set = L ? (L.expName || state.cm[L.exp]?.name || '') : '';
+      (txtQ[set] = txtQ[set] || []).push(`${L ? cardTxt(L) : r.k} → ${r.qt} copie${r.zero ? ' (offerta da togliere a mano)' : ''}`); if (r.zero) zero.push(L ? cardTxt(L) : r.k); });
+    Object.entries(txtQ).forEach(([set, a]) => logOp('quantita', set, `Quantità corrette su Cardmarket (script, ${d.name || ''}): ${a.join(', ')}`, null));
+    save();
+    setTimeout(() => toast(`Quantità corrette su Cardmarket: ${(d.res || []).length}${zero.length ? ` · da togliere a mano: ${zero.join(', ')}` : ''}`), 300);
+    return true;
+  }
   let n = 0, copies = 0;
   const txt = {};
   (d.res || []).forEach(r => {
@@ -3029,6 +3376,7 @@ $('btnSale').onclick = () => $('fSale').click();
 $('fSale').onchange = e => { importSales([...e.target.files]); e.target.value = ''; };
 $('btnCat').onclick = () => $('fCat').click();
 $('btnEditCM').onclick = () => openPriceEdit('');
+$('btnClF').onclick = () => clPickPhotos();
 $('mChk').onclick = e => { e.preventDefault(); openStockCheck(); };
 $('fCat').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) importCatalog(fs); };
 $('btnUpd').onclick = async () => {

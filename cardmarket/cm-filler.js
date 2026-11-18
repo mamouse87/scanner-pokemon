@@ -164,8 +164,9 @@
       R.querySelector('.hd .m').textContent = 'Cambia prezzi';
       const m = matchAll();
       const found = m.filter(x => x.o), miss = m.filter(x => !x.o);
-      const fatte = m.filter(x => x.o && (x.st === 'ok' || x.st === 'same'));
-      const todo = m.filter(x => x.o && x.st !== 'ok' && x.st !== 'same');
+      const isQ = job && job.type === 'qty';
+      const fatte = m.filter(x => x.o && (x.st === 'ok' || x.st === 'same' || x.st === 'zero'));
+      const todo = m.filter(x => x.o && x.st !== 'ok' && x.st !== 'same' && x.st !== 'zero');
       const step = !job ? 0 : !offers ? 0 : todo.length ? 1 : 2;
       const sentOk = job && done.__sent;
       const pct = found.length ? Math.round(fatte.length / found.length * 100) : 0;
@@ -173,12 +174,14 @@
       const auto = ls.get('cs_edit_auto', false);
       let primary = '';
       if (job && !offers) primary = `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`;
-      else if (job && todo.length) primary = `<button class="big" id="oGo">${running ? '⏸ Metti in pausa' : `▶ Cambia i prezzi (${todo.length})`}</button>`;
+      else if (job && todo.length) primary = `<button class="big" id="oGo">${running ? '⏸ Metti in pausa' : isQ ? `▶ Correggi le quantità (${todo.length})` : `▶ Cambia i prezzi (${todo.length})`}</button>`;
       else if (job) primary = `<button class="big go" id="oSend">📤 Invia al gestionale (${fatte.length})</button>`;
-      R.getElementById('pnIn').innerHTML = (job ? stepsHtml(['Leggi le offerte', 'Cambia i prezzi', 'Invia al gestionale'], step, sentOk ? 3 : step) : '') + `<div class="bd">
+      R.getElementById('pnIn').innerHTML = (job ? stepsHtml(['Leggi le offerte', isQ ? 'Correggi le quantità' : 'Cambia i prezzi', 'Invia al gestionale'], step, sentOk ? 3 : step) : '') + `<div class="bd">
         ${job ? `<div class="card info"><div class="nm">${escH(job.name)}</div>
-            <div>${job.items.length} offerte da cambiare · nuovo prezzo <b>${ruleTxt(job)}</b></div>
-            <div class="mut">Il gestionale ha calcolato il prezzo di ogni carta, Normali e Reverse separate.</div></div>`
+            ${isQ ? `<div>${job.items.length} carte · porto le <b>copie</b> su Cardmarket a quelle del gestionale</div>
+            <div class="mut">Il prezzo non cambia. Le offerte che devono scendere a 0 copie le togli tu da Cardmarket (lo script non cancella offerte).</div>`
+            : `<div>${job.items.length} offerte da cambiare · nuovo prezzo <b>${ruleTxt(job)}</b></div>
+            <div class="mut">Il gestionale ha calcolato il prezzo di ogni carta, Normali e Reverse separate.</div>`}</div>`
           : `<div class="card warn"><b>Nessun elenco di prezzi.</b><br>Nel gestionale premi <b>✏️ Cambia prezzi su Cardmarket</b>, scegli il prezzo e premi "Apri le mie offerte": poi premi di nuovo questo pulsante.</div>
              <button class="big navy" id="kStart">🔎 Controlla il magazzino con il gestionale</button>`}
         ${msg ? `<div class="msg" id="oProg">${escH(msg)}</div>` : '<div class="msg" id="oProg"></div>'}
@@ -190,7 +193,7 @@
           <div><div class="tabs"><button class="tab ${tab === 'todo' ? 'on' : ''}" data-t="todo">Da fare (${todo.length})</button><button class="tab ${tab === 'done' ? 'on' : ''}" data-t="done">Fatte (${fatte.length})</button><button class="tab ${tab === 'miss' ? 'on' : ''}" data-t="miss">Non trovate (${miss.length})</button></div>
             <div class="list">${listOf.length ? listOf.map(x => `<div class="li"><span class="c">${escH((x.it.code || '') + ' ' + x.it.u)}${x.it.rev ? ' <span class="rv">R</span>' : ''}</span>
               <span class="n">${escH(x.it.n || x.o?.name || '')}</span>
-              <span class="p">${x.o ? eur(x.o.price) : eur(x.it.old)} → <b>${eur(x.it.price)}</b> ${!x.o ? '' : x.st === 'ok' ? '<span class="pill ok">fatto</span>' : x.st === 'same' ? '<span class="pill ok">già così</span>' : x.st === 'skip' ? '<span class="pill oth">saltata</span>' : x.st === 'err' ? '<span class="pill err">errore</span>' : ''}</span>
+              <span class="p">${x.it.qt != null ? `${x.o ? x.o.qty : '—'} → <b>${x.tq ?? x.it.qt} copie</b>` : `${x.o ? eur(x.o.price) : eur(x.it.old)} → <b>${eur(x.it.price)}</b>`} ${!x.o ? '' : x.st === 'zero' ? '<span class="pill err">togli a mano</span>' : x.st === 'ok' ? '<span class="pill ok">fatto</span>' : x.st === 'same' ? '<span class="pill ok">già così</span>' : x.st === 'skip' ? '<span class="pill oth">saltata</span>' : x.st === 'err' ? '<span class="pill err">errore</span>' : ''}</span>
               ${!x.o ? `<span class="why">${escH(x.why || '')}</span>` : ''}</div>`).join('')
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
@@ -283,10 +286,19 @@
               `, nel gestionale come ${it.rev ? 'Reverse' : 'Normale'}${(it.lang || 'it') !== 'it' ? ' in ' + (LN[it.lang] || it.lang) : ''}.`;
           out.push({ it, o: null, st: '', why }); return;
         }
-        os.forEach(o => {
+        // quantità: le copie giuste (it.qt) si distribuiscono sulle offerte di quella carta, nell'ordine;
+        // se su Cardmarket ce ne sono meno, le aggiungo alla prima offerta
+        let tqs = null;
+        if (it.qt != null) {
+          let rem = Math.max(0, it.qt);
+          tqs = os.map(o => { const t = Math.min(o.qty ?? 0, rem); rem -= t; return t; });
+          if (rem > 0) tqs[0] += rem;
+        }
+        os.forEach((o, i) => {
           const d = done[it.k + '#' + o.id] || {};
-          const same = o.price != null && Math.abs(o.price - it.price) < 0.005;
-          out.push({ it, o, st: d.st || (same ? 'same' : ''), ver: d.ver });
+          const tq = tqs ? tqs[i] : null;
+          const same = tqs ? o.qty === tq : (o.price != null && Math.abs(o.price - it.price) < 0.005);
+          out.push({ it, o, tq, st: d.st || (same ? 'same' : ''), ver: d.ver });
         });
       });
       return out;
@@ -342,8 +354,9 @@
       const auto = !!$o('oAuto')?.checked;
       for (const x of matchAll()) {
         if (stopReq) break;
-        if (!x.o || x.st === 'ok' || x.st === 'same') continue;
+        if (!x.o || x.st === 'ok' || x.st === 'same' || x.st === 'zero') continue;
         const key = x.it.k + '#' + x.o.id;
+        if (x.tq === 0) { done[key] = { st: 'zero', tq: 0 }; ls.set(DKEY, done); render(); continue; }   // a 0 copie: la togli tu
         prog(`Apro ${x.it.code || ''} ${x.it.u} ${x.it.n || ''}${x.it.rev ? ' Reverse' : ''}…`);
         const inp = await openEdit(x.o.id);
         if (!inp) { done[key] = { st: 'err' }; ls.set(DKEY, done); prog('Il riquadro "Modifica" non si è aperto: ricarica la pagina (F5) e riprova.'); break; }
@@ -360,34 +373,44 @@
           prog(`⚠ Il riquadro di ${x.o.name} non è ${x.it.rev ? 'Reverse' : 'normale'} come previsto: mi fermo per sicurezza.`);
           done[key] = { st: 'err' }; ls.set(DKEY, done); break;
         }
-        setVal(inp, x.it.price.toFixed(2));
-        inp.style.outline = '3px solid #ffcb05'; inp.style.background = '#fff7cc';
+        // quantità: cerco il campo "Quantità" del riquadro
+        let field = inp, what = `${eur(x.o.price)} → ${eur(x.it.price)}`;
+        if (x.tq != null) {
+          const qInp = [...m.querySelectorAll('input, select')].find(e => /^(amount|quantity|count)$/i.test(e.name || '')) ||
+            [...m.querySelectorAll('input, select')].find(e => /amount|quant/i.test(e.name || e.id || '')) ||
+            [...m.querySelectorAll('label')].map(lb => lb.htmlFor ? m.querySelector('#' + CSS.escape(lb.htmlFor)) : lb.querySelector('input, select')).find((e, i, a) => e && /quantit/i.test(m.querySelectorAll('label')[i].textContent));
+          if (!qInp) { prog('⚠ Nel riquadro "Modifica" non trovo il campo Quantità: mandami una foto del riquadro aperto. Mi fermo.'); done[key] = { st: 'err' }; ls.set(DKEY, done); break; }
+          setVal(qInp, String(x.tq)); field = qInp; what = `copie ${x.o.qty} → ${x.tq}`;
+          if (x.it.price != null) setVal(inp, x.it.price.toFixed(2));
+        } else setVal(inp, x.it.price.toFixed(2));
+        field.style.outline = '3px solid #ffcb05'; field.style.background = '#fff7cc';
         let submitted = false;
         const sb = submitBtn();
         const onSub = () => { submitted = true; };
         if (sb) sb.addEventListener('click', onSub, true);
         const form = inp.form; if (form) form.addEventListener('submit', onSub, true);
         if (auto && sb) {
-          prog(`${x.o.name}: ${eur(x.o.price)} → ${eur(x.it.price)} · confermo…`);
+          prog(`${x.o.name}: ${what} · confermo…`);
           await sleep(700);
           sb.click();
           const closed = await waitClosed(20000);
           if (!closed) { done[key] = { st: 'err' }; ls.set(DKEY, done); prog(`⚠ ${x.o.name}: Cardmarket non ha chiuso il riquadro (errore?). Controlla e premi ▶ per continuare.`); break; }
         } else {
-          prog(`👉 ${x.o.name}${x.it.rev ? ' Reverse' : ''}: ${eur(x.o.price)} → ${eur(x.it.price)} — controlla e premi "MODIFICA ARTICOLO" (o chiudi il riquadro per saltarla).`);
+          prog(`👉 ${x.o.name}${x.it.rev ? ' Reverse' : ''}: ${what} — controlla e premi "MODIFICA ARTICOLO" (o chiudi il riquadro per saltarla).`);
           await waitClosed(30 * 60 * 1000);
         }
         if (sb) sb.removeEventListener('click', onSub, true);
-        done[key] = { st: submitted ? 'ok' : 'skip', at: new Date().toISOString() };
+        done[key] = { st: submitted ? 'ok' : 'skip', at: new Date().toISOString(), tq: x.tq };
         ls.set(DKEY, done);
-        if (submitted) x.o.price = x.it.price;
+        if (submitted) { if (x.tq != null) x.o.qty = x.tq; if (x.it.price != null) x.o.price = x.it.price; }
         render();
         await sleep(auto ? 3000 : 600);
       }
       ls.set(OKEY, offers);
       running = false; render();
-      const left = matchAll().filter(x => x.o && x.st !== 'ok' && x.st !== 'same').length;
-      prog(left ? `Fermo. Mancano ${left} offerte: premi ▶ per continuare.` : 'Finito ✓ Premi "🔁 Verifica" per ricontrollare i prezzi su Cardmarket, poi "📤 Invia al gestionale".');
+      const left = matchAll().filter(x => x.o && x.st !== 'ok' && x.st !== 'same' && x.st !== 'zero').length;
+      const zero = matchAll().filter(x => x.st === 'zero');
+      prog(left ? `Fermo. Mancano ${left} offerte: premi ▶ per continuare.` : `Finito ✓${zero.length ? ` Togli tu da Cardmarket ${zero.length === 1 ? "l'offerta che va" : 'le ' + zero.length + ' offerte che vanno'} a 0 copie (${zero.map(x => x.o.name).join(', ')}).` : ''} Premi "Verifica" per ricontrollare, poi "📤 Invia al gestionale".`);
     }
 
     // ---- verifica: rilegge le offerte e controlla i prezzi ----
@@ -401,11 +424,13 @@
         const [k, id] = key.split('#');
         const it = job.items.find(i => i.k === k), o = byId[id];
         if (!it || !o) return;
-        if (Math.abs(o.price - it.price) < 0.005) { done[key] = Object.assign(done[key], { st: 'ok', ver: 1 }); ok++; }
+        const good = done[key].tq != null ? o.qty === done[key].tq : Math.abs(o.price - it.price) < 0.005;
+        if (done[key].st === 'zero') return;
+        if (good) { done[key] = Object.assign(done[key], { st: 'ok', ver: 1 }); ok++; }
         else if (done[key].st === 'ok') { done[key] = { st: '', ver: 0 }; bad++; }
       });
       ls.set(DKEY, done); render();
-      prog(`Verifica: ${ok} prezzi giusti su Cardmarket${bad ? `, ${bad} NON cambiati (di nuovo "da fare")` : ''}.`);
+      prog(`Verifica: ${ok} ${job.type === 'qty' ? 'quantità giuste' : 'prezzi giusti'} su Cardmarket${bad ? `, ${bad} NON cambiati (di nuovo "da fare")` : ''}.`);
     }
 
     // ---- invio al gestionale ----
@@ -413,15 +438,15 @@
       const res = [];
       const seen = new Set();
       matchAll().forEach(x => {
-        if (!x.o || (x.st !== 'ok' && x.st !== 'same') || seen.has(x.it.k)) return;
+        if (!x.o || (x.st !== 'ok' && x.st !== 'same' && x.st !== 'zero') || seen.has(x.it.k)) return;
         seen.add(x.it.k);
-        res.push({ k: x.it.k, price: x.it.price, b: x.it.b, o: x.it.o, ref: x.it.ref, at: (done[x.it.k + '#' + x.o.id] || {}).at || new Date().toISOString() });
+        res.push({ k: x.it.k, qt: x.it.qt ?? null, zero: matchAll().some(y => y.it.k === x.it.k && y.st === 'zero') ? 1 : 0, price: x.it.price, b: x.it.b, o: x.it.o, ref: x.it.ref, at: (done[x.it.k + '#' + x.o.id] || {}).at || new Date().toISOString() });
       });
-      if (!res.length) { alert('Nessun prezzo cambiato da inviare.'); return; }
-      const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, name: job.name, res }))));
+      if (!res.length) { alert(job.type === 'qty' ? 'Nessuna quantità corretta da inviare.' : 'Nessun prezzo cambiato da inviare.'); return; }
+      const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, type: job.type || 'edit', name: job.name, res }))));
       window.open(GEST + '#cmedit=' + encodeURIComponent(enc), 'gestionaleCarte');
       done.__sent = 1; ls.set(DKEY, done);
-      prog(`Inviati ${res.length} prezzi al gestionale ✓`);
+      prog(`Inviati ${res.length} ${job.type === 'qty' ? 'risultati' : 'prezzi'} al gestionale ✓`);
       render();
     }
 

@@ -132,6 +132,8 @@
     let done = ls.get(DKEY, {});
     if (job && done.__job !== job.name) { done = { __job: job.name }; ls.set(DKEY, done); }
     let offers = ls.get(OKEY, null);           // {at, list:[…]} ultima lettura delle offerte
+    // elenco nuovo dal gestionale: rileggo le offerte, quelle salvate possono essere vecchie
+    if (job && !done.__read) { offers = null; done.__read = 1; ls.set(DKEY, done); }
     let check = +ls.get('cs_check', 0) || 0;   // controllo del magazzino chiesto dal gestionale (ora della richiesta)
     let running = false, stopReq = false;
 
@@ -149,7 +151,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 18/11 ore 22:40</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 18/11 ore 23:00</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -196,7 +198,7 @@
         ${job && offers ? `
           <div><div class="stat"><span>Cambiate <b>${fatte.length}</b> di ${found.length}</span><span class="mut">${miss.length ? `${miss.length} non trovate su Cardmarket` : 'tutte trovate'}</span></div>
             <div class="bar"><i style="width:${pct}%"></i></div></div>
-          ${todo.length ? `<label class="sw"><input type="checkbox" id="oAuto" ${auto ? 'checked' : ''}><span><b>Conferma automatica</b><br><span class="mut">Lo script preme da solo "MODIFICA ARTICOLO", una carta ogni 3 secondi. Senza spunta lo premi tu, carta per carta.</span></span></label>` : ''}
+          ${todo.length ? `<label class="sw"><input type="checkbox" id="oAuto" ${auto ? 'checked' : ''}><span><b>Conferma automatica</b><br><span class="mut">${isQ ? 'Lo script preme da solo il pulsante − o + della riga' : 'Lo script preme da solo "MODIFICA ARTICOLO"'}, una carta ogni 3 secondi. Senza spunta lo premi tu, carta per carta.</span></span></label>` : ''}
           <div><div class="tabs"><button class="tab ${tab === 'todo' ? 'on' : ''}" data-t="todo">Da fare (${todo.length})</button><button class="tab ${tab === 'done' ? 'on' : ''}" data-t="done">Fatte (${fatte.length})</button><button class="tab ${tab === 'miss' ? 'on' : ''}" data-t="miss">Non trovate (${miss.length})</button></div>
             <div class="list">${listOf.length ? listOf.map(x => `<div class="li"><span class="c">${escH((x.it.code || '') + ' ' + x.it.u)}${x.it.rev ? ' <span class="rv">R</span>' : ''}</span>
               <span class="n">${escH(x.it.n || x.o?.name || '')}</span>
@@ -205,11 +207,11 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 18/11 22:40</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 18/11 23:00</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
-        if (intakeAny(t)) { job = ls.get(EKEY, null); done = { __job: job.name }; ls.set(DKEY, done); render(); } else alert('Negli appunti non c\'è un elenco di prezzi del gestionale.');
+        if (intakeAny(t)) { job = ls.get(EKEY, null); done = { __job: job.name, __read: 1 }; ls.set(DKEY, done); offers = null; render(); readAll(); } else alert('Negli appunti non c\'è un elenco di prezzi del gestionale.');
       };
       R.querySelectorAll('#oRead').forEach(b => b.onclick = e => { e.preventDefault(); readAll(); });
       R.querySelectorAll('#oSend').forEach(b => b.onclick = () => send());
@@ -447,6 +449,38 @@
       return false;
     }
     let stopHard = false;
+    const rowCount = id => { const c = document.querySelector(`#stockRow${id} .item-count`); return c ? +c.textContent.trim() : null; };
+    async function qtyStep(x, auto) {
+      prog(`Cerco ${x.o.name} nella sua Edizione…`);
+      await bringRow(x.o);
+      const row = document.getElementById('stockRow' + x.o.id);
+      if (!row) { prog(`⚠ Non trovo la riga di ${x.o.name} su Cardmarket: forse è stata venduta o cambiata. Rileggi le offerte. Mi fermo.`); return 'err'; }
+      try { row.scrollIntoView({ block: 'center' }); } catch (e) {}
+      const cur = rowCount(x.o.id);
+      if (cur === x.tq) return 'ok';
+      if (cur == null) { prog(`⚠ Non leggo le copie di ${x.o.name} nella riga. Mi fermo.`); return 'err'; }
+      const diff = x.tq - cur;
+      const grp = row.querySelector('.inc-dec-group');
+      const amt = grp && grp.querySelector('.amount-input');
+      const btn = grp && grp.querySelector(diff < 0 ? '.btn-danger' : '.btn-success');
+      if (!amt || !btn) { prog(`⚠ Nella riga di ${x.o.name} non trovo i pulsanti − / +. Mandami una foto della riga. Mi fermo.`); return 'err'; }
+      setVal(amt, String(Math.abs(diff)));
+      amt.style.outline = '3px solid #ffcb05'; btn.style.outline = '3px solid #ffcb05';
+      const what = `${x.o.name}${x.it.rev ? ' Reverse' : ''}: copie ${cur} → ${x.tq} (${diff < 0 ? 'tolgo ' + -diff : 'aggiungo ' + diff})`;
+      if (auto) { prog(`${what} · confermo…`); await sleep(700); btn.click(); }
+      else prog(`👉 ${what} — controlla e premi il pulsante ${diff < 0 ? 'rosso −' : 'verde +'} evidenziato (premi ⏸ per saltarla).`);
+      // aspetto che Cardmarket aggiorni la riga con le copie nuove
+      for (let t = 0; t < (auto ? 20000 : 30 * 60 * 1000); t += 300) {
+        await sleep(300);
+        const n = rowCount(x.o.id);
+        if (n === x.tq) return 'ok';
+        if (n != null && n !== cur) { prog(`⚠ ${x.o.name}: ora le copie sono ${n}, non ${x.tq}. Controlla la riga. Mi fermo.`); return 'err'; }
+        if (!document.getElementById('stockRow' + x.o.id) && x.tq === 0) return 'ok';
+        if (stopReq || stopHard) return 'skip';
+      }
+      prog(`⚠ ${x.o.name}: Cardmarket non ha aggiornato le copie. Controlla la riga e premi ▶ per continuare.`);
+      return 'err';
+    }
 
     async function run() {
       if (!job || !offers) return;
@@ -459,6 +493,17 @@
         if (!x.o || x.st === 'ok' || x.st === 'same' || x.st === 'zero') continue;
         const key = x.it.k + '#' + x.o.id;
         if (x.tq === 0) { done[key] = { st: 'zero', tq: 0 }; ls.set(DKEY, done); render(); continue; }   // a 0 copie: la togli tu
+        // copie: il riquadro "Modifica" non le cambia (la sua Quantità dice a quante copie applicare le modifiche);
+        // si usano i pulsanti − / + della riga ("Rimuovi/Aggiungi articolo/i") con il numero di copie accanto
+        if (x.tq != null && x.it.price == null) {
+          const r = await qtyStep(x, auto);
+          done[key] = { st: r, at: new Date().toISOString(), tq: x.tq }; ls.set(DKEY, done);
+          if (r === 'ok') x.o.qty = x.tq;
+          render();
+          if (r === 'err') break;
+          await sleep(auto ? 3000 : 600);
+          continue;
+        }
         prog(`Apro ${x.it.code || ''} ${x.it.u} ${x.it.n || ''}${x.it.rev ? ' Reverse' : ''}…`);
         const inp = await openEdit(x.o.id, x.o);
         if (!inp) { done[key] = { st: 'err' }; ls.set(DKEY, done); prog('Il riquadro "Modifica" non si è aperto: ricarica la pagina (F5) e riprova.'); break; }

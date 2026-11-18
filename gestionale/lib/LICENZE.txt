@@ -1,0 +1,5 @@
+Librerie incluse nel gestionale (copie locali, non scaricate da altri siti):
+- pdf.js 6.5.438 (pdf.min.mjs, pdf.worker.min.mjs) — Apache License 2.0 — https://github.com/mozilla/pdf.js
+- jsPDF 4.2.1 (jspdf.umd.min.js) — MIT — https://github.com/parallax/jsPDF
+- jsPDF-AutoTable 5.0.9 (jspdf.plugin.autotable.min.js) — MIT — https://github.com/simonbengtsson/jsPDF-AutoTable
+- Atkinson Hyperlegible (atkinson-400/700.woff2) — SIL Open Font License 1.1 — Braille Institute, via Fontsource

@@ -833,18 +833,27 @@
   $('csInput').addEventListener('input', showProgress);
   $('csFile').addEventListener('change', () => setTimeout(showProgress, 300));
 
+  // Cardmarket, dopo "Mettere in vendita le carte", svuota i campi senza ricaricare la pagina:
+  // tengo l'ultima compilazione (presa anche al momento dell'invio del modulo) per mandarla al gestionale
+  let lastSnap = [];
+  const keepSnap = () => { const r = snapshot(); if (r.length) lastSnap = r; return r; };
+  form.addEventListener('submit', keepSnap, true);
+  form.addEventListener('click', e => { if (e.target.closest('button[type="submit"],input[type="submit"],button:not([type])')) keepSnap(); }, true);
   function showGest(state) {
     const b = $('csGest');
-    const n = snapshot().reduce((a, r) => a + r.q, 0);
     if (state === 'sent') { b.classList.remove('hide'); b.disabled = true; b.dataset.sent = '1'; b.textContent = '✓ Inviate al gestionale'; steps(); return; }
+    const live = keepSnap();
+    const n = (live.length ? live : lastSnap).reduce((a, r) => a + r.q, 0);
     b.disabled = false; b.dataset.sent = '';
     b.classList.toggle('hide', !n);
     b.textContent = `📤 Le ho messe in vendita: invia al gestionale (${n} copie)`;
     steps();
   }
   function sendCompiled() {
-    const rows = snapshot();
+    let rows = keepSnap();
+    if (!rows.length) rows = lastSnap;
     if (!rows.length) { log('Nessuna carta compilata in questa pagina.', '#ff6b6b'); return; }
+    lastSnap = [];
     const exp = expansion();
     const entry = { exp: exp.id, name: exp.name, at: new Date().toISOString(), rows, cards: catalog() };
     // segno nella lista le carte inviate

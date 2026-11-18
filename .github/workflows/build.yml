@@ -51,3 +51,12 @@ jobs:
           name: Card Scanner ${{ github.run_number }}
           files: CardScanner.apk
           make_latest: true
+
+      # tengo solo le ultime 3 versioni dell'APK (le più vecchie con la loro etichetta vengono cancellate)
+      - name: Tieni solo le ultime 3 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list -R "${{ github.repository }}" --limit 200 --json tagName,createdAt \
+            --jq 'sort_by(.createdAt) | reverse | .[3:] | .[].tagName' |
+            xargs -r -n1 gh release delete -R "${{ github.repository }}" --cleanup-tag --yes

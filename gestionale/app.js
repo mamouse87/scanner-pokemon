@@ -717,11 +717,13 @@ function chkDiffs() {
   return out;
 }
 /** prepara per lo script l'elenco delle quantità da correggere su Cardmarket: rows = [{k, qt}] (qt = copie giuste) */
-/** dopo una correzione delle copie fatta (e verificata) dallo script, aggiorno il controllo: la differenza sparisce */
+/** dopo una correzione fatta (e verificata) dallo script su Cardmarket, aggiorno il controllo: la differenza sparisce.
+ *  r.qt = copie giuste (correzione delle copie), r.price = nuovo prezzo (cambio prezzi) */
 function chkAfterFix(res) {
   if (!chk || !res.length) return;
   const diffs = chkDiffs();
   res.forEach(r => {
+    if (r.price != null) diffs.filter(x => x.k === r.k && (x.type === 'price' || x.type === 'multi')).forEach(d => d.os.forEach(o => { o.price = r2(r.price); }));
     if (r.zero || r.qt == null) return;              // offerte da togliere a mano: restano finché non rifai il controllo
     const d = diffs.find(x => x.type === 'qty' && x.k === r.k);
     if (!d) return;
@@ -2743,6 +2745,7 @@ function importEditFromHash() {
     n++; copies += L.q;
   });
   Object.entries(txt).forEach(([set, a]) => logOp('prezzo', set, `Prezzi cambiati su Cardmarket (script, ${d.name || ''}): ${a.join(', ')}`, null));
+  chkAfterFix((d.res || []).filter(r => state.listings[r.k]));
   save();
   setTimeout(() => toast(n ? `Prezzi aggiornati: ${n} offerte (${copies} copie) cambiate su Cardmarket` : 'Nessun prezzo da aggiornare'), 300);
   return true;

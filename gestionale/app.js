@@ -483,16 +483,21 @@ async function renderSet() {
 // ---------- schede in alto e impostazioni ----------
 let lastSet = null;   // ultimo set aperto nella scheda "Carte"
 const TABS = [['cards', 'Carte'], ['__out', 'Fuori mercato'], ['__chk', 'Controllo'], ['__dash', 'Statistiche'], ['__sales', 'Vendite'], ['__log', 'Registro']];
+// colore di ogni segnalibro (continua sul bordo della pagina sotto)
+const TABC = { cards: '#1d3d7a', __out: '#d9620f', __chk: '#c8372d', __dash: '#7c4dcc', __sales: '#1f8f55', __log: '#6e7c93', __set: '#1d3d7a' };
 function renderTabs() {
   const cur = selected && selected.startsWith('__') ? selected : 'cards';
   const sold = state.sold.reduce((a, x) => a + x.q, 0), nOut = outAll().length;
   // Controllo: numero di differenze dell'ultimo controllo; "!" se è passato più di un giorno (o non l'hai mai fatto) e hai carte in vendita
   const nChk = chkDiffs().length, chkOld = Object.keys(state.listings).length && (!state.chkAt || daysAgo(state.chkAt) >= 1);
   const chkBadge = nChk ? `<i class="o" title="differenze con Cardmarket">${nChk}</i>` : chkOld ? `<i class="w" title="${state.chkAt ? 'Ultimo controllo con Cardmarket: ' + daysAgo(state.chkAt) + ' giorni fa' : 'Controllo con Cardmarket mai fatto'}">!</i>` : '';
-  $('tabs').innerHTML = TABS.map(([id, l]) => `<button class="tb ${cur === id ? 'on' : ''}" data-tab="${id}">${l}${id === '__sales' && sold ? `<i>${sold}</i>` : ''}${id === '__chk' ? chkBadge : ''}${id === '__out' && nOut ? `<i class="o" title="carte con il prezzo lontano dal Consigliato">${nOut}</i>` : ''}${id === '__set' && (!bkOk() || (gh && ghState === 'err')) ? '<i class="w" title="Backup non attivo o in errore">!</i>' : ''}</button>`).join('');
+  $('tabs').innerHTML = TABS.map(([id, l]) => `<button class="tb ${cur === id ? 'on' : ''}" data-tab="${id}" style="--tc:${TABC[id]}">${l}${id === '__sales' && sold ? `<i>${sold}</i>` : ''}${id === '__chk' ? chkBadge : ''}${id === '__out' && nOut ? `<i class="o" title="carte con il prezzo lontano dal Consigliato">${nOut}</i>` : ''}${id === '__set' && (!bkOk() || (gh && ghState === 'err')) ? '<i class="w" title="Backup non attivo o in errore">!</i>' : ''}</button>`).join('');
   document.querySelector('.wrap').classList.toggle('nosets', cur !== 'cards');
+  document.querySelector('.wrap').style.setProperty('--tabc', TABC[cur] || TABC.cards);
 }
 function goTab(id) {
+  // piccolo effetto "pagina che cambia"
+  const m = $('main'); m.classList.remove('pgin'); void m.offsetWidth; m.classList.add('pgin');
   if (id === 'cards') selected = lastSet && !lastSet.startsWith('__') ? lastSet : (Object.keys(listingsBySet())[0] || Object.values(state.standby || {})[0]?.s || null);
   else selected = id;
   renderSets(); renderSet();

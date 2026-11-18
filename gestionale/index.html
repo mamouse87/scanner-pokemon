@@ -1502,6 +1502,13 @@ function clRegister(L, sel, tot, who, lowerCm) {
 }
 
 // ---------- carte fuori mercato: il tuo prezzo è lontano dal Consigliato ----------
+/** link ai dati della carta su TCGdex (italiano e inglese), per vedere cosa manca */
+function tcgLinks(l) {
+  const sid = tcgIdFor(l.expName || state.cm[l.exp]?.name);
+  const c = sid && ((tcgCached('/sets/' + sid)?.cards || []).find(x => norm(x.localId) === norm(l.u)) || (tcgCached('@en/sets/' + sid)?.cards || []).find(x => norm(x.localId) === norm(l.u)));
+  if (!c) return '';
+  return ` · <a href="${API}/cards/${encodeURIComponent(c.id)}" target="_blank" rel="noreferrer">dati TCGdex ↗</a> <a href="${API_EN}/cards/${encodeURIComponent(c.id)}" target="_blank" rel="noreferrer">(en ↗)</a>`;
+}
 const outF = { dir: '', set: '' };
 function renderOut() {
   const setOf = l => l.expName || state.cm[l.exp]?.name || '?';
@@ -1526,7 +1533,7 @@ function renderOut() {
       ${noMk ? `<button class="fig figbtn ${outF.dir === 'none' ? 'on' : ''}" id="oNone" title="Mostra quali carte"><b>${noMk}</b><span>senza Consigliato (manca il prezzo di mercato) · ${outF.dir === 'none' ? 'nascondi' : 'mostra quali'}</span></button>` : ''}</div>
     ${outF.dir === 'none' && noMk ? `<table class="rtable" style="margin-bottom:18px"><thead><tr><th>Carta senza Consigliato</th><th>Variante</th><th class="n">Qtà</th><th class="n">Tuo prezzo</th><th>Perché manca</th></tr></thead><tbody>
       ${noMkL.map(({ l, why }) => `<tr><td><b>${esc(setCode(l))}${esc(l.u)}</b> ${esc(info(l).name)}<small>${esc(setOf(l))}</small></td><td>${l.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale'}</td>
-        <td class="n">${l.q}</td><td class="n">${eur(l.price) || '—'}</td><td class="small">${esc(why)}</td></tr>`).join('')}</tbody></table>` : ''}
+        <td class="n">${l.q}</td><td class="n">${eur(l.price) || '—'}</td><td class="small">${esc(why)}${tcgLinks(l)}</td></tr>`).join('')}</tbody></table>` : ''}
     ${all.length ? `<div class="filters"><span class="chips" id="oChips">${[['', 'Tutte', all.length], ['hi', 'Troppo alte', hi.length], ['lo', 'Troppo basse', lo.length]].map(([f, l, n]) => `<button class="chip ${outF.dir === f ? 'on' : ''}" data-f="${f}">${l}<i>${n}</i></button>`).join('')}</span>
       <select id="oSet"><option value="">Tutti i set</option>${sets.map(x => `<option ${x === outF.set ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
     <table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Tuo prezzo</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n">Consigliato</th><th class="n">Scarto</th></tr></thead><tbody>

@@ -78,7 +78,14 @@
   /** elenco del gestionale: csjob= (carte da mettere in vendita) o csedit= (prezzi da cambiare) */
   function intakeAny(txt) {
     // cscheck= : il gestionale chiede il controllo del magazzino (leggo le offerte e gliele mando)
-    if (/^cscheck=/.test(String(txt || '').trim())) { localStorage.setItem('cs_check', String(Date.now())); return true; }
+    const ck = String(txt || '').trim().match(/^cscheck=[\d]*(?:\.(.+))?$/);
+    if (ck) {
+      // il gestionale manda anche i set che ha (id dell'espansione su Cardmarket): servono se le offerte sono più di 300
+      let sets = [];
+      try { if (ck[1]) sets = (JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(ck[1]))))).e || []).filter(x => /^\d+$/.test(x[0])); } catch (e) {}
+      localStorage.setItem('cs_check_sets', JSON.stringify(sets));
+      localStorage.setItem('cs_check', String(Date.now())); return true;
+    }
     const m = String(txt || '').trim().match(/^csedit=(.+)$/);
     if (!m) return intake(txt);
     try {
@@ -141,7 +148,7 @@
       const sent = ls.get('cs_check_sent', 0) === check;
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
-          <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse) e le mando al gestionale, che ti mostra le differenze.</div>
+          <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
           <div class="mut">Su Cardmarket non cambio nulla.</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
@@ -153,7 +160,7 @@
     }
     function sendCheck() {
       const ex = [], o = offers.list.map(x => { let i = ex.indexOf(x.exp); if (i < 0) i = ex.push(x.exp) - 1; return [x.code, x.num, x.rev ? 1 : 0, x.lang, x.qty || 1, x.price, x.name, i]; });
-      const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, at: offers.at, ex, o }))));
+      const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, at: offers.at, ex, o, full: offers.full === false ? 0 : 1, rx: offers.rx || [], warn: offers.warn || [] }))));
       window.open(GEST + '#cmchk=' + encodeURIComponent(enc), 'gestionaleCarte');
       ls.set('cs_check_sent', check);
       prog(`Inviate ${o.length} offerte al gestionale ✓ Guarda il risultato nella scheda "Controllo".`);
@@ -231,37 +238,82 @@
         return { id, name: mm ? mm[1].trim() : name, code: mm ? mm[2].toUpperCase() : '', num: mm ? mm[3] : '', exp, lang: lang || 'it', rev, price, qty: qt ? +qt.textContent.trim() : null };
       }).filter(x => x.id);
     }
+    // legge tutte le pagine di un elenco di offerte; Cardmarket ne mostra al massimo 300 (15 pagine):
+    // capped = c'erano altre offerte non mostrate
+    async function readPages(qs, label) {
+      const list = []; let page = 1, pages = 1, capped = false, doc0 = null;
+      do {
+        prog(`Leggo ${label}: pagina ${page} di ${pages}${capped ? '+' : ''}…`);
+        const r = await fetch(`/it/Pokemon/Stock/Offers/Singles?${qs}&site=${page}`, { credentials: 'include' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+        if (!doc0) doc0 = doc;
+        const rows = parseRows(doc, /isReverseHolo=Y/.test(qs));
+        list.push(...rows);
+        const pm = doc.body.textContent.match(/Pagina\s+\d+\s+di\s+(\d+)\s*(\+?)/i);
+        if (pm) { pages = +pm[1]; capped = capped || !!pm[2]; }
+        if (/pi[uù] di 300/i.test(doc.body.textContent) || /300\+/.test(doc.body.textContent)) capped = true;
+        page++;
+        await sleep(700);
+        if (!rows.length) break;
+      } while (page <= pages && page < 200);
+      return { list, capped, doc: doc0 };
+    }
     async function readAll() {
       if (running) return;
       running = true;
-      const list = [];
+      const list = [], warn = [], okRev = {};   // okRev[rev] = null (lette tutte) oppure Set dei set letti per intero
+      let full = true;
       try {
         for (const rev of ['N', 'Y']) {
-          let page = 1, pages = 1;
-          do {
-            prog(`Leggo le offerte ${rev === 'Y' ? 'Reverse' : 'normali'}: pagina ${page} di ${pages}…`);
-            const r = await fetch(`/it/Pokemon/Stock/Offers/Singles?isReverseHolo=${rev}&site=${page}`, { credentials: 'include' });
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
-            const rows = parseRows(doc, rev === 'Y');
-            list.push(...rows);
-            const pm = (doc.body.textContent.match(/Pagina\s+\d+\s+di\s+(\d+)/i) || [])[1];
-            pages = pm ? +pm : (rows.length ? page : page);
-            page++;
-            await sleep(700);
-          } while (page <= pages && page < 200);
+          const RV = rev === 'Y' ? 'Reverse' : 'normali';
+          const a = await readPages(`isReverseHolo=${rev}`, `le offerte ${RV}`);
+          if (!a.capped) { list.push(...a.list); okRev[rev] = null; continue; }
+          okRev[rev] = new Set();
+          // più di 300: leggo set per set (filtro Edizione), i set del gestionale più quelli visti nelle prime pagine
+          full = false;
+          const sel = [...a.doc.querySelectorAll('select')].find(x => /expansion/i.test(x.name || x.id || '')) ||
+            [...a.doc.querySelectorAll('select')].find(x => x.options.length > 30);
+          const param = sel && sel.name ? sel.name : 'idExpansion';
+          // le voci del filtro sono "Nome del set (n. offerte)": leggo i set con almeno un'offerta
+          const opts = sel ? [...sel.options].filter(o => /^\d+$/.test(o.value) && +o.value > 0).map(o => {
+            const t = o.textContent.trim(), m = t.match(/^(.*?)\s*\((\d+)\)\s*$/);
+            return [o.value, m ? m[1] : t, m ? +m[2] : null];
+          }) : [];
+          const want = new Map();
+          opts.forEach(o => { if (o[2]) want.set(o[0], o[1]); else if (o[2] === 0) okRev[rev].add(o[0]); });   // 0 offerte: niente da leggere
+          // set del gestionale (se il filtro non dice quante offerte ha)
+          (ls.get('cs_check_sets', []) || []).forEach(([id, nm]) => { const op = opts.find(o => o[0] === String(id)); if (!op ? true : op[2] == null) want.set(String(id), op ? op[1] : nm || id); });
+          const addName = n => { const op = n && opts.find(x => smp(x[1]) === smp(n)); if (op) want.set(op[0], op[1]); };
+          if (!opts.some(o => o[2] != null)) { a.list.forEach(o => addName(o.exp)); if (job) job.items.forEach(it => addName(it.exp)); }
+          if (!want.size) throw new Error('le offerte sono più di 300 e non trovo il filtro Edizione');
+          let i = 0;
+          for (const [id, nm] of want) {
+            i++;
+            const b = await readPages(`isReverseHolo=${rev}&${encodeURIComponent(param)}=${id}`, `${nm} (${RV}, set ${i} di ${want.size})`);
+            // il filtro deve aver funzionato: le offerte lette sono tutte di quel set
+            const other = b.list.filter(o => o.exp && smp(o.exp) !== smp(nm));
+            if (other.length && other.length === b.list.length) throw new Error(`il filtro Edizione non funziona (${nm})`);
+            list.push(...b.list.filter(o => !o.exp || smp(o.exp) === smp(nm)));
+            if (b.capped) warn.push(`${nm} ${RV}: più di 300 offerte, lette solo le prime 300`);
+            if (!b.capped) okRev[rev].add(id);
+          }
         }
         // la stessa offerta non deve comparire due volte
         const seen = new Set();
-        offers = { at: new Date().toISOString(), list: list.filter(o => !seen.has(o.id) && seen.add(o.id)) };
+        // set controllati per intero: letti completi sia nelle Normali sia nelle Reverse
+        const rx = full ? [] : [...new Set([...(okRev.N || []), ...(okRev.Y || [])])].filter(id => (!okRev.N || okRev.N.has(id)) && (!okRev.Y || okRev.Y.has(id)));
+        offers = { at: new Date().toISOString(), list: list.filter(o => !seen.has(o.id) && seen.add(o.id)), full, rx, warn };
         ls.set(OKEY, offers);
-        prog(`Lette ${offers.list.length} offerte (${offers.list.filter(o => o.rev).length} Reverse).`);
       } catch (e) {
         prog('Errore nella lettura delle offerte: ' + (e.message || e) + '. Riprova tra poco.');
+        running = false; render();
+        prog('Errore nella lettura delle offerte: ' + (e.message || e) + '. Riprova tra poco.');
+        return;
       }
       running = false;
       render();
-      prog(offers ? `Lette ${offers.list.length} offerte (${offers.list.filter(o => o.rev).length} Reverse).` : '');
+      prog(`Lette ${offers.list.length} offerte (${offers.list.filter(o => o.rev).length} Reverse)` + (offers.full === false ? `, set per set (${offers.rx.length} set).` : '.') + (warn.length ? ' ⚠ ' + warn.join(' · ') : ''));
     }
 
     // ---- abbinamento elenco ↔ offerte ----

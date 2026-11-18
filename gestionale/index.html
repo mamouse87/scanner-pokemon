@@ -993,7 +993,8 @@ function importCheckFromHash() {
   try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Elenco delle offerte non leggibile.'); return true; }
   const list = (d.o || []).map(r => ({ code: String(r[0] || '').toUpperCase(), num: r[1], rev: !!r[2], lang: r[3] || 'it', q: +r[4] || 1, price: r[5], name: r[6] || '', exp: (d.ex || [])[r[7]] || '' }));
   if (!list.length) { alert('Lo script non ha letto nessuna offerta: controllo non fatto. Riprova da "Le mie offerte".'); return true; }
-  chk = { at: d.at || new Date().toISOString(), list };
+  // lettura parziale (più di 300 offerte): ho letto solo i set in rx, per gli altri non segnalo "solo nel gestionale"
+  chk = { at: d.at || new Date().toISOString(), list, rx: d.full === 0 ? (d.rx || []).map(String) : null, warn: d.warn || [] };
   try { localStorage.setItem(CHK_KEY, JSON.stringify(chk)); } catch (e) {}
   state.chkAt = chk.at; softSave();
   selected = '__chk';
@@ -1016,7 +1017,7 @@ function chkDiffs() {
     const t = tailOf(l.u, l.rev, l.lang), code = String(setCode(l) || '').toUpperCase();
     const os = (code && byCode[code + t]) || byExp[simp(l.expName || state.cm[l.exp]?.name) + t] || [];
     os.forEach(o => used.add(o));
-    if (!os.length) { out.push({ type: 'miss', k, l, os }); continue; }
+    if (!os.length) { if (!chk.rx || chk.rx.includes(String(l.exp))) out.push({ type: 'miss', k, l, os }); continue; }
     const q = os.reduce((a, o) => a + o.q, 0), prices = [...new Set(os.map(o => r2(o.price)))];
     if (q !== l.q) out.push({ type: 'qty', k, l, os, q });
     if (prices.length > 1) out.push({ type: 'multi', k, l, os });
@@ -1082,6 +1083,13 @@ function chkApplyMany(list, what) {
   save(); refresh(); toast(`Gestionale allineato a Cardmarket: ${n} ${n === 1 ? 'riga' : 'righe'}`);
 }
 const chkF = { type: '' };
+/** set da leggere uno per uno su Cardmarket (oltre 300 offerte Cardmarket non mostra le altre): [[idEspansione Cardmarket, nome]] */
+function chkSetsParam() {
+  const ids = new Set(Object.values(state.listings).map(l => String(l.exp)).filter(Boolean));
+  Object.values(state.standby || {}).forEach(X => { const e = Object.entries(state.cm).find(([, E]) => simp(E.name) === simp(X.sn)); if (e) ids.add(String(e[0])); });
+  const e = [...ids].filter(id => /^\d+$/.test(id)).map(id => [id, state.cm[id]?.name || '']);
+  return encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({ e })))));
+}
 function openStockCheck() {
   openDlg(`<h3>Controlla il magazzino con Cardmarket</h3>
     <p>Lo script legge tutte le tue offerte di carte singole Pokémon (tutte le pagine, Normali e Reverse) e le manda qui. Il gestionale ti mostra le differenze. <b>Su Cardmarket non viene cambiato nulla.</b></p>
@@ -1091,7 +1099,7 @@ function openStockCheck() {
     <p class="small">Non hai il pulsante Card Scanner nei preferiti, o è vecchio? <a href="../cardmarket/" target="_blank">Installalo da qui</a>: per il controllo serve la versione nuova.</p>
     <p style="text-align:right"><button id="dClose">Annulla</button> <button class="pri" id="kGo">Apri le mie offerte</button></p>`, () => {
     $('dClose').onclick = closeDlg;
-    $('kGo').onclick = () => { const w = window.open(OFFERS_URL, 'cscheck=' + Date.now()); if (!w) alert('Il browser ha bloccato la nuova scheda: permetti i popup per questa pagina e riprova.'); closeDlg(); };
+    $('kGo').onclick = () => { const w = window.open(OFFERS_URL, 'cscheck=' + Date.now() + '.' + chkSetsParam()); if (!w) alert('Il browser ha bloccato la nuova scheda: permetti i popup per questa pagina e riprova.'); closeDlg(); };
   });
 }
 function renderChk() {
@@ -1123,6 +1131,8 @@ function renderChk() {
       <div class="fig"><b>${chk.list.length}</b><span>offerte su Cardmarket · ${chk.list.reduce((a, o) => a + o.q, 0)} copie</span></div>
       <div class="fig"><b>${nL}</b><span>righe nel gestionale · ${qL} copie</span></div>
       <div class="fig"><b>${old === 0 ? 'oggi' : old === 1 ? 'ieri' : old + ' gg fa'}</b><span>ultimo controllo · ${fmtDT(chk.at)}</span></div></div>
+    ${(chk.warn || []).length ? `<div class="notice var"><span>⚠ ${esc(chk.warn.join(' · '))}</span></div>` : ''}
+    ${chk.rx ? `<div class="notice" style="background:#eef4ff;border:1px solid #cddcf5"><span>Su Cardmarket avevi più di 300 offerte: lo script le ha lette set per set (${chk.rx.length} set). Le carte "Solo nel gestionale" sono controllate solo per quei set.</span></div>` : ''}
     ${old >= 1 ? `<div class="notice var"><span>Le offerte sono state lette ${old === 1 ? 'ieri' : old + ' giorni fa'}: se nel frattempo hai venduto o messo in vendita carte, fai un nuovo controllo prima di correggere.</span></div>` : ''}
     ${all.length ? `<div class="filters"><span class="chips" id="kChips">${[['', 'Tutte', all.length], ...Object.keys(T).map(t => [t, T[t], cnt(t)]).filter(x => x[2])].map(([f, l, n]) => `<button class="chip ${chkF.type === f ? 'on' : ''}" data-f="${f}">${l}<i>${n}</i></button>`).join('')}</span>${chkF.type ? bulk(chkF.type) + ' ' + bulkCm() : ''}</div>
     <table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th>Differenza</th><th class="n">Gestionale</th><th class="n">Cardmarket</th><th></th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>`

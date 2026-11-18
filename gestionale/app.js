@@ -792,7 +792,7 @@ function chkSetsParam(fix) {
 }
 function openStockCheck() {
   openDlg(`<h3>Controlla il magazzino con Cardmarket</h3>
-    <p>Lo script legge tutte le tue offerte di carte singole Pokémon (tutte le pagine, Normali e Reverse) e le manda qui. Il gestionale ti mostra le differenze. <b>Su Cardmarket non viene cambiato nulla.</b></p>
+    <p>Lo script legge tutte le tue offerte di carte singole Pokémon (tutte le pagine, Normali e Reverse; oltre 300 offerte le legge set per set) e le manda qui. Il gestionale ti mostra le differenze. Senza la casella qui sotto <b>su Cardmarket non viene cambiato nulla</b>.</p>
     <ol><li>Premi <b>Apri le mie offerte</b>: si apre la pagina di Cardmarket (devi essere collegato).</li>
       <li>Lì premi <b>📋 Card Scanner → CM</b> nei preferiti, poi <b>🔎 Leggi le mie offerte</b>.</li>
       <li>Alla fine premi <b>📤 Invia al gestionale</b>: torni qui con il risultato.</li></ol>
@@ -834,7 +834,7 @@ function renderChk() {
   const bulkCm = () => { const n = list.filter(d => d.type === 'qty').length; return n > 1 && chkF.type === 'qty' ? `<button id="kAllCm" class="pri">Correggi tutte su Cardmarket (${n})</button>` : ''; };
   const bulk = t => { const n = list.filter(d => d.type === t && (t !== 'extra' || (d.E && d.card))).length; return n > 1 && chkF.type === t ? `<button id="kAll" data-t="${t}">${{ qty: 'Usa le quantità di Cardmarket', price: 'Usa i prezzi di Cardmarket', miss: 'Togli tutte dal gestionale', extra: 'Aggiungi tutte al gestionale' }[t]} (${n})</button>` : ''; };
   $('main').innerHTML = `<div class="sethead"><div><h2>Controllo con Cardmarket</h2>
-    <div class="sub">Confronta le carte in vendita nel gestionale con le offerte lette sul tuo negozio. Le correzioni cambiano solo il gestionale, mai Cardmarket.</div></div>
+    <div class="sub">Confronta le carte in vendita nel gestionale con le offerte lette sul tuo negozio. "Usa…" corregge il gestionale; "Correggi su Cardmarket" fa cambiare le copie su Cardmarket dallo script.</div></div>
     <button class="pri" id="kNew">🔎 ${chk ? 'Nuovo controllo' : 'Controlla adesso'}</button></div>
     ${chk ? `<div class="figs"><div class="fig ${all.length ? 'f-hi' : 'f-ok'}"><b>${all.length}</b><span>${all.length === 1 ? 'differenza' : 'differenze'}</span></div>
       <div class="fig"><b>${chk.list.length}</b><span>offerte su Cardmarket · ${chk.list.reduce((a, o) => a + o.q, 0)} copie</span></div>
@@ -2013,7 +2013,7 @@ function downloadCsv(name, rows) {
   a.download = name; a.click();
 }
 
-// ---------- vendite da fattura ----------
+// ---------- lettura dei PDF (ordini di Cardmarket) ----------
 async function pdfText(file) {
   if (!window.pdfjsLib) await new Promise(r => setTimeout(r, 1500));
   if (!window.pdfjsLib) throw new Error('lettore PDF non caricato: ricarica la pagina');
@@ -2032,37 +2032,6 @@ async function pdfText(file) {
 function textOf(raw) {
   if (/<br|<html|<body/i.test(raw)) raw = new DOMParser().parseFromString(raw.replace(/<br\s*\/?>/gi, '\n'), 'text/html').body.textContent;
   return raw.replace(/ /g, ' ');
-}
-const longestWord = name => String(name || '').split(/[\s\-']+/).map(simp).filter(w => w.length >= 4).sort((a, b) => b.length - a.length)[0] || '';
-function parseQty(line) {
-  const m = line.match(/(?:^|\s)(\d{1,3})\s*[x×]\s/i) || line.match(/(?:^|[^a-z])[x×]\s?(\d{1,3})\b/i) || line.match(/qt[aà]\.?\s*:?\s*(\d{1,3})/i) || line.match(/quantit[aà]\s*:?\s*(\d{1,3})/i);
-  return m ? Math.max(1, +m[1]) : 1;
-}
-function matchSales(text) {
-  const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length > 2);
-  const inv = Object.entries(state.listings).map(([k, l]) => {
-    const c = state.cm[l.exp]?.cards?.[l.p] || {};
-    return { k, l, name: c.n || '', code: c.c || '', set: l.expName || state.cm[l.exp]?.name || '' };
-  });
-  const found = [];
-  lines.forEach((line, i) => {
-    const ctx = line + ' ' + (lines[i + 1] || '');
-    const L = simp(line);
-    const cands = [];
-    for (const x of inv) {
-      const w = longestWord(x.name);
-      if (!w || !L.includes(w)) continue;
-      let score = 1;
-      if (L.includes(simp(x.name))) score += 1;
-      if (x.code && x.l.u && simp(ctx).includes(simp(x.code + x.l.u))) score += 3;
-      else if (/^\d+$/.test(x.l.u) && new RegExp('(^|[^0-9])0*' + parseInt(x.l.u, 10) + '([^0-9]|$)').test(ctx)) score += 1;
-      if (x.set && simp(ctx).includes(simp(x.set))) score += 1;
-      if (/reverse/i.test(ctx) === x.l.rev) score += 1;
-      cands.push(Object.assign({ score }, x));
-    }
-    if (cands.length) { cands.sort((a, b) => b.score - a.score); found.push({ line, qty: parseQty(line), cands }); }
-  });
-  return found;
 }
 // ---------- ordine / spedizione di Cardmarket ----------
 // riga tipo: "1 Mimikyu 037 IT NM PAF R Reverse Holo - Collezione Personale 0,02 EUR"
@@ -2188,59 +2157,24 @@ function orderReview(o, file, pos) {
 }
 
 async function importSales(files) {
-  const rows = [], orders = [], other = [];
+  const orders = [], other = [];
   for (const f of files) {
     let text;
     try { text = /\.pdf$/i.test(f.name) ? await pdfText(f) : textOf(await f.text()); } catch (e) { alert(`"${f.name}": ${e.message}`); continue; }
     const order = parseOrder(text);
-    if (order) { orders.push({ o: order, f: f.name }); continue; }   // ordine Cardmarket: riconoscimento preciso
-    other.push(f.name);
-    matchSales(text).forEach(r => rows.push(Object.assign(r, { file: f.name })));
+    if (order) orders.push({ o: order, f: f.name }); else other.push(f.name);
   }
-  if (orders.length) {
-    // più ordini insieme: un riquadro alla volta, il successivo si apre quando chiudi quello prima
-    if (other.length) toast(`Carico prima i ${orders.length} ordini di Cardmarket; ${other.join(', ')}: caricalo a parte`);
-    const tot = orders.length; let i = 0;
-    const next = () => {
-      const x = orders.shift(); if (!x) return;
-      i++;
-      $('dlg').addEventListener('close', () => setTimeout(next, 150), { once: true });
-      orderReview(x.o, x.f, tot > 1 ? `ordine ${i} di ${tot}` : '');
-    };
-    next();
-    return;
-  }
-  const names = files.map(f => f.name).join(', ');
-  if (!files.length) return;
-  if (!rows.length) return openDlg(`<h3>${esc(names)}</h3><p>Non ho trovato nella fattura carte che hai in vendita.</p>
-    <p class="small">Se ci sono, mandami un esempio di questa fattura e sistemo la lettura.</p><p style="text-align:right"><button id="dClose">Chiudi</button></p>`, () => { $('dClose').onclick = closeDlg; });
-  const guess = /ebay/i.test(names) ? 'eBay' : 'Cardmarket';
-  openDlg(`<h3>Carte vendute in: ${esc(names)}</h3>
-    <div class="row" style="margin-bottom:8px">Venduta su <select id="saleSite">${['Cardmarket', 'eBay', 'Altro'].map(s => `<option ${s === guess ? 'selected' : ''}>${s}</option>`).join('')}</select>
-    <span class="small">Le righe spuntate vengono tolte dalle carte in vendita.</span></div>
-    <div style="max-height:55vh;overflow:auto"><table><tr><th></th><th>Riga della fattura</th><th>Carta in vendita</th><th>Q.tà</th></tr>
-    ${rows.map((r, i) => {
-      const top = r.cands[0], sure = top.score >= 3 && (r.cands.length === 1 || r.cands[1].score < top.score);
-      return `<tr><td><input type="checkbox" data-i="${i}" ${sure ? 'checked' : ''}></td><td class="line">${esc(r.line)}</td>
-        <td><select data-s="${i}">${r.cands.slice(0, 8).map((c, j) => `<option value="${j}">${esc(c.l.u)} ${esc(c.name)} · ${esc(c.set)}${c.l.rev ? ' · REVERSE' : ''} (${c.l.q} in vendita)</option>`).join('')}</select></td>
-        <td><input type="number" min="1" value="${r.qty}" data-q="${i}" style="width:60px"></td></tr>`;
-    }).join('')}</table></div>
-    <p style="text-align:right"><button id="dClose">Annulla</button> <button class="pri" id="dApply">Togli le vendute</button></p>`, () => {
-    $('dClose').onclick = closeDlg;
-    $('dApply').onclick = () => {
-      let n = 0;
-      const B = $('dlgBody');
-      rows.forEach((r, i) => {
-        if (!B.querySelector(`[data-i="${i}"]`).checked) return;
-        const cand = r.cands[+B.querySelector(`[data-s="${i}"]`).value];
-        const q = Math.max(1, +B.querySelector(`[data-q="${i}"]`).value || 1);
-        const L0 = state.listings[cand.k];
-        if (L0) logOp('venduta', L0.expName || state.cm[L0.exp]?.name, `${cardTxt(L0)} ×${q} a ${eur(L0.price)} · ${$('saleSite').value}${r.file ? ' · ' + r.file : ''}`, q);
-        sell(cand.k, q, $('saleSite').value, r.file); n += q;
-      });
-      save(); closeDlg(); refresh(); toast(`Tolte ${n} carte vendute`);
-    };
-  });
+  if (other.length) alert(`${other.join(', ')}: non ${other.length === 1 ? 'è un ordine' : 'sono ordini'} di Cardmarket.\n\nCarica il PDF dell'ordine (o della spedizione) scaricato da Cardmarket.`);
+  if (!orders.length) return;
+  // più ordini insieme: un riquadro alla volta, il successivo si apre quando chiudi quello prima
+  const tot = orders.length; let i = 0;
+  const next = () => {
+    const x = orders.shift(); if (!x) return;
+    i++;
+    $('dlg').addEventListener('close', () => setTimeout(next, 150), { once: true });
+    orderReview(x.o, x.f, tot > 1 ? `ordine ${i} di ${tot}` : '');
+  };
+  next();
 }
 function sell(k, q, source, file, price, date, meta) {
   const L = state.listings[k]; let n0;
@@ -2865,9 +2799,7 @@ function parseCatalog(text) {
     if (m) { cur = { name: m[1].trim(), lang: m[2].toLowerCase(), id: (m[3] || '').trim(), com, listId, items: [] }; listId = ''; sets.push(cur); return; }
     if (!cur) return;
     m = l.match(/^([A-Z]*\d+[a-z]?)\s*\|\s*x\s*(\d+)\s*\|\s*([NR])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|]*?))?\s*$/i);
-    if (m) { cur.items.push({ u: m[1], q: +m[2], rev: m[3].toUpperCase() === 'R', n: m[4] || '', r: m[5] || '' }); return; }
-    m = l.match(/^([A-Z]*\d+)(R?)\s*x\s*(\d+)/i);
-    if (m) cur.items.push({ u: m[1], rev: m[2].toUpperCase() === 'R', q: +m[3], n: '', r: '' });
+    if (m) cur.items.push({ u: m[1], q: +m[2], rev: m[3].toUpperCase() === 'R', n: m[4] || '', r: m[5] || '' });
   });
   return sets.filter(s => s.items.length);
 }
@@ -3318,7 +3250,7 @@ function otherTab() {
   }
   await loadSets();
   const checked = importCheckFromHash();
-  const edited = importEditFromHash();
+  importEditFromHash();
   const arrived = importFromHash();
   const bySet = listingsBySet();
   selected = (checked && '__chk') || (arrived && tcgIdFor(arrived)) || Object.keys(bySet).sort((a, b) => bySet[b].length - bySet[a].length)[0] || (tcgSets[0] && tcgSets[0].id) || null;

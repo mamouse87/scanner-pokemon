@@ -15,32 +15,27 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <ol><li>Mostra la barra dei preferiti di Chrome: <code>Ctrl+Shift+B</code>.</li>
 <li>Se avevi già il pulsante, eliminalo (tasto destro → Elimina) e trascina di nuovo questo:</li></ol>
 <p><a class="bm" href="{html.escape(bm, quote=True)}">📋 Card Scanner → CM</a></p>
-<h2>2. Ogni set (consigliato: dal gestionale)</h2>
+<h2>2. Mettere in vendita le carte di un set</h2>
 <ol><li>Nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a> carica i file .txt dell'app (<b>Carica ▾ → Liste dall'app</b>): le carte vanno in <b>Standby</b>.</li>
-<li>Apri il set e premi <b>Metti in vendita su Cardmarket</b>: scegli il prezzo ("Da", Tendenza o Consigliato, ± centesimi). Il gestionale calcola il prezzo di ogni carta, <b>Normali e Reverse separate</b>; se serve puoi cambiarne uno a mano.</li>
-<li>Si apre Cardmarket: premi <b>📋 Card Scanner → CM</b>. Se non sei già sulla pagina "Inserisci carte bulk" del set ti ci porta; lì premilo di nuovo. L'elenco e i prezzi sono già caricati.</li>
-<li>Premi <b>Compila la pagina</b> e controlla. Le righe con il <b>bordo rosso</b> non hanno un prezzo (per esempio una Reverse senza prezzo Reverse): scrivilo tu. Lo script non usa mai il prezzo della versione normale per una Reverse.</li>
-<li><b>Metti in vendita su Cardmarket</b> tu stesso. Poi premi il pulsante verde <b>📤 Invia al gestionale</b>: le carte passano da Standby a In vendita.</li>
+<li>Apri il set e premi <b>Metti in vendita su Cardmarket</b>: scegli il prezzo ("Da", Tendenza o Consigliato, ± centesimi). Il gestionale calcola il prezzo di ogni carta, <b>Normali e Reverse separate</b>.</li>
+<li>Si apre Cardmarket: premi <b>📋 Card Scanner → CM</b>. Se non sei già sulla pagina "Inserisci carte bulk" del set ti ci porta; lì premilo di nuovo.</li>
+<li>Premi <b>Compila la pagina</b> e controlla. Le righe con il <b>bordo rosso</b> non hanno un prezzo: scrivilo tu.</li>
+<li>Premi tu <b>Mettere in vendita le carte</b> su Cardmarket. Poi premi il pulsante verde <b>📤 Le ho messe in vendita: invia al gestionale</b>. Lo script controlla su Cardmarket che le carte siano davvero in vendita e manda al gestionale solo quelle: se qualcuna manca te lo dice.</li>
 <li>Se il set ha più pagine: vai alla pagina successiva, premi di nuovo il pulsante (l'elenco resta caricato) e ripeti.</li></ol>
-<p>Lo script non invia nulla a Cardmarket e non legge password.</p>
 <h2>Cambiare i prezzi delle carte già in vendita</h2>
-<ol><li>Nel gestionale premi <b>Prezzi ▾ → Cambia prezzi su Cardmarket</b> (per tutti i set), oppure <b>✏️ Cambia prezzi di questo set</b> nella pagina di un set, oppure parti dalla scheda <b>Fuori mercato</b>: scegli il nuovo prezzo ("Da", Tendenza o Consigliato, ± centesimi) e controlla l'elenco.</li>
-<li>Si apre la pagina <b>Le mie offerte</b> di Cardmarket: premi <b>📋 Card Scanner → CM</b>. Lo script legge da solo tutte le pagine delle tue offerte (Normali e Reverse) e trova quelle da cambiare.</li>
-<li>Premi <b>▶ Cambia i prezzi</b>: apre il riquadro "Modifica" di una carta alla volta e scrive il nuovo prezzo (campo giallo). Tu controlli e premi <b>MODIFICA ARTICOLO</b>; chiudendo il riquadro la carta viene saltata. Con "Conferma automatica" lo preme lo script, una carta ogni 3 secondi (puoi fermarlo con ⏸).</li>
-<li>Alla fine premi <b>🔁 Verifica</b> (rilegge le offerte e controlla i prezzi) e <b>📤 Invia al gestionale</b>: i nuovi prezzi e la nuova regola entrano nel gestionale.</li></ol>
-<h2>Controllare il magazzino</h2>
-<ol><li>Nel gestionale apri la scheda <b>Controllo</b> (o il menu <b>Cardmarket ▾ → Controlla il magazzino</b>) e premi <b>Apri le mie offerte</b>.</li>
-<li>Su Cardmarket premi <b>📋 Card Scanner → CM</b>, poi <b>🔎 Leggi le mie offerte</b>: lo script legge tutte le pagine delle tue carte singole, Normali e Reverse.</li>
-<li>Premi <b>📤 Invia al gestionale</b>: nella scheda Controllo vedi le differenze (quantità, prezzi, carte presenti solo da una parte) e scegli tu cosa correggere nel gestionale. Su Cardmarket non viene cambiato nulla.</li></ol>
-<h2>Correggere le quantità su Cardmarket</h2>
-<ol><li>Nel gestionale, nella scheda <b>Controllo</b>, premi <b>Correggi su Cardmarket</b> su una carta con quantità diverse (oppure conferma una vendita diretta da una lista per i clienti): si aprono le tue offerte con l'elenco.</li>
-<li>Premi <b>📋 Card Scanner → CM</b>, poi <b>🔎 Leggi le mie offerte</b> e <b>▶ Correggi le quantità</b>: lo script apre il riquadro "Modifica" di ogni offerta e scrive le copie giuste. "MODIFICA ARTICOLO" lo premi tu (o la conferma automatica).</li>
-<li>Le offerte che devono scendere a 0 copie lo script non le cancella: le togli tu da Cardmarket. Alla fine premi <b>📤 Invia al gestionale</b>.</li></ol>
-<h2>Prezzo</h2>
-<p>Il prezzo si sceglie solo nel gestionale ("Metti in vendita su Cardmarket": "Da", Tendenza o Consigliato, ± centesimi, calcolato a parte per Normali e Reverse). Ogni volta che premi "Apri Cardmarket" l'elenco ha un nome nuovo (es. <code>DLR-Dominio_Delta_20261115-030612</code>), così lo script lo tratta sempre come una lista nuova. Il prezzo non scende mai sotto 0,02 €; le righe senza prezzo hanno il bordo rosso.</p>
-<p>Dopo "Invia al gestionale" i dati tornano nella pagina del gestionale già aperta (se si apre una scheda nuova, passa i dati a quella già aperta e si chiude da sola).</p>
-<h2>Revisione prezzi</h2>
-<p>Si fa nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a>: i prezzi di mercato si aggiornano da soli e le carte con una variazione oltre la soglia scelta in Impostazioni vengono segnalate nel set, con il PDF della revisione e la conferma dei nuovi prezzi.</p>
+<ol><li>Nel gestionale premi <b>Prezzi ▾ → Cambia prezzi su Cardmarket</b>, oppure <b>✏️ Cambia prezzi di questo set</b> nella pagina di un set, oppure parti dalla scheda <b>Fuori mercato</b>.</li>
+<li>Si apre <b>Le mie offerte</b> di Cardmarket: premi <b>📋 Card Scanner → CM</b>. Lo script legge le tue offerte (oltre 300 le legge set per set, con il filtro Edizione).</li>
+<li>Premi <b>▶ Cambia i prezzi</b>: per ogni carta apre la pagina della sua Edizione in un riquadro con il bordo giallo, apre "Modifica" e scrive il nuovo prezzo. Tu premi <b>MODIFICA ARTICOLO</b> (con la spunta <b>Conferma automatica</b> lo preme lo script). Dopo ogni carta rilegge il prezzo su Cardmarket per controllare che sia cambiato davvero.</li>
+<li>Alla fine premi <b>📤 Invia al gestionale</b>.</li></ol>
+<h2>Controllare il magazzino (e correggere le copie)</h2>
+<ol><li>Nel gestionale apri <b>Cardmarket ▾ → Controlla il magazzino</b> e premi <b>Apri le mie offerte</b>. Se metti la spunta <b>Correggi subito su Cardmarket le copie in più</b>, controllo e correzione si fanno in un colpo solo.</li>
+<li>Su Cardmarket premi <b>📋 Card Scanner → CM</b>, poi <b>🔎 Leggi le mie offerte</b>.</li>
+<li>Con la spunta: lo script ti mostra le carte che su Cardmarket hanno <b>più</b> copie che nel gestionale; premi <b>▶ Correggi le quantità</b>. Le copie si tolgono con il pulsante rosso <b>−</b> della riga, nella pagina della sua Edizione. Dove su Cardmarket ce ne sono <b>meno</b> non tocca nulla (può essere una vendita non ancora caricata).</li>
+<li>Premi <b>📤 Invia al gestionale</b>: nella scheda <b>Controllo</b> vedi le differenze rimaste e scegli tu: <b>Usa…</b> corregge il gestionale, <b>Correggi su Cardmarket</b> fa cambiare le copie su Cardmarket dallo script.</li>
+<li>Le offerte da portare a 0 copie lo script non le cancella mai: le togli tu.</li></ol>
+<h2>Cosa fa lo script su Cardmarket</h2>
+<p>Lo script non legge password e non mette in vendita nulla da solo: "Mettere in vendita le carte" lo premi sempre tu. Cambia prezzi e copie solo quando premi ▶: senza la spunta <b>Conferma automatica</b> ogni modifica la confermi tu; con la spunta la conferma lo script, una carta ogni 3 secondi, e poi la ricontrolla.</p>
+<p>Dopo "Invia al gestionale" i dati tornano nella pagina del gestionale già aperta (se si apre una scheda nuova, passa i dati a quella già aperta e si chiude da sola). In fondo al riquadro dello script c'è la versione: se non è quella nuova, elimina il pulsante dai preferiti e trascinalo di nuovo da questa pagina.</p>
 <h2>In alternativa</h2>
 <p>Se il pulsante non funziona: sulla pagina di Cardmarket premi <code>F12</code> → <b>Console</b>, incolla il codice e premi Invio.</p>
 <pre>{html.escape(code)}</pre>

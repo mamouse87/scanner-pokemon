@@ -39,28 +39,6 @@
                 android:text="🖼 Catalogo" />
 
             <Button
-                android:id="@+id/btnShareText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="📝 Condividi testo" />
-
-            <Button
-                android:id="@+id/btnCopyText"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
-                android:text="Copia testo" />
-
-            <Button
-                android:id="@+id/btnCsv"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
-                android:text="⬇ CSV" />
-
-            <Button
                 android:id="@+id/btnClear"
                 style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="wrap_content"

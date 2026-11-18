@@ -87,7 +87,10 @@
     if (ck) {
       // il gestionale manda anche i set che ha (id dell'espansione su Cardmarket): servono se le offerte sono più di 300
       let sets = [];
-      try { if (ck[1]) sets = (JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(ck[1]))))).e || []).filter(x => /^\d+$/.test(x[0])); } catch (e) {}
+      let fixL = null;
+      try { if (ck[1]) { const P = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(ck[1]))))); sets = (P.e || []).filter(x => /^\d+$/.test(x[0])); fixL = Array.isArray(P.L) ? P.L : null; } } catch (e) {}
+      // "correggi subito": copie giuste di ogni carta del gestionale (abbasso solo quelle in più su Cardmarket)
+      localStorage.setItem('cs_check_fix', JSON.stringify(fixL));
       localStorage.setItem('cs_check_sets', JSON.stringify(sets));
       localStorage.setItem('cs_check', String(Date.now())); return true;
     }
@@ -156,7 +159,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 18/11 ore 23:30</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 19/11</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -165,9 +168,32 @@
       if ($o('kSend')) $o('kSend').onclick = sendCheck;
       $o('kExit').onclick = e => { e.preventDefault(); check = 0; ls.set('cs_check', 0); msg = ''; render(); };
     }
-    function sendCheck() {
+    // controllo + correzione: dopo la lettura preparo l'elenco delle carte con copie in più su Cardmarket
+    function prepareFix() {
+      let L = null; try { L = JSON.parse(localStorage.getItem('cs_check_fix')); } catch (e) {}
+      if (!Array.isArray(L) || !L.length || ls.get('cs_check_fixfor', 0) === check) return;
+      ls.set('cs_check_fixfor', check);
+      const items = L.map(([k, code, exp, u, n, rev, lang, q]) => ({ k, code, exp, u, n, rev: !!rev, lang: lang || 'it', q, qt: q, old: null, price: null }));
+      const keep = job, keepDone = done;
+      job = { items }; done = {};
+      const m = matchAll();
+      job = keep; done = keepDone;
+      const more = {};
+      m.forEach(x => { if (x.o) (more[x.it.k] = more[x.it.k] || { it: x.it, cm: 0 }).cm += (x.o.qty || 0); });
+      const fix = Object.values(more).filter(v => v.cm > v.it.qt).map(v => Object.assign({}, v.it, { from: v.cm }));
+      if (!fix.length) { prog(msg + ' Nessuna carta con copie in più su Cardmarket: premi "Invia al gestionale".'); return; }
+      const d = new Date(), z = n => String(n).padStart(2, '0');
+      job = { v: 1, type: 'qty', at: d.toISOString(), name: `CONTROLLO-${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}`, items: fix, fromCheck: check };
+      ls.set(EKEY, job);
+      done = { __job: job.name, __read: 1 }; ls.set(DKEY, done);
+      check = 0; ls.set('cs_check', 0);
+      tab = 'todo';
+      render();
+      prog(`Lette ${offers.list.length} offerte. ${fix.length} ${fix.length === 1 ? 'carta ha' : 'carte hanno'} più copie su Cardmarket che nel gestionale: premi ▶ Correggi le quantità. Alla fine "Invia al gestionale" manda anche il controllo.`);
+    }
+    function sendCheck(fixed) {
       const ex = [], o = offers.list.map(x => { let i = ex.indexOf(x.exp); if (i < 0) i = ex.push(x.exp) - 1; return [x.code, x.num, x.rev ? 1 : 0, x.lang, x.qty || 1, x.price, x.name, i]; });
-      const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, at: offers.at, ex, o, full: offers.full === false ? 0 : 1, rx: offers.rx || [], warn: offers.warn || [] }))));
+      const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, at: offers.at, ex, o, full: offers.full === false ? 0 : 1, rx: offers.rx || [], warn: offers.warn || [], fixed: fixed || [] }))));
       window.open(GEST + '#cmchk=' + encodeURIComponent(enc), 'gestionaleCarte');
       ls.set('cs_check_sent', check);
       prog(`Inviate ${o.length} offerte al gestionale ✓ Guarda il risultato nella scheda "Controllo".`);
@@ -212,7 +238,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 18/11 23:30</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 19/11</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -220,6 +246,7 @@
       };
       R.querySelectorAll('#oRead').forEach(b => b.onclick = e => { e.preventDefault(); readAll(); });
       R.querySelectorAll('#oSend').forEach(b => b.onclick = () => send());
+      if ($o('oSendChk')) $o('oSendChk').onclick = e => { e.preventDefault(); send(); };
       if ($o('oGo')) $o('oGo').onclick = () => { if (running) { stopReq = true; prog('Mi fermo dopo questa carta…'); } else run(); };
       if ($o('oAuto')) $o('oAuto').onchange = () => ls.set('cs_edit_auto', $o('oAuto').checked);
       if ($o('oVer')) $o('oVer').onclick = e => { e.preventDefault(); verify(); };
@@ -340,6 +367,7 @@
       running = false;
       render();
       prog(`Lette ${offers.list.length} offerte (${offers.list.filter(o => o.rev).length} Reverse)` + (offers.full === false ? `, set per set (${offers.rx.length} set).` : '.') + (warn.length ? ' ⚠ ' + warn.join(' · ') : ''));
+      if (check) prepareFix();
     }
 
     // ---- abbinamento elenco ↔ offerte ----
@@ -643,6 +671,19 @@
         seen.add(x.it.k);
         res.push({ k: x.it.k, qt: x.it.qt ?? null, zero: matchAll().some(y => y.it.k === x.it.k && y.st === 'zero') ? 1 : 0, price: x.it.price, b: x.it.b, o: x.it.o, ref: x.it.ref, at: (done[x.it.k + '#' + x.o.id] || {}).at || new Date().toISOString() });
       });
+      if (job.fromCheck) {
+        // controllo + correzione: mando il controllo (offerte già con le copie corrette) e l'elenco delle correzioni
+        ls.set(OKEY, offers);
+        check = job.fromCheck;
+        const fixed = res.filter(r => r.qt != null).map(r => ({ k: r.k, qt: r.qt, from: (job.items.find(i => i.k === r.k) || {}).from, zero: r.zero }));
+        sendCheck(fixed);
+        done.__sent = 1; ls.set(DKEY, done);
+        job.done = 1; ls.set(EKEY, null); job = null;
+        check = 0; ls.set('cs_check', 0);
+        render();
+        prog(`Inviato il controllo al gestionale ✓ (${fixed.filter(r => !r.zero).length} carte corrette su Cardmarket). Guarda la scheda "Controllo".`);
+        return;
+      }
       if (!res.length) { alert(job.type === 'qty' ? 'Nessuna quantità corretta da inviare.' : 'Nessun prezzo cambiato da inviare.'); return; }
       const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, type: job.type || 'edit', name: job.name, res }))));
       window.open(GEST + '#cmedit=' + encodeURIComponent(enc), 'gestionaleCarte');

@@ -73,6 +73,28 @@ h1{margin:0;font-size:17px;letter-spacing:-.005em;color:#fff;white-space:nowrap}
 .tstats b{color:#fff;font-size:15px;margin-right:4px;font-variant-numeric:tabular-nums}
 .tstats .w{color:#ffd28a}
 .tact{margin-left:auto;display:flex;gap:6px;align-items:center}
+.tstats{flex-shrink:1;min-width:0}
+.tact{flex-shrink:0}.tact summary,.tact button{white-space:nowrap}
+.gs{position:relative;flex:1 1 260px;max-width:400px;min-width:170px;margin-left:auto}
+.gs input{width:100%;height:36px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1);color:#fff;padding:0 12px 0 34px;font-size:14px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23c9d6ef' stroke-width='2'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='M11 11l4 4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:11px 50%}
+.gs input::placeholder{color:#aebcd8}
+.gs input:focus{outline:none;background-color:#fff;color:var(--fg);border-color:#fff;box-shadow:0 0 0 3px rgba(242,194,48,.55)}
+.gres{position:absolute;top:42px;left:0;width:min(620px,92vw);max-height:72vh;overflow:auto;background:#fff;color:var(--fg);border-radius:12px;box-shadow:0 14px 44px rgba(16,30,60,.28);border:1px solid var(--line);z-index:50;padding:6px 0}
+.gres h6{margin:8px 14px 4px;font-size:11.5px;font-weight:700;color:var(--mut);letter-spacing:.02em;display:flex;justify-content:space-between}
+.gres .gi{display:grid;grid-template-columns:74px 1fr auto;gap:10px;align-items:center;padding:7px 14px;cursor:pointer}
+.gres .gi:hover,.gres .gi.on{background:#eef3fc}
+.gres .gi .c{font-variant-numeric:tabular-nums;font-weight:700;font-size:12.5px;color:var(--navy);white-space:nowrap}
+.gres .gi .n{min-width:0}.gres .gi .n b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gres .gi .n small{display:block;color:var(--mut);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gres .gi .r{font-size:12.5px;text-align:right;white-space:nowrap}
+.gres .gi .r .st{display:inline-block;border-radius:99px;padding:1px 8px;font-size:11.5px;font-weight:700;margin-left:6px}
+.gres .st.v{background:#e3f3ea;color:var(--ok)}.gres .st.s{background:#edf0f5;color:var(--sbc)}.gres .st.x{background:#fdeceb;color:var(--red)}.gres .st.k{background:#f3f5f8;color:var(--mut)}
+.gres .rv{color:var(--rev);font-weight:700}
+.gres .more{padding:4px 14px 8px;font-size:12px;color:var(--mut)}
+.gres .none{padding:16px 14px;color:var(--mut);font-size:13.5px}
+.gres .tip{padding:6px 14px 8px;font-size:12px;color:var(--mut);border-top:1px solid var(--line);margin-top:4px}
+@media (max-width:1250px){.tstats{display:none}}
 .tm summary{background:rgba(255,255,255,.1)!important;border:1px solid rgba(255,255,255,.18)!important;color:#fff!important;padding:7px 13px!important}
 .tm summary:hover,.tm[open] summary{background:rgba(255,255,255,.2)!important}
 .undo.off summary{opacity:.45}.undo .mn{min-width:380px;max-height:70vh;overflow:auto;right:0;left:auto}
@@ -299,6 +321,7 @@ dialog.cdw{width:min(1040px,95vw);padding:0}
 <div class="top">
   <div class="brand"><span class="mark" aria-hidden="true"></span><h1>Gestionale carte</h1></div>
   <div class="tstats" id="stats"></div>
+  <div class="gs" id="gs"><input type="search" id="gQ" autocomplete="off" spellcheck="false" placeholder="Cerca carte, numeri, set, rarità, tipo, vendite…" title="Cerca in tutto il gestionale (scorciatoia: /)"><div class="gres" id="gRes" hidden></div></div>
   <div class="tact">
     <details class="menu tm"><summary>📥 Carica <span class="car">▾</span></summary><div class="mn">
       <button id="btnCat"><b>Liste dall'app</b><small>File .txt del telefono: le carte vanno in Standby</small></button>
@@ -497,8 +520,8 @@ const RKEY = id => 'tcgRar:' + id;
 function rarCache(setId) { try { return JSON.parse(localStorage.getItem(RKEY(setId))) || {}; } catch (e) { return {}; } }
 let rarJob = null;
 async function loadRarities(setId, cards) {
-  const cache = rarCache(setId);
-  const todo = cards.filter(c => !(norm(c.localId) in cache));
+  const cache = rarCache(setId), tcache = typCache(setId);
+  const todo = cards.filter(c => !(norm(c.localId) in cache) || !(norm(c.localId) in tcache));
   if (!todo.length) return;
   const job = rarJob = {};
   let i = 0;
@@ -508,6 +531,7 @@ async function loadRarities(setId, cards) {
       const d = await tcg('/cards/' + encodeURIComponent(c.id), 0, true);
       if (!d) continue;                                  // senza internet: riprovo la prossima volta
       cache[norm(c.localId)] = rarIt(d.rarity || '');
+      tcache[norm(c.localId)] = typStr(d);
       const el = document.querySelector(`.card[data-n="${CSS.escape(norm(c.localId))}"] .rar`);
       if (el) el.textContent = cache[norm(c.localId)];
     }
@@ -515,7 +539,12 @@ async function loadRarities(setId, cards) {
   await Promise.all([1, 2, 3, 4, 5, 6].map(worker));
   if (rarJob === job) { cfRarOptions(); if (cf.rar) applyCardFilter(); }
   try { localStorage.setItem(RKEY(setId), JSON.stringify(cache)); } catch (e) {}
+  try { localStorage.setItem(TKEY(setId), JSON.stringify(tcache)); } catch (e) {}
 }
+// tipo, categoria e fase della carta (per la ricerca): es. "Fuoco Pokémon Fase 1", "Allenatore Strumento"
+const TKEY = id => 'tcgTyp:' + id;
+function typCache(setId) { try { return JSON.parse(localStorage.getItem(TKEY(setId))) || {}; } catch (e) { return {}; } }
+const typStr = d => [...(d.types || []), d.category, d.stage, d.trainerType, d.energyType, d.suffix].filter(Boolean).join(' ');
 
 // ---------- arrivo dati dallo script di Cardmarket ----------
 function mergeCatalog(exp) {
@@ -995,6 +1024,14 @@ function importCheckFromHash() {
   if (!list.length) { alert('Lo script non ha letto nessuna offerta: controllo non fatto. Riprova da "Le mie offerte".'); return true; }
   // lettura parziale (più di 300 offerte): ho letto solo i set in rx, per gli altri non segnalo "solo nel gestionale"
   chk = { at: d.at || new Date().toISOString(), list, rx: d.full === 0 ? (d.rx || []).map(String) : null, warn: d.warn || [] };
+  // copie corrette su Cardmarket durante il controllo (le offerte lette sono già quelle dopo la correzione)
+  if ((d.fixed || []).length) {
+    const by = {};
+    d.fixed.forEach(r => { const L = state.listings[r.k]; const set = L ? (L.expName || state.cm[L.exp]?.name || '') : '';
+      (by[set] = by[set] || []).push(`${L ? cardTxt(L) : r.k} ${r.from} → ${r.qt} copie${r.zero ? ' (offerta da togliere a mano)' : ''}`); });
+    Object.entries(by).forEach(([set, a]) => logOp('quantita', set, `Controllo: copie corrette su Cardmarket (vale il gestionale): ${a.join(', ')}`, null));
+    setTimeout(() => toast(`Copie corrette su Cardmarket durante il controllo: ${d.fixed.filter(r => !r.zero).length}`), 1500);
+  }
   try { localStorage.setItem(CHK_KEY, JSON.stringify(chk)); } catch (e) {}
   state.chkAt = chk.at; softSave();
   selected = '__chk';
@@ -1034,6 +1071,21 @@ function chkDiffs() {
   return out;
 }
 /** prepara per lo script l'elenco delle quantità da correggere su Cardmarket: rows = [{k, qt}] (qt = copie giuste) */
+/** dopo una correzione delle copie fatta (e verificata) dallo script, aggiorno il controllo: la differenza sparisce */
+function chkAfterFix(res) {
+  if (!chk || !res.length) return;
+  const diffs = chkDiffs();
+  res.forEach(r => {
+    if (r.zero || r.qt == null) return;              // offerte da togliere a mano: restano finché non rifai il controllo
+    const d = diffs.find(x => x.type === 'qty' && x.k === r.k);
+    if (!d) return;
+    let rem = Math.max(0, r.qt);
+    d.os.forEach(o => { const t = Math.min(o.q, rem); o.q = t; rem -= t; });
+    if (rem > 0 && d.os[0]) d.os[0].q += rem;
+  });
+  chk.list = chk.list.filter(o => o.q > 0);
+  try { localStorage.setItem(CHK_KEY, JSON.stringify(chk)); } catch (e) {}
+}
 function openQtyEdit(rows, why, scope) {
   rows = rows.filter(r => state.listings[r.k] || r.l);
   if (!rows.length) return false;
@@ -1084,11 +1136,13 @@ function chkApplyMany(list, what) {
 }
 const chkF = { type: '' };
 /** set da leggere uno per uno su Cardmarket (oltre 300 offerte Cardmarket non mostra le altre): [[idEspansione Cardmarket, nome]] */
-function chkSetsParam() {
+function chkSetsParam(fix) {
   const ids = new Set(Object.values(state.listings).map(l => String(l.exp)).filter(Boolean));
   Object.values(state.standby || {}).forEach(X => { const e = Object.entries(state.cm).find(([, E]) => simp(E.name) === simp(X.sn)); if (e) ids.add(String(e[0])); });
   const e = [...ids].filter(id => /^\d+$/.test(id)).map(id => [id, state.cm[id]?.name || '']);
-  return encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({ e })))));
+  // con "correggi subito": le copie giuste di ogni carta in vendita (lo script abbassa solo quelle in più su Cardmarket)
+  const L = fix ? Object.entries(state.listings).map(([k, l]) => [k, setCode(l), l.expName || state.cm[l.exp]?.name || '', l.u, info(l).name, l.rev ? 1 : 0, l.lang || 'it', l.q]) : undefined;
+  return encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({ e, L })))));
 }
 function openStockCheck() {
   openDlg(`<h3>Controlla il magazzino con Cardmarket</h3>
@@ -1096,10 +1150,19 @@ function openStockCheck() {
     <ol><li>Premi <b>Apri le mie offerte</b>: si apre la pagina di Cardmarket (devi essere collegato).</li>
       <li>Lì premi <b>📋 Card Scanner → CM</b> nei preferiti, poi <b>🔎 Leggi le mie offerte</b>.</li>
       <li>Alla fine premi <b>📤 Invia al gestionale</b>: torni qui con il risultato.</li></ol>
+    <label class="sw" style="display:flex;gap:10px;align-items:flex-start;background:#f3f7ff;border:1px solid #cddcf5;border-radius:10px;padding:10px 12px;margin:10px 0">
+      <input type="checkbox" id="kFix" ${localStorage.getItem('gestionaleChkFix') === '1' ? 'checked' : ''} style="margin-top:3px">
+      <span><b>Correggi subito su Cardmarket le copie in più</b><br><span class="small">Controllo e correzione in un colpo solo: dove su Cardmarket ci sono <b>più</b> copie che nel gestionale, lo script le abbassa (vale il gestionale), poi manda qui il risultato. Dove su Cardmarket ce ne sono <b>meno</b> non tocca nulla: può essere una vendita non ancora caricata, decidi tu nella scheda Controllo. Le offerte da portare a 0 copie le togli tu.</span></span></label>
     <p class="small">Non hai il pulsante Card Scanner nei preferiti, o è vecchio? <a href="../cardmarket/" target="_blank">Installalo da qui</a>: per il controllo serve la versione nuova.</p>
     <p style="text-align:right"><button id="dClose">Annulla</button> <button class="pri" id="kGo">Apri le mie offerte</button></p>`, () => {
     $('dClose').onclick = closeDlg;
-    $('kGo').onclick = () => { const w = window.open(OFFERS_URL, 'cscheck=' + Date.now() + '.' + chkSetsParam()); if (!w) alert('Il browser ha bloccato la nuova scheda: permetti i popup per questa pagina e riprova.'); closeDlg(); };
+    $('kGo').onclick = () => {
+      const fix = $('kFix').checked; localStorage.setItem('gestionaleChkFix', fix ? '1' : '0');
+      const w = window.open(OFFERS_URL, 'cscheck=' + Date.now() + '.' + chkSetsParam(fix));
+      if (!w) alert('Il browser ha bloccato la nuova scheda: permetti i popup per questa pagina e riprova.');
+      else if (fix) logOp('quantita', '', 'Controllo con correzione delle copie in più su Cardmarket avviato', null);
+      closeDlg();
+    };
   });
 }
 function renderChk() {
@@ -1603,6 +1666,135 @@ function undoShow() {
     + (u.length > 1 ? `<div class="mh">Torna a prima di…</div>` + u.slice(0, -1).map((e, i) => [e, u.length - i]).reverse().map(([e, steps]) =>
       `<button data-u="${steps}"><b>${esc(e.label)}</b><small>${when(e.at)}${e.set ? ' · ' + esc(e.set) : ''} · annulla ${steps} operazioni</small></button>`).join('') : '')
     + '<div class="small" style="padding:8px 12px;border-top:1px solid var(--line)">Annulla cambia solo il gestionale, non Cardmarket. Anche Ctrl+Z / Ctrl+Y.</div>';
+}
+// ---------- ricerca in tutto il gestionale (barra blu in alto) ----------
+const fold = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const gsWords = t => fold(t).replace(/€/g, ' ').split(/[\s/·|()\[\]"]+/).map(w => w.replace(/^[^\w]+|[^\w,.]+$/g, '').replace(/\.$/, '')).filter(Boolean);
+/** tutte le cose cercabili: carte in vendita, Standby, vendute, altre carte dei miei set, set */
+function gsIndex() {
+  const out = [], seen = new Set(), typ = {}, sg = {};
+  const sigOf = (sid, name) => sid in sg ? sg[sid] : (sg[sid] = siglaOf(sid, name) || '');
+  const typOf = (sid, u) => { if (!sid || String(sid).startsWith('cm:')) return ''; const T = typ[sid] || (typ[sid] = typCache(sid)); return T[norm(u)] || ''; };
+  const numW = u => { const n = String(u || ''); return /^\d+$/.test(n) ? [n, String(parseInt(n, 10))] : [n]; };
+  for (const [k, l] of Object.entries(state.listings)) {
+    const sid = tcgIdFor(l.expName || state.cm[l.exp]?.name) || ('cm:' + l.exp), I = info(l), code = String(setCode(l) || '');
+    seen.add(sid + '|' + norm(l.u));
+    out.push({ sec: 'v', sid, u: l.u, name: I.name, code, set: I.set, rev: l.rev, lang: l.lang,
+      sub: [I.set, I.rar !== 'Non indicata' ? I.rar : '', LANGN[l.lang] && l.lang !== 'it' ? LANGN[l.lang] : ''].filter(Boolean).join(' · '),
+      right: `${l.q} × ${eur(l.price) || '—'}`, st: ['v', 'In vendita'],
+      hay: [...numW(l.u), code, code + String(l.u || '').padStart(3, '0'), I.name, I.set, I.rar, l.rev ? 'reverse holo rev' : 'normale', LANGN[l.lang], 'in vendita', eur(l.price).replace(' €', ''), l.com, typOf(sid, l.u), state.cm[l.exp]?.cards?.[l.p]?.n].join(' ') });
+  }
+  for (const [k, x] of Object.entries(state.standby || {})) {
+    const code = sigOf(x.s, x.sn);
+    seen.add(x.s + '|' + norm(x.u));
+    out.push({ sec: 's', sid: x.s, u: x.u, name: x.n, code, set: x.sn, rev: x.rev, lang: x.lang,
+      sub: [x.sn, rarIt(x.r), x.file ? 'da ' + x.file : ''].filter(Boolean).join(' · '), right: `${x.q} ${x.q === 1 ? "copia" : "copie"}`, st: ['s', 'Standby'],
+      hay: [...numW(x.u), code, code + String(x.u || '').padStart(3, '0'), x.n, x.sn, rarIt(x.r), x.rev ? 'reverse holo rev' : 'normale', LANGN[x.lang], 'standby', x.com, x.file, typOf(x.s, x.u)].join(' ') });
+  }
+  state.sold.forEach(x => {
+    const sn = x.expName || state.cm[x.exp]?.name || '', sid = tcgIdFor(sn) || (x.exp ? 'cm:' + x.exp : null);
+    out.push({ sec: 'x', sid, u: x.num, name: x.name, code: '', set: sn, rev: x.rev, order: x.order,
+      sub: [fmtD(x.date), sn, x.buyer || '', x.order ? '#' + x.order : '', x.source || ''].filter(Boolean).join(' · '),
+      right: `${x.q} × ${eur(x.price) || '—'}`, st: ['x', 'Venduta'],
+      hay: [...numW(x.num), x.name, sn, x.rev ? 'reverse holo rev' : 'normale', LANGN[x.lang], 'venduta vendite venduto', x.buyer, x.order, x.source, fmtD(x.date), eur(x.price).replace(' €', ''), typOf(sid, x.num)].join(' ') });
+  });
+  // altre carte dei set che conosco dal catalogo di Cardmarket (non le ho)
+  Object.values(state.cm).forEach(E => {
+    const sid = tcgIdFor(E.name) || ('cm:' + E.id);
+    Object.values(E.cards || {}).forEach(c => {
+      if (!c.u || seen.has(sid + '|' + norm(c.u))) return;
+      seen.add(sid + '|' + norm(c.u));
+      out.push({ sec: 'k', sid, u: c.u, name: c.n, code: String(c.c || ''), set: E.name, sub: [E.name, rarIt(c.r)].filter(Boolean).join(' · '), right: '', st: ['k', 'Non ce l\'hai'],
+        hay: [...numW(c.u), c.c, String(c.c || '') + String(c.u).padStart(3, '0'), c.n, E.name, rarIt(c.r), typOf(sid, c.u)].join(' ') });
+    });
+  });
+  tcgSets.forEach(x => { const c = x.id in sg ? sg[x.id] : (state.codes?.[x.id] || ''); out.push({ sec: 'set', sid: x.id, name: x.name, code: c, sub: '', right: '', hay: [x.name, x.id, c, 'set espansione'].join(' ') }); });
+  out.forEach(o => { o.w = gsWords(o.hay); });
+  return out;
+}
+let gsCache = null, gsAt = 0, gsSel = 0, gsShown = [];
+function gsMatch(o, toks) {
+  return toks.every(t => {
+    const tn = t.replace('.', ','), dig = /^\d+$/.test(t);
+    return o.w.some(w => w.startsWith(tn) || (dig && /^\d+$/.test(w) && +w === +t));
+  });
+}
+function gsRun() {
+  const q = $('gQ').value.trim(), box = $('gRes');
+  if (!q) { box.hidden = true; return; }
+  if (!gsCache || Date.now() - gsAt > 4000) { gsCache = gsIndex(); gsAt = Date.now(); }
+  const toks = gsWords(q);
+  const hits = gsCache.filter(o => gsMatch(o, toks));
+  const SEC = [['v', 'In vendita'], ['s', 'In Standby'], ['x', 'Vendute'], ['k', 'Altre carte dei tuoi set'], ['set', 'Set']];
+  gsShown = []; let h = '';
+  SEC.forEach(([sec, title]) => {
+    let a = hits.filter(o => o.sec === sec);
+    if (!a.length) return;
+    // prima i nomi che iniziano con la ricerca, poi per numero
+    const t0 = toks[0];
+    a.sort((x, y) => (fold(y.name).startsWith(t0) - fold(x.name).startsWith(t0)) || String(x.set).localeCompare(String(y.set)) || (parseInt(x.u, 10) || 0) - (parseInt(y.u, 10) || 0));
+    const max = sec === 'k' || sec === 'set' ? 6 : 12;
+    h += `<h6><span>${title}</span><span>${a.length}</span></h6>`;
+    a.slice(0, max).forEach(o => {
+      const i = gsShown.push(o) - 1;
+      const cd = o.sec === 'set' ? (o.code || '') : `${o.code ? o.code + ' ' : ''}${o.u || ''}`;
+      h += `<div class="gi" data-i="${i}"><span class="c">${esc(cd)}</span><span class="n"><b>${esc(o.name || '—')}${o.rev ? ' <span class="rv">Reverse</span>' : ''}</b><small>${esc(o.sub || '')}</small></span>
+        <span class="r">${esc(o.right || '')}${o.st ? `<span class="st ${o.st[0]}">${o.st[1]}</span>` : ''}</span></div>`;
+    });
+    if (a.length > max) h += `<div class="more">e altre ${a.length - max}: scrivi qualcosa in più per restringere (es. il set o il numero)</div>`;
+  });
+  box.innerHTML = (h || `<div class="none">Nessun risultato per "${esc(q)}".</div>`) +
+    '<div class="tip">Puoi unire più parole: <b>pikachu 25</b>, <b>reverse rara 30c</b>, <b>fuoco standby</b>, <b>venduta mario</b>, <b>0,32</b>. Invio apre il primo risultato.</div>';
+  box.hidden = false;
+  gsSel = 0; gsMark();
+}
+function gsMark() { $('gRes').querySelectorAll('.gi').forEach(e => e.classList.toggle('on', +e.dataset.i === gsSel)); $('gRes').querySelector('.gi.on')?.scrollIntoView({ block: 'nearest' }); }
+async function gsOpen(o) {
+  $('gRes').hidden = true; $('gQ').blur();
+  if (o.sec === 'set') { selected = o.sid; renderSets(); await renderSet(); $('main').scrollTop = 0; return; }
+  if (o.sec === 'x') {
+    goTab('__sales');
+    const tr = o.order && document.querySelector(`tr.ord[data-o="${CSS.escape('o' + o.order)}"]`);
+    if (tr) { tr.click(); tr.scrollIntoView({ block: 'center' }); tr.style.background = '#fff6d6'; setTimeout(() => { tr.style.background = ''; }, 2500); }
+    return;
+  }
+  if (!o.sid) return;
+  selected = o.sid; renderSets(); await renderSet();
+  const el = document.querySelector(`.card[data-n="${CSS.escape(norm(o.u))}"]`);
+  if (el) { el.scrollIntoView({ block: 'center' }); el.click(); }
+}
+let gsT = null, gsTypesLoaded = false;
+$('gQ').addEventListener('input', () => { clearTimeout(gsT); gsT = setTimeout(gsRun, 120); });
+$('gQ').addEventListener('focus', () => { gsCache = null; if ($('gQ').value.trim()) gsRun(); if (!gsTypesLoaded) { gsTypesLoaded = true; loadOwnedTypes(); } });
+$('gQ').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); gsSel = Math.min(gsShown.length - 1, gsSel + 1); gsMark(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); gsSel = Math.max(0, gsSel - 1); gsMark(); }
+  else if (e.key === 'Enter') { e.preventDefault(); if (gsShown[gsSel]) gsOpen(gsShown[gsSel]); }
+  else if (e.key === 'Escape') { $('gQ').value = ''; $('gRes').hidden = true; $('gQ').blur(); }
+});
+$('gRes').addEventListener('mousedown', e => { const g = e.target.closest('.gi'); if (g) { e.preventDefault(); gsOpen(gsShown[+g.dataset.i]); } });
+document.addEventListener('mousedown', e => { if (!e.target.closest('#gs')) $('gRes').hidden = true; });
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') && !$('dlg').open) { e.preventDefault(); $('gQ').focus(); $('gQ').select(); }
+});
+/** tipo/categoria delle carte che ho (in vendita e Standby), scaricati in sottofondo per la ricerca */
+async function loadOwnedTypes() {
+  const want = {};
+  Object.entries(listingsBySet()).forEach(([sid, a]) => a.forEach(([, l]) => (want[sid] = want[sid] || new Set()).add(l.u)));
+  Object.values(state.standby || {}).forEach(x => (want[x.s] = want[x.s] || new Set()).add(x.u));
+  for (const [sid, us] of Object.entries(want)) {
+    if (!sid || sid.startsWith('cm:')) continue;
+    const T = typCache(sid), S = await tcg('/sets/' + encodeURIComponent(sid), 24 * 7);
+    const todo = [...us].filter(u => !(norm(u) in T));
+    if (!todo.length || !S || !Array.isArray(S.cards)) continue;
+    let i = 0;
+    const worker = async () => { while (i < todo.length) { const u = todo[i++]; const c = S.cards.find(x => norm(x.localId) === norm(u)); if (!c) continue;
+      const d = await tcg('/cards/' + encodeURIComponent(c.id), 0, true); if (d) T[norm(u)] = typStr(d); } };
+    await Promise.all([1, 2, 3, 4].map(worker));
+    try { localStorage.setItem(TKEY(sid), JSON.stringify(T)); } catch (e) {}
+    gsCache = null;
+  }
+  if ($('gQ').value.trim() && !$('gRes').hidden) gsRun();
 }
 document.addEventListener('keydown', e => {
   if (!(e.ctrlKey || e.metaKey) || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') || $('dlg').open) return;
@@ -2941,6 +3133,7 @@ function importEditFromHash() {
     (d.res || []).forEach(r => { const L = state.listings[r.k]; const set = L ? (L.expName || state.cm[L.exp]?.name || '') : '';
       (txtQ[set] = txtQ[set] || []).push(`${L ? cardTxt(L) : r.k} → ${r.qt} copie${r.zero ? ' (offerta da togliere a mano)' : ''}`); if (r.zero) zero.push(L ? cardTxt(L) : r.k); });
     Object.entries(txtQ).forEach(([set, a]) => logOp('quantita', set, `Quantità corrette su Cardmarket (script, ${d.name || ''}): ${a.join(', ')}`, null));
+    chkAfterFix(d.res || []);
     save();
     setTimeout(() => toast(`Quantità corrette su Cardmarket: ${(d.res || []).length}${zero.length ? ` · da togliere a mano: ${zero.join(', ')}` : ''}`), 300);
     return true;

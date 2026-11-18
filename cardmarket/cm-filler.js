@@ -410,60 +410,6 @@
       return out;
     }
 
-    // ---- apertura del riquadro "Modifica" di un'offerta ----
-    const modal = () => document.getElementById('modal');
-    const modalOpen = () => { const m = modal(); return !!m && (m.classList.contains('show') || getComputedStyle(m).display === 'block'); };
-    let lastInput = null;
-    // porta nella pagina la riga dell'offerta: carico la pagina filtrata per Edizione (come scegliere l'Edizione e premere CERCA)
-    // e metto le sue righe al posto di quelle mostrate, così il riquadro "Modifica" si apre dalla riga vera
-    async function bringRow(o) {
-      const sel = `#stockRow${o.id} a[data-modal*="EditArticleModal"]`;
-      if (document.querySelector(sel)) return true;
-      if (!filterForm) { const se = document.querySelector('select[name="idExpansion"]'); filterForm = se && (se.closest('form') || se.form); }
-      const fx = o.fx || { e: '0', r: o.rev ? 'Y' : 'N', s: 1 };
-      // prima la pagina in cui l'ho letta, poi le altre pagine dello stesso set (le offerte si spostano se ne cambi altre)
-      let pages = 1;
-      const tryPage = async s => {
-        const r = await fetch(`/it/Pokemon/Stock/Offers/Singles?${filterQs({ idExpansion: fx.e, isReverseHolo: fx.r, site: s })}`, { credentials: 'include' });
-        if (!r.ok) return false;
-        const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
-        const pm = doc.body.textContent.match(/Pagina\s+\d+\s+di\s+(\d+)/i); if (pm) pages = +pm[1];
-        const row = doc.getElementById('stockRow' + o.id);
-        if (!row) return false;
-        const box = (document.querySelector('[id^="stockRow"]') || {}).parentElement || document.querySelector('.table-body');
-        const src = row.parentElement;
-        if (!box || !src) return false;
-        box.innerHTML = src.innerHTML;
-        // aggiorno anche il filtro mostrato, così si vede quale Edizione è in pagina
-        const se = document.querySelector('select[name="idExpansion"]'); if (se && fx.e !== '0') se.value = fx.e;
-        return !!document.querySelector(sel);
-      };
-      if (await tryPage(fx.s || 1)) return true;
-      for (let s = 1; s <= Math.min(pages, 15); s++) { if (s === fx.s) continue; await sleep(500); if (await tryPage(s)) return true; }
-      return false;
-    }
-    async function openEdit(id, o) {
-      if (o) { prog(`Cerco ${o.name} nella sua Edizione…`); await bringRow(o); }
-      const real = document.querySelector(`#stockRow${id} a[data-modal*="EditArticleModal"]`);
-      let a = real;
-      if (!a) {
-        a = document.createElement('a');
-        a.href = '#'; a.setAttribute('role', 'button');
-        a.setAttribute('data-bs-toggle', 'modal'); a.setAttribute('data-bs-target', '#modal'); a.setAttribute('data-backdrop', 'true');
-        a.setAttribute('data-modal', `/it/Pokemon/Modal/Article_EditArticleModal?showUserOffersRow=1&table=userOffers&idArticle=${id}`);
-        a.style.display = 'none';
-        document.body.appendChild(a);
-      }
-      a.click();
-      if (!real) setTimeout(() => a.remove(), 2000);
-      // aspetto il nuovo riquadro con il campo prezzo (non quello della carta precedente)
-      for (let i = 0; i < 60; i++) {
-        await sleep(200);
-        const inp = modal() && modal().querySelector('input[name="price"]');
-        if (inp && inp !== lastInput && modalOpen()) { lastInput = inp; return inp; }
-      }
-      return null;
-    }
     function setVal(el, v) {
       const proto = Object.getPrototypeOf(el);
       const d = Object.getOwnPropertyDescriptor(proto, 'value');
@@ -471,18 +417,7 @@
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
     }
-    function submitBtn() {
-      const m = modal();
-      if (!m) return null;
-      return [...m.querySelectorAll('button, input[type="submit"]')].find(b => /modifica\s+articolo/i.test(b.textContent || b.value || '')) ||
-        m.querySelector('form [type="submit"]');
-    }
-    async function waitClosed(maxMs) {
-      for (let t = 0; t < maxMs; t += 250) { await sleep(250); if (!modalOpen()) return true; if (stopHard) return false; }
-      return false;
-    }
     let stopHard = false;
-    const rowCount = id => { const c = document.querySelector(`#stockRow${id} .item-count`); return c ? +c.textContent.trim() : null; };
     let lastErr = '';
     const fail = t => { lastErr = t.replace(/^⚠\s*/, ''); prog(t); return 'err'; };
     // le copie si cambiano dentro una copia vera della pagina dell'Edizione (come dopo CERCA), caricata in un riquadro:
@@ -503,7 +438,8 @@
         document.body.appendChild(f);
       });
     }
-    async function qtyStep(x, auto) {
+    /** apre in un riquadro la vera pagina dell'Edizione dell'offerta (come scegliere l'Edizione e premere CERCA) e ne trova la riga */
+    async function frameRow(x, visible) {
       const fx = x.o.fx || { e: '0', r: x.o.rev ? 'Y' : 'N', s: 1 };
       const url = s => `/it/Pokemon/Stock/Offers/Singles?${filterQs({ idExpansion: fx.e, isReverseHolo: fx.r, site: s })}`;
       let f = null, doc = null, row = null;
@@ -511,16 +447,22 @@
       const order = [fx.s || 1, ...Array.from({ length: 15 }, (_, i) => i + 1).filter(s => s !== (fx.s || 1))];
       for (const s of order) {
         prog(`Apro ${x.o.name} nella sua Edizione (pagina ${s})…`);
-        f = await frameLoad(url(s), !auto);
+        f = await frameLoad(url(s), visible);
         try { doc = f.contentDocument; } catch (e) { doc = null; }
-        if (!doc || !doc.body) { f.remove(); return fail(`⚠ Cardmarket non mi lascia aprire la pagina dell'Edizione dentro lo script. Correggi a mano: ${x.o.name} da ${x.o.qty} a ${x.tq} copie.`); }
+        if (!doc || !doc.body) { f.remove(); return { err: `⚠ Cardmarket non mi lascia aprire la pagina dell'Edizione dentro lo script. Correggi a mano ${x.o.name}.` }; }
         row = doc.getElementById('stockRow' + x.o.id);
-        if (row) break;
+        if (row) return { f, doc, row, page: s, url: url(s) };
         const pm = doc.body.textContent.match(/Pagina\s+\d+\s+di\s+(\d+)/i);
         if (pm && s >= +pm[1] && s !== (fx.s || 1)) break;
         await sleep(500);
       }
-      if (!row) { if (f) f.remove(); return fail(`⚠ Non trovo la riga di ${x.o.name} su Cardmarket: forse è stata venduta o cambiata. Rileggi le offerte. Mi fermo.`); }
+      if (f) f.remove();
+      return { err: `⚠ Non trovo la riga di ${x.o.name} su Cardmarket: forse è stata venduta o cambiata. Rileggi le offerte. Mi fermo.` };
+    }
+    async function qtyStep(x, auto) {
+      const fr = await frameRow(x, !auto);
+      if (fr.err) return fail(fr.err);
+      const { f, doc, row } = fr;
       const W = doc.defaultView;
       const cnt = () => { const c = doc.querySelector(`#stockRow${x.o.id} .item-count`); return c ? +c.textContent.trim() : null; };
       const cur = cnt();
@@ -556,6 +498,55 @@
       if (res) return res;
       return fail(`⚠ ${x.o.name}: Cardmarket non ha aggiornato le copie entro 20 secondi (restano ${cur}). Premi ▶ per riprovare, oppure togli la spunta "Conferma automatica" e premi tu il pulsante.`);
     }
+    // prezzo: riquadro "Modifica" aperto dalla riga vera, dentro la pagina dell'Edizione; dopo il salvataggio rileggo il prezzo
+    async function priceStep(x, auto) {
+      const fr = await frameRow(x, !auto);
+      if (fr.err) return fail(fr.err);
+      const { f, doc, row } = fr, W = doc.defaultView;
+      const priceOf = r => { const pt = r && (r.querySelector('.price-container .fw-bold') || r.querySelector('.fw-bold')); return pt ? parseFloat(pt.textContent.replace(/[^\d,.]/g, '').replace(',', '.')) : null; };
+      const target = Math.round(x.it.price * 100) / 100;
+      if (Math.abs((priceOf(row) ?? -1) - target) < 0.005) { f.remove(); return 'ok'; }
+      const link = row.querySelector('a[data-modal*="EditArticleModal"]');
+      if (!link) { f.remove(); return fail(`⚠ Nella riga di ${x.o.name} non trovo il pulsante Modifica. Mi fermo.`); }
+      try { row.scrollIntoView({ block: 'center' }); } catch (e) {}
+      const M = () => doc.getElementById('modal');
+      const isOpen = () => { const m = M(); return !!m && m.classList.contains('show') && W.getComputedStyle(m).display !== 'none'; };
+      link.click();
+      let inp = null;
+      for (let t = 0; t < 12000 && !inp; t += 200) { await sleep(200); if (isOpen()) inp = M().querySelector('input[name="price"]'); }
+      if (!inp) { f.remove(); return fail(`⚠ Il riquadro "Modifica" di ${x.o.name} non si è aperto. Premi ▶ per riprovare.`); }
+      const m = M();
+      // controlli di sicurezza: carta giusta e variante giusta
+      const title = (m.querySelector('.modal-title, h1, h2, h3, h4, h5') || {}).textContent || '';
+      if (title && x.o.name && !smp(title).includes(smp(x.o.name).slice(0, 6))) { f.remove(); return fail(`⚠ Il riquadro aperto ("${title.trim()}") non sembra quello di ${x.o.name}: mi fermo per sicurezza.`); }
+      const revBox = m.querySelector('input[name="isReverseHolo"], input[name*="everse"]');
+      if (revBox && revBox.type === 'checkbox' && revBox.checked !== !!x.it.rev) { f.remove(); return fail(`⚠ Il riquadro di ${x.o.name} non è ${x.it.rev ? 'Reverse' : 'normale'} come previsto: mi fermo per sicurezza.`); }
+      Object.getOwnPropertyDescriptor(W.HTMLInputElement.prototype, 'value').set.call(inp, target.toFixed(2));
+      inp.dispatchEvent(new W.Event('input', { bubbles: true })); inp.dispatchEvent(new W.Event('change', { bubbles: true }));
+      inp.style.outline = '3px solid #ffcb05'; inp.style.background = '#fff7cc';
+      const sb = [...m.querySelectorAll('button, input[type="submit"]')].find(b => /modifica\s+articolo/i.test(b.textContent || b.value || '')) || m.querySelector('form [type="submit"]');
+      let submitted = false;
+      const onSub = () => { submitted = true; };
+      if (sb) sb.addEventListener('click', onSub, true);
+      if (inp.form) inp.form.addEventListener('submit', onSub, true);
+      const what = `${x.o.name}${x.it.rev ? ' Reverse' : ''}: ${eur(x.o.price)} → ${eur(target)}`;
+      if (auto && sb) { prog(`${what} · confermo…`); await sleep(700); sb.click(); }
+      else prog(`👉 ${what} — nel riquadro con il bordo giallo controlla e premi "MODIFICA ARTICOLO" (chiudi il riquadro di Modifica per saltarla).`);
+      for (let t = 0; t < (auto ? 20000 : 30 * 60 * 1000) && isOpen(); t += 250) { await sleep(250); if (stopHard) break; }
+      if (isOpen()) { f.remove(); return fail(`⚠ ${x.o.name}: Cardmarket non ha chiuso il riquadro (errore?). Controlla e premi ▶ per continuare.`); }
+      f.remove();
+      if (!submitted) return 'skip';
+      // verifica: rileggo la pagina e controllo il prezzo dell'offerta
+      await sleep(800);
+      try {
+        const r = await fetch(fr.url, { credentials: 'include' });
+        const d2 = new DOMParser().parseFromString(await r.text(), 'text/html');
+        const now = priceOf(d2.getElementById('stockRow' + x.o.id));
+        if (now != null && Math.abs(now - target) < 0.005) return 'ok';
+        if (now != null) return fail(`⚠ ${x.o.name}: dopo "MODIFICA ARTICOLO" su Cardmarket il prezzo è ancora ${eur(now)} (doveva essere ${eur(target)}). Mi fermo.`);
+      } catch (e) {}
+      return fail(`⚠ ${x.o.name}: non riesco a ricontrollare il prezzo su Cardmarket. Premi "Verifica i prezzi".`);
+    }
     // a fine lavoro tolgo riquadri ed evidenziazioni lasciate nella pagina
     function cleanPage() {
       document.querySelectorAll('iframe.csQty').forEach(f => f.remove());
@@ -578,60 +569,19 @@
         if (x.tq != null && x.it.price == null) {
           lastErr = '';
           const r = await qtyStep(x, auto);
-          done[key] = { st: r, at: new Date().toISOString(), tq: x.tq, why: r === 'err' ? lastErr : '' }; ls.set(DKEY, done);
+          done[key] = { st: r, at: new Date().toISOString(), tq: x.tq, ver: r === 'ok' ? 1 : 0, why: r === 'err' ? lastErr : '' }; ls.set(DKEY, done);
           if (r === 'ok') x.o.qty = x.tq;
           render();
           if (r === 'err') break;
           await sleep(auto ? 3000 : 600);
           continue;
         }
-        prog(`Apro ${x.it.code || ''} ${x.it.u} ${x.it.n || ''}${x.it.rev ? ' Reverse' : ''}…`);
-        const inp = await openEdit(x.o.id, x.o);
-        if (!inp) { done[key] = { st: 'err' }; ls.set(DKEY, done); prog('Il riquadro "Modifica" non si è aperto: ricarica la pagina (F5) e riprova.'); break; }
-        const m = modal();
-        // controllo: il riquadro è di questa carta?
-        const title = (m.querySelector('.modal-title, h1, h2, h3, h4, h5') || {}).textContent || '';
-        if (title && x.it.n && x.o.name && !smp(title).includes(smp(x.o.name).slice(0, 6))) {
-          prog(`⚠ Il riquadro aperto ("${title.trim()}") non sembra quello di ${x.o.name}: mi fermo per sicurezza.`);
-          done[key] = { st: 'err' }; ls.set(DKEY, done); break;
-        }
-        // eventuale Reverse: il riquadro deve avere la spunta Reverse coerente
-        const revBox = m.querySelector('input[name="isReverseHolo"], input[name*="everse"]');
-        if (revBox && revBox.type === 'checkbox' && revBox.checked !== !!x.it.rev) {
-          prog(`⚠ Il riquadro di ${x.o.name} non è ${x.it.rev ? 'Reverse' : 'normale'} come previsto: mi fermo per sicurezza.`);
-          done[key] = { st: 'err' }; ls.set(DKEY, done); break;
-        }
-        // quantità: cerco il campo "Quantità" del riquadro
-        let field = inp, what = `${eur(x.o.price)} → ${eur(x.it.price)}`;
-        if (x.tq != null) {
-          const qInp = [...m.querySelectorAll('input, select')].find(e => /^(amount|quantity|count)$/i.test(e.name || '')) ||
-            [...m.querySelectorAll('input, select')].find(e => /amount|quant/i.test(e.name || e.id || '')) ||
-            [...m.querySelectorAll('label')].map(lb => lb.htmlFor ? m.querySelector('#' + CSS.escape(lb.htmlFor)) : lb.querySelector('input, select')).find((e, i, a) => e && /quantit/i.test(m.querySelectorAll('label')[i].textContent));
-          if (!qInp) { prog('⚠ Nel riquadro "Modifica" non trovo il campo Quantità: mandami una foto del riquadro aperto. Mi fermo.'); done[key] = { st: 'err' }; ls.set(DKEY, done); break; }
-          setVal(qInp, String(x.tq)); field = qInp; what = `copie ${x.o.qty} → ${x.tq}`;
-          if (x.it.price != null) setVal(inp, x.it.price.toFixed(2));
-        } else setVal(inp, x.it.price.toFixed(2));
-        field.style.outline = '3px solid #ffcb05'; field.style.background = '#fff7cc';
-        let submitted = false;
-        const sb = submitBtn();
-        const onSub = () => { submitted = true; };
-        if (sb) sb.addEventListener('click', onSub, true);
-        const form = inp.form; if (form) form.addEventListener('submit', onSub, true);
-        if (auto && sb) {
-          prog(`${x.o.name}: ${what} · confermo…`);
-          await sleep(700);
-          sb.click();
-          const closed = await waitClosed(20000);
-          if (!closed) { done[key] = { st: 'err' }; ls.set(DKEY, done); prog(`⚠ ${x.o.name}: Cardmarket non ha chiuso il riquadro (errore?). Controlla e premi ▶ per continuare.`); break; }
-        } else {
-          prog(`👉 ${x.o.name}${x.it.rev ? ' Reverse' : ''}: ${what} — controlla e premi "MODIFICA ARTICOLO" (o chiudi il riquadro per saltarla).`);
-          await waitClosed(30 * 60 * 1000);
-        }
-        if (sb) sb.removeEventListener('click', onSub, true);
-        done[key] = { st: submitted ? 'ok' : 'skip', at: new Date().toISOString(), tq: x.tq };
-        ls.set(DKEY, done);
-        if (submitted) { if (x.tq != null) x.o.qty = x.tq; if (x.it.price != null) x.o.price = x.it.price; }
+        lastErr = '';
+        const r = await priceStep(x, auto);
+        done[key] = { st: r, at: new Date().toISOString(), ver: r === 'ok' ? 1 : 0, why: r === 'err' ? lastErr : '' }; ls.set(DKEY, done);
+        if (r === 'ok') x.o.price = x.it.price;
         render();
+        if (r === 'err') break;
         await sleep(auto ? 3000 : 600);
       }
       ls.set(OKEY, offers);
@@ -639,7 +589,7 @@
       running = false; render();
       const left = matchAll().filter(x => x.o && x.st !== 'ok' && x.st !== 'same' && x.st !== 'zero').length;
       const zero = matchAll().filter(x => x.st === 'zero');
-      prog(left ? (lastErr ? `⚠ ${lastErr}` : `Fermo. Mancano ${left} offerte: premi ▶ per continuare.`) : `Finito ✓${zero.length ? ` Togli tu da Cardmarket ${zero.length === 1 ? "l'offerta che va" : 'le ' + zero.length + ' offerte che vanno'} a 0 copie (${zero.map(x => x.o.name).join(', ')}).` : ''} Premi "Verifica" per ricontrollare, poi "📤 Invia al gestionale".`);
+      prog(left ? (lastErr ? `⚠ ${lastErr}` : `Fermo. Mancano ${left} offerte: premi ▶ per continuare.`) : `Finito ✓${zero.length ? ` Togli tu da Cardmarket ${zero.length === 1 ? "l'offerta che va" : 'le ' + zero.length + ' offerte che vanno'} a 0 copie (${zero.map(x => x.o.name).join(', ')}).` : ''} Ogni carta è stata ricontrollata su Cardmarket: premi "📤 Invia al gestionale".`);
     }
 
     // ---- verifica: rilegge le offerte e controlla i prezzi ----
@@ -1037,14 +987,6 @@
       x.qty += it.qty; w.set(k, x);
     });
     return w;
-  }
-  const curPage = () => parseInt(new URLSearchParams(location.search).get('site') || '1', 10) || 1;
-  function pageUrl(n) { const u = new URL(location.href); if (n > 1) u.searchParams.set('site', n); else u.searchParams.delete('site'); return u.href; }
-  function lastPage() {
-    // numero di pagine del set, dai link di paginazione della pagina
-    let max = curPage();
-    document.querySelectorAll('a[href*="site="]').forEach(a => { const m = a.getAttribute('href').match(/[?&]site=(\d+)/); if (m) max = Math.max(max, +m[1]); });
-    return max;
   }
   function showProgress() {
     const box = $('csProg');

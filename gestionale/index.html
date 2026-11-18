@@ -75,6 +75,17 @@ h1{margin:0;font-size:17px;letter-spacing:-.005em;color:#fff;white-space:nowrap}
 .tstats .w{color:#ffd28a}
 .tact{margin-left:auto;display:flex;gap:6px;align-items:center}
 .tstats{flex-shrink:1;min-width:0}
+.tadd{background:var(--acc);color:var(--navy2);border:0;font-weight:700;border-radius:9px;padding:0 14px;height:36px;font-size:14px;white-space:nowrap;cursor:pointer}
+.tadd:hover{background:#ffd24d}
+.tlnk{display:inline-flex;align-items:center;height:36px;padding:0 13px;border-radius:9px;border:1px solid rgba(255,255,255,.22);color:#fff;text-decoration:none;font-weight:600;font-size:14px;white-space:nowrap}
+.tlnk:hover{background:rgba(255,255,255,.12)}
+.tsave{background:none;border:0;color:#bfe9cf;font-size:12.5px;font-weight:600;white-space:nowrap;padding:0 6px;height:36px;cursor:pointer}
+.tsave.warn{color:#ffd28a}.tsave:hover{text-decoration:underline}
+.addw{display:grid;gap:14px}.addw section{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.addw h4{margin:0 0 8px;font-size:14px}.addw .af{display:grid;grid-template-columns:2fr 2fr 1fr 1fr 70px auto;gap:8px;align-items:end}
+.adt td{padding:6px 4px;border-top:1px solid var(--line);font-size:13.5px}.adt td small{display:block;color:var(--mut);font-size:12px}.adt .n{text-align:right}
+.addw label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mut)}.addw input,.addw select{width:100%}
+@media (max-width:760px){.addw .af{grid-template-columns:1fr 1fr}}
 .tact{flex-shrink:0}.tact summary,.tact button{white-space:nowrap}
 .gs{position:relative;flex:1 1 260px;max-width:400px;min-width:170px;margin-left:auto}
 .gs input{width:100%;height:36px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1);color:#fff;padding:0 12px 0 34px;font-size:14px;
@@ -313,22 +324,14 @@ dialog.cdw{width:min(1040px,95vw);padding:0}
   <div class="tstats" id="stats"></div>
   <div class="gs" id="gs"><input type="search" id="gQ" autocomplete="off" spellcheck="false" placeholder="Cerca carte, numeri, set, rarità, tipo, vendite…" title="Cerca in tutto il gestionale (scorciatoia: /)"><div class="gres" id="gRes" hidden></div></div>
   <div class="tact">
-    <details class="menu tm"><summary>📥 Carica <span class="car">▾</span></summary><div class="mn">
-      <button id="btnCat"><b>Liste dall'app</b><small>File .txt del telefono: le carte vanno in Standby</small></button>
-      <button id="btnClF"><b>Foto della lista di un cliente</b><small>Le carte segnate sul PDF per i clienti escono dal magazzino</small></button>
-      <button id="btnSale"><b>Ordini venduti</b><small>PDF degli ordini di Cardmarket: le carte vendute escono dal magazzino</small></button>
+    <button id="btnAdd" class="tadd" title="Carte nuove: dalle liste dell'app o a mano">＋ Aggiungi carte</button>
+    <details class="menu tm" id="saleMenu"><summary>🧾 Registra una vendita <span class="car">▾</span></summary><div class="mn">
+      <button id="btnSale"><b>Ordine di Cardmarket</b><small>Carica il PDF dell'ordine: le carte vendute escono dal magazzino</small></button>
+      <button id="btnClF"><b>Cliente diretto o scambio</b><small>Foto della lista PDF che il cliente ha segnato</small></button>
     </div></details>
-    <details class="menu tm"><summary id="sumPrezzi">€ Prezzi <span class="car">▾</span></summary><div class="mn">
-      <button id="btnUpd"><b>Aggiorna prezzi di mercato</b><small id="updInfo">Tutto il catalogo, da TCGdex</small></button>
-      <button id="btnEditCM"><b>Cambia prezzi su Cardmarket</b><small>Tutti i set, es. da Tendenza a prezzo minimo</small></button>
-    </div></details>
-    <details class="menu tm undo" id="undoMenu"><summary id="undoSum">↶ <span class="car">▾</span></summary><div class="mn" id="undoList"></div></details>
-    <details class="menu tm" id="cmMenu"><summary>Cardmarket <span class="car">▾</span></summary><div class="mn">
-      <a href="https://www.cardmarket.com/it/Pokemon" target="cardmarketPokemon" rel="noreferrer"><b>Apri Cardmarket ↗</b><small>pagina Pokémon</small></a>
-      <a href="https://www.cardmarket.com/it/Pokemon/Stock/Offers/Singles" target="cardmarketPokemon" rel="noreferrer"><b>Le mie offerte ↗</b><small>le carte che hai in vendita</small></a>
-      <a href="#" id="mChk"><b>Controlla il magazzino</b><small>confronta il gestionale con le tue offerte</small></a>
-      <a href="../cardmarket/" target="_blank"><b>Pulsante Card Scanner</b><small>installalo o aggiornalo nei preferiti</small></a></div></details>
-    <button id="btnBk" class="ticon" title="Backup automatico">💾</button>
+    <details class="menu tm undo" id="undoMenu"><summary id="undoSum">↶ Annulla <span class="car">▾</span></summary><div class="mn" id="undoList"></div></details>
+    <a id="btnCm" class="tlnk" href="https://www.cardmarket.com/it/Pokemon/Stock/Offers/Singles" target="cardmarketPokemon" rel="noreferrer" title="Le tue offerte su Cardmarket">Cardmarket ↗</a>
+    <button id="btnBk" class="tsave" title="Backup">✓ Salvato</button>
     <button id="btnMore" class="ticon" title="Impostazioni">⚙</button>
   </div>
 </div>

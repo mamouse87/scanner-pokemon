@@ -16,19 +16,19 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <li>Se avevi già il pulsante, eliminalo (tasto destro → Elimina) e trascina di nuovo questo:</li></ol>
 <p><a class="bm" href="{html.escape(bm, quote=True)}">📋 Card Scanner → CM</a></p>
 <h2>2. Mettere in vendita le carte di un set</h2>
-<ol><li>Nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a> carica i file .txt dell'app (<b>Carica ▾ → Liste dall'app</b>): le carte vanno in <b>Standby</b>.</li>
+<ol><li>Nel <a href="../gestionale/" style="color:#ffcb05">gestionale</a> premi <b>＋ Aggiungi carte</b> e carica i file .txt dell'app (oppure aggiungi a mano poche carte): le carte vanno in <b>Standby</b>.</li>
 <li>Apri il set e premi <b>Metti in vendita su Cardmarket</b>: scegli il prezzo ("Da", Tendenza o Consigliato, ± centesimi). Il gestionale calcola il prezzo di ogni carta, <b>Normali e Reverse separate</b>.</li>
 <li>Si apre Cardmarket: premi <b>📋 Card Scanner → CM</b>. Se non sei già sulla pagina "Inserisci carte bulk" del set ti ci porta; lì premilo di nuovo.</li>
 <li>Premi <b>Compila la pagina</b> e controlla. Le righe con il <b>bordo rosso</b> non hanno un prezzo: scrivilo tu.</li>
 <li>Premi tu <b>Mettere in vendita le carte</b> su Cardmarket. Poi premi il pulsante verde <b>📤 Le ho messe in vendita: invia al gestionale</b>. Lo script controlla su Cardmarket che le carte siano davvero in vendita e manda al gestionale solo quelle: se qualcuna manca te lo dice.</li>
 <li>Se il set ha più pagine: vai alla pagina successiva, premi di nuovo il pulsante (l'elenco resta caricato) e ripeti.</li></ol>
 <h2>Cambiare i prezzi delle carte già in vendita</h2>
-<ol><li>Nel gestionale premi <b>Prezzi ▾ → Cambia prezzi su Cardmarket</b>, oppure <b>✏️ Cambia prezzi di questo set</b> nella pagina di un set, oppure parti dalla scheda <b>Fuori mercato</b>.</li>
+<ol><li>Nel gestionale apri la scheda <b>Fuori mercato</b> ("Cambia questi prezzi su Cardmarket" o "Cambia i prezzi di tutte le carte…"), oppure premi <b>✏️ Cambia prezzi di questo set</b> nella pagina di un set.</li>
 <li>Si apre <b>Le mie offerte</b> di Cardmarket: premi <b>📋 Card Scanner → CM</b>. Lo script legge le tue offerte (oltre 300 le legge set per set, con il filtro Edizione).</li>
 <li>Premi <b>▶ Cambia i prezzi</b>: per ogni carta apre la pagina della sua Edizione in un riquadro con il bordo giallo, apre "Modifica" e scrive il nuovo prezzo. Tu premi <b>MODIFICA ARTICOLO</b> (con la spunta <b>Conferma automatica</b> lo preme lo script). Dopo ogni carta rilegge il prezzo su Cardmarket per controllare che sia cambiato davvero.</li>
 <li>Alla fine premi <b>📤 Invia al gestionale</b>.</li></ol>
 <h2>Controllare il magazzino (e correggere le copie)</h2>
-<ol><li>Nel gestionale apri <b>Cardmarket ▾ → Controlla il magazzino</b> e premi <b>Apri le mie offerte</b>. Se metti la spunta <b>Correggi subito su Cardmarket le copie in più</b>, controllo e correzione si fanno in un colpo solo.</li>
+<ol><li>Nel gestionale apri la scheda <b>Controllo</b>, premi <b>Nuovo controllo</b> e poi <b>Apri le mie offerte</b>. Se metti la spunta <b>Correggi subito su Cardmarket le copie in più</b>, controllo e correzione si fanno in un colpo solo.</li>
 <li>Su Cardmarket premi <b>📋 Card Scanner → CM</b>, poi <b>🔎 Leggi le mie offerte</b>.</li>
 <li>Con la spunta: lo script ti mostra le carte che su Cardmarket hanno <b>più</b> copie che nel gestionale; premi <b>▶ Correggi le quantità</b>. Le copie si tolgono con il pulsante rosso <b>−</b> della riga, nella pagina della sua Edizione. Dove su Cardmarket ce ne sono <b>meno</b> non tocca nulla (può essere una vendita non ancora caricata).</li>
 <li>Premi <b>📤 Invia al gestionale</b>: nella scheda <b>Controllo</b> vedi le differenze rimaste e scegli tu: <b>Usa…</b> corregge il gestionale, <b>Correggi su Cardmarket</b> fa cambiare le copie su Cardmarket dallo script.</li>

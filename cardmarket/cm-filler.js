@@ -65,7 +65,12 @@
     const root = host.attachShadow({ mode: 'open' });
     root.innerHTML = `<style>${CS_CSS}</style><div class="pn"><div class="hd"><span class="t">Card Scanner</span><span class="m">${mode}</span><button class="x" id="pnX" title="Chiudi (premi di nuovo il pulsante per riaprirlo)">✕</button></div><div id="pnIn" style="display:flex;flex-direction:column;min-height:0;flex:1"></div></div>`;
     document.body.appendChild(host);
-    root.getElementById('pnX').onclick = () => { host.style.display = 'none'; };
+    root.getElementById('pnX').onclick = () => {
+      host.style.display = 'none';
+      // chiudendo il pannello tolgo riquadri ed evidenziazioni lasciate dallo script
+      document.querySelectorAll('iframe.csQty').forEach(f => f.remove());
+      document.querySelectorAll('[id^="stockRow"] .amount-input, [id^="stockRow"] .btn, input[name="price"]').forEach(e => { e.style.outline = ''; e.style.background = ''; });
+    };
     return { host, root };
   }
   const stepsHtml = (names, cur, okUpTo) => `<div class="steps">${names.map((n, i) =>
@@ -151,7 +156,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 18/11 ore 23:00</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 18/11 ore 23:30</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -203,11 +208,11 @@
             <div class="list">${listOf.length ? listOf.map(x => `<div class="li"><span class="c">${escH((x.it.code || '') + ' ' + x.it.u)}${x.it.rev ? ' <span class="rv">R</span>' : ''}</span>
               <span class="n">${escH(x.it.n || x.o?.name || '')}</span>
               <span class="p">${x.it.qt != null ? `${x.o ? x.o.qty : '—'} → <b>${x.tq ?? x.it.qt} copie</b>` : `${x.o ? eur(x.o.price) : eur(x.it.old)} → <b>${eur(x.it.price)}</b>`} ${!x.o ? '' : x.st === 'zero' ? '<span class="pill err">togli a mano</span>' : x.st === 'ok' ? '<span class="pill ok">fatto</span>' : x.st === 'same' ? '<span class="pill ok">già così</span>' : x.st === 'skip' ? '<span class="pill oth">saltata</span>' : x.st === 'err' ? '<span class="pill err">errore</span>' : ''}</span>
-              ${!x.o ? `<span class="why">${escH(x.why || '')}</span>` : ''}</div>`).join('')
+              ${!x.o || (x.st === 'err' && x.why) ? `<span class="why">${escH(x.why || '')}</span>` : ''}</div>`).join('')
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 18/11 23:00</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 18/11 23:30</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -371,7 +376,7 @@
           const d = done[it.k + '#' + o.id] || {};
           const tq = tqs ? tqs[i] : null;
           const same = tqs ? o.qty === tq : (o.price != null && Math.abs(o.price - it.price) < 0.005);
-          out.push({ it, o, tq, st: d.st || (same ? 'same' : ''), ver: d.ver });
+          out.push({ it, o, tq, st: d.st || (same ? 'same' : ''), ver: d.ver, why: d.why });
         });
       });
       return out;
@@ -450,36 +455,83 @@
     }
     let stopHard = false;
     const rowCount = id => { const c = document.querySelector(`#stockRow${id} .item-count`); return c ? +c.textContent.trim() : null; };
+    let lastErr = '';
+    const fail = t => { lastErr = t.replace(/^⚠\s*/, ''); prog(t); return 'err'; };
+    // le copie si cambiano dentro una copia vera della pagina dell'Edizione (come dopo CERCA), caricata in un riquadro:
+    // i pulsanti − / + funzionano solo nella pagina in cui Cardmarket li ha creati
+    function frameLoad(url, visible) {
+      return new Promise(res => {
+        document.querySelectorAll('iframe.csQty').forEach(f => f.remove());
+        const f = document.createElement('iframe');
+        f.className = 'csQty';
+        f.style.cssText = visible
+          ? 'position:fixed;left:2%;top:8%;width:62%;height:84%;z-index:2147483000;border:4px solid #ffcb05;border-radius:10px;background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.4)'
+          : 'position:fixed;left:-3000px;top:0;width:1400px;height:900px;opacity:0;pointer-events:none';
+        let done = false;
+        const end = v => { if (!done) { done = true; res(v); } };
+        f.onload = () => end(f);
+        setTimeout(() => end(f), 25000);
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
     async function qtyStep(x, auto) {
-      prog(`Cerco ${x.o.name} nella sua Edizione…`);
-      await bringRow(x.o);
-      const row = document.getElementById('stockRow' + x.o.id);
-      if (!row) { prog(`⚠ Non trovo la riga di ${x.o.name} su Cardmarket: forse è stata venduta o cambiata. Rileggi le offerte. Mi fermo.`); return 'err'; }
-      try { row.scrollIntoView({ block: 'center' }); } catch (e) {}
-      const cur = rowCount(x.o.id);
-      if (cur === x.tq) return 'ok';
-      if (cur == null) { prog(`⚠ Non leggo le copie di ${x.o.name} nella riga. Mi fermo.`); return 'err'; }
+      const fx = x.o.fx || { e: '0', r: x.o.rev ? 'Y' : 'N', s: 1 };
+      const url = s => `/it/Pokemon/Stock/Offers/Singles?${filterQs({ idExpansion: fx.e, isReverseHolo: fx.r, site: s })}`;
+      let f = null, doc = null, row = null;
+      // pagina in cui l'ho letta, poi le altre pagine dello stesso set
+      const order = [fx.s || 1, ...Array.from({ length: 15 }, (_, i) => i + 1).filter(s => s !== (fx.s || 1))];
+      for (const s of order) {
+        prog(`Apro ${x.o.name} nella sua Edizione (pagina ${s})…`);
+        f = await frameLoad(url(s), !auto);
+        try { doc = f.contentDocument; } catch (e) { doc = null; }
+        if (!doc || !doc.body) { f.remove(); return fail(`⚠ Cardmarket non mi lascia aprire la pagina dell'Edizione dentro lo script. Correggi a mano: ${x.o.name} da ${x.o.qty} a ${x.tq} copie.`); }
+        row = doc.getElementById('stockRow' + x.o.id);
+        if (row) break;
+        const pm = doc.body.textContent.match(/Pagina\s+\d+\s+di\s+(\d+)/i);
+        if (pm && s >= +pm[1] && s !== (fx.s || 1)) break;
+        await sleep(500);
+      }
+      if (!row) { if (f) f.remove(); return fail(`⚠ Non trovo la riga di ${x.o.name} su Cardmarket: forse è stata venduta o cambiata. Rileggi le offerte. Mi fermo.`); }
+      const W = doc.defaultView;
+      const cnt = () => { const c = doc.querySelector(`#stockRow${x.o.id} .item-count`); return c ? +c.textContent.trim() : null; };
+      const cur = cnt();
+      if (cur === x.tq) { f.remove(); return 'ok'; }
+      if (cur == null) { f.remove(); return fail(`⚠ Non leggo le copie di ${x.o.name} nella riga. Mi fermo.`); }
       const diff = x.tq - cur;
       const grp = row.querySelector('.inc-dec-group');
       const amt = grp && grp.querySelector('.amount-input');
       const btn = grp && grp.querySelector(diff < 0 ? '.btn-danger' : '.btn-success');
-      if (!amt || !btn) { prog(`⚠ Nella riga di ${x.o.name} non trovo i pulsanti − / +. Mandami una foto della riga. Mi fermo.`); return 'err'; }
-      setVal(amt, String(Math.abs(diff)));
+      if (!amt || !btn) { f.remove(); return fail(`⚠ Nella riga di ${x.o.name} non trovo i pulsanti − / +. Mandami una foto della riga. Mi fermo.`); }
+      try { row.scrollIntoView({ block: 'center' }); } catch (e) {}
+      const d = Object.getOwnPropertyDescriptor(W.HTMLInputElement.prototype, 'value');
+      d.set.call(amt, String(Math.abs(diff)));
+      amt.dispatchEvent(new W.Event('input', { bubbles: true })); amt.dispatchEvent(new W.Event('change', { bubbles: true }));
       amt.style.outline = '3px solid #ffcb05'; btn.style.outline = '3px solid #ffcb05';
       const what = `${x.o.name}${x.it.rev ? ' Reverse' : ''}: copie ${cur} → ${x.tq} (${diff < 0 ? 'tolgo ' + -diff : 'aggiungo ' + diff})`;
       if (auto) { prog(`${what} · confermo…`); await sleep(700); btn.click(); }
-      else prog(`👉 ${what} — controlla e premi il pulsante ${diff < 0 ? 'rosso −' : 'verde +'} evidenziato (premi ⏸ per saltarla).`);
-      // aspetto che Cardmarket aggiorni la riga con le copie nuove
+      else prog(`👉 ${what} — nel riquadro con il bordo giallo premi il pulsante ${diff < 0 ? 'rosso −' : 'verde +'} evidenziato (premi ⏸ per saltarla).`);
+      let res = null;
       for (let t = 0; t < (auto ? 20000 : 30 * 60 * 1000); t += 300) {
         await sleep(300);
-        const n = rowCount(x.o.id);
-        if (n === x.tq) return 'ok';
-        if (n != null && n !== cur) { prog(`⚠ ${x.o.name}: ora le copie sono ${n}, non ${x.tq}. Controlla la riga. Mi fermo.`); return 'err'; }
-        if (!document.getElementById('stockRow' + x.o.id) && x.tq === 0) return 'ok';
-        if (stopReq || stopHard) return 'skip';
+        const n = cnt();
+        if (n === x.tq) { res = 'ok'; break; }
+        if (n != null && n !== cur) { res = fail(`⚠ ${x.o.name}: ora le copie sono ${n}, non ${x.tq}. Controlla la riga. Mi fermo.`); break; }
+        if (stopReq || stopHard) { res = 'skip'; break; }
       }
-      prog(`⚠ ${x.o.name}: Cardmarket non ha aggiornato le copie. Controlla la riga e premi ▶ per continuare.`);
-      return 'err';
+      f.remove();
+      if (res === 'ok') {
+        // aggiorno anche la riga mostrata nella pagina, se c'è
+        const c = document.querySelector(`#stockRow${x.o.id} .item-count`); if (c) c.textContent = String(x.tq);
+        return 'ok';
+      }
+      if (res) return res;
+      return fail(`⚠ ${x.o.name}: Cardmarket non ha aggiornato le copie entro 20 secondi (restano ${cur}). Premi ▶ per riprovare, oppure togli la spunta "Conferma automatica" e premi tu il pulsante.`);
+    }
+    // a fine lavoro tolgo riquadri ed evidenziazioni lasciate nella pagina
+    function cleanPage() {
+      document.querySelectorAll('iframe.csQty').forEach(f => f.remove());
+      document.querySelectorAll('[id^="stockRow"] .amount-input, [id^="stockRow"] .btn, input[name="price"]').forEach(e => { e.style.outline = ''; e.style.background = ''; });
     }
 
     async function run() {
@@ -496,8 +548,9 @@
         // copie: il riquadro "Modifica" non le cambia (la sua Quantità dice a quante copie applicare le modifiche);
         // si usano i pulsanti − / + della riga ("Rimuovi/Aggiungi articolo/i") con il numero di copie accanto
         if (x.tq != null && x.it.price == null) {
+          lastErr = '';
           const r = await qtyStep(x, auto);
-          done[key] = { st: r, at: new Date().toISOString(), tq: x.tq }; ls.set(DKEY, done);
+          done[key] = { st: r, at: new Date().toISOString(), tq: x.tq, why: r === 'err' ? lastErr : '' }; ls.set(DKEY, done);
           if (r === 'ok') x.o.qty = x.tq;
           render();
           if (r === 'err') break;
@@ -554,10 +607,11 @@
         await sleep(auto ? 3000 : 600);
       }
       ls.set(OKEY, offers);
+      cleanPage();
       running = false; render();
       const left = matchAll().filter(x => x.o && x.st !== 'ok' && x.st !== 'same' && x.st !== 'zero').length;
       const zero = matchAll().filter(x => x.st === 'zero');
-      prog(left ? `Fermo. Mancano ${left} offerte: premi ▶ per continuare.` : `Finito ✓${zero.length ? ` Togli tu da Cardmarket ${zero.length === 1 ? "l'offerta che va" : 'le ' + zero.length + ' offerte che vanno'} a 0 copie (${zero.map(x => x.o.name).join(', ')}).` : ''} Premi "Verifica" per ricontrollare, poi "📤 Invia al gestionale".`);
+      prog(left ? (lastErr ? `⚠ ${lastErr}` : `Fermo. Mancano ${left} offerte: premi ▶ per continuare.`) : `Finito ✓${zero.length ? ` Togli tu da Cardmarket ${zero.length === 1 ? "l'offerta che va" : 'le ' + zero.length + ' offerte che vanno'} a 0 copie (${zero.map(x => x.o.name).join(', ')}).` : ''} Premi "Verifica" per ricontrollare, poi "📤 Invia al gestionale".`);
     }
 
     // ---- verifica: rilegge le offerte e controlla i prezzi ----

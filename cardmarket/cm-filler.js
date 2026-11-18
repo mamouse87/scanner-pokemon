@@ -149,7 +149,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla.</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 18/11 ore 7:40</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -238,21 +238,37 @@
         return { id, name: mm ? mm[1].trim() : name, code: mm ? mm[2].toUpperCase() : '', num: mm ? mm[3] : '', exp, lang: lang || 'it', rev, price, qty: qt ? +qt.textContent.trim() : null };
       }).filter(x => x.id);
     }
-    // legge tutte le pagine di un elenco di offerte; Cardmarket ne mostra al massimo 300 (15 pagine):
-    // capped = c'erano altre offerte non mostrate
-    async function readPages(qs, label) {
+    // indirizzo come quello del pulsante CERCA del filtro (modulo GET): tutti i campi del filtro con i loro valori, più i miei
+    let filterForm = null;
+    function filterQs(over) {
+      const p = new URLSearchParams();
+      if (filterForm) filterForm.querySelectorAll('select[name], input[name]').forEach(el => {
+        if (el.type === 'checkbox' || el.type === 'radio') { if (el.checked) p.append(el.name, el.value); return; }
+        if (el.type === 'submit' || el.type === 'button') return;
+        const v = el.tagName === 'SELECT' ? (el.querySelector('option[selected]') ? el.value : el.getAttribute('data-default-value') ?? el.value) : el.value;
+        p.set(el.name, v ?? '');
+      });
+      Object.entries(over).forEach(([k, v]) => p.set(k, v));
+      return p.toString();
+    }
+    // legge le pagine di un elenco di offerte; Cardmarket ne mostra al massimo 300 ("300+ Risultati", 15 pagine):
+    // capped = c'erano altre offerte non mostrate. probe = mi fermo alla prima pagina se è così
+    async function readPages(over, label, probe) {
       const list = []; let page = 1, pages = 1, capped = false, doc0 = null;
       do {
         prog(`Leggo ${label}: pagina ${page} di ${pages}${capped ? '+' : ''}…`);
-        const r = await fetch(`/it/Pokemon/Stock/Offers/Singles?${qs}&site=${page}`, { credentials: 'include' });
+        const r = await fetch(`/it/Pokemon/Stock/Offers/Singles?${filterQs(Object.assign({}, over, { site: page }))}`, { credentials: 'include' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
         if (!doc0) doc0 = doc;
-        const rows = parseRows(doc, /isReverseHolo=Y/.test(qs));
-        list.push(...rows);
-        const pm = doc.body.textContent.match(/Pagina\s+\d+\s+di\s+(\d+)\s*(\+?)/i);
+        if (!filterForm) { const se = doc.querySelector('select[name="idExpansion"]'); filterForm = se && (se.closest('form') || se.form); }
+        const rows = parseRows(doc, over.isReverseHolo === 'Y');
+        const tx = doc.body.textContent;
+        const pm = tx.match(/Pagina\s+\d+\s+di\s+(\d+)\s*(\+?)/i);
         if (pm) { pages = +pm[1]; capped = capped || !!pm[2]; }
-        if (/pi[uù] di 300/i.test(doc.body.textContent) || /300\+/.test(doc.body.textContent)) capped = true;
+        if (/300\s*\+\s*Risultati/i.test(tx) || /pi[uù] di 300/i.test(tx)) capped = true;
+        list.push(...rows);
+        if (probe && capped) return { list, capped, doc: doc0 };
         page++;
         await sleep(700);
         if (!rows.length) break;
@@ -267,7 +283,8 @@
       try {
         for (const rev of ['N', 'Y']) {
           const RV = rev === 'Y' ? 'Reverse' : 'normali';
-          const a = await readPages(`isReverseHolo=${rev}`, `le offerte ${RV}`);
+          // prima pagina: se c'è scritto "300+ Risultati" lavoro subito per Edizione
+          const a = await readPages({ isReverseHolo: rev }, `le offerte ${RV}`, true);
           if (!a.capped) { list.push(...a.list); okRev[rev] = null; continue; }
           okRev[rev] = new Set();
           // più di 300: leggo set per set (filtro Edizione), i set del gestionale più quelli visti nelle prime pagine
@@ -290,7 +307,7 @@
           let i = 0;
           for (const [id, nm] of want) {
             i++;
-            const b = await readPages(`isReverseHolo=${rev}&${encodeURIComponent(param)}=${id}`, `${nm} (${RV}, set ${i} di ${want.size})`);
+            const b = await readPages({ isReverseHolo: rev, [param]: id }, `${nm} (${RV}, set ${i} di ${want.size})`);
             // il filtro deve aver funzionato: le offerte lette sono tutte di quel set
             const other = b.list.filter(o => o.exp && smp(o.exp) !== smp(nm));
             if (other.length && other.length === b.list.length) throw new Error(`il filtro Edizione non funziona (${nm})`);

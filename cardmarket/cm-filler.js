@@ -1033,12 +1033,85 @@
     b.textContent = `📤 Le ho messe in vendita: invia al gestionale (${n} copie)`;
     steps();
   }
-  function sendCompiled() {
+  // ---------- controllo della messa in vendita: copie del set su Cardmarket prima e dopo ----------
+  const OFF_LANGS = { Italiano: 'it', Inglese: 'en', English: 'en', Francese: 'fr', Tedesco: 'de', Spagnolo: 'es', Portoghese: 'pt', Giapponese: 'ja', Coreano: 'ko' };
+  /** copie in vendita di un set su Cardmarket, per numero|variante|lingua (pagina "Le mie offerte" filtrata per Edizione) */
+  async function expQty(idExp) {
+    const map = {}; let capped = false;
+    for (const rev of ['N', 'Y']) {
+      let page = 1, pages = 1;
+      do {
+        const r = await fetch(`/it/Pokemon/Stock/Offers/Singles?idExpansion=${encodeURIComponent(idExp)}&isReverseHolo=${rev}&site=${page}`, { credentials: 'include' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+        const rows = [...doc.querySelectorAll('[id^="stockRow"]')];
+        rows.forEach(row => {
+          const nm = ((row.querySelector('.col-seller a') || {}).textContent || '').replace(/\s+/g, ' ').trim().match(/\(([A-Z0-9-]+)\s+([A-Z]*\d+[a-z]?)\)\s*$/i);
+          if (!nm) return;
+          let lang = 'it';
+          row.querySelectorAll('.product-attributes [aria-label], .product-attributes [data-bs-original-title]').forEach(e => { const l = OFF_LANGS[e.getAttribute('aria-label') || e.getAttribute('data-bs-original-title')]; if (l) lang = l; });
+          const qt = row.querySelector('.amount-container .item-count') || row.querySelector('.item-count');
+          const k = `${norm(nm[2])}|${rev === 'Y' ? 'R' : 'N'}|${lang}`;
+          map[k] = (map[k] || 0) + (qt ? +qt.textContent.trim() || 0 : 0);
+        });
+        const tx = doc.body.textContent, pm = tx.match(/Pagina\s+\d+\s+di\s+(\d+)\s*(\+?)/i);
+        if (pm) { pages = +pm[1]; if (pm[2]) capped = true; }
+        if (/300\s*\+\s*Risultati/i.test(tx)) capped = true;
+        page++;
+        if (!rows.length) break;
+        await sleep(400);
+      } while (page <= pages && page <= 15);
+    }
+    return { map, capped };
+  }
+  // dopo "Compila la pagina" leggo le copie del set già in vendita (prima che tu prema "Mettere in vendita le carte")
+  let before = null;
+  function takeBefore() {
+    const id = expansion().id;
+    if (!id) { before = null; return; }
+    const b = { exp: id, at: Date.now(), done: false, p: null };
+    b.p = expQty(id).then(x => { b.done = true; return x; }).catch(() => { b.done = true; return null; });
+    before = b;
+  }
+  form.addEventListener('submit', () => { if (before && !before.done) before.late = true; }, true);
+  const offKey = r => `${norm(r.u)}|${r.rev ? 'R' : 'N'}|${r.lang || 'it'}`;
+  let sending = false;
+  async function sendCompiled() {
+    if (sending) return;
     let rows = keepSnap();
     if (!rows.length) rows = lastSnap;
     if (!rows.length) { log('Nessuna carta compilata in questa pagina.', '#ff6b6b'); return; }
-    lastSnap = [];
     const exp = expansion();
+    // controllo su Cardmarket: invio al gestionale solo le copie che risultano davvero in vendita
+    sending = true; $('csGest').disabled = true;
+    const tot = rows.reduce((a, r) => a + r.q, 0);
+    log('Controllo su Cardmarket che le carte siano davvero in vendita…');
+    let checked = false;
+    try {
+      const B = before && before.exp === exp.id && !before.late ? await before.p : null;
+      if (B && !B.capped) {
+        const A = await expQty(exp.id);
+        if (!A.capped) {
+          const added = {};
+          Object.keys(A.map).forEach(k => { added[k] = A.map[k] - (B.map[k] || 0); });
+          const ok = [], miss = [];
+          rows.forEach(r => { const k = offKey(r), take = Math.max(0, Math.min(added[k] || 0, r.q)); if (take) { ok.push(Object.assign({}, r, { q: take })); added[k] -= take; } if (take < r.q) miss.push(Object.assign({}, r, { q: r.q - take })); });
+          checked = true;
+          if (miss.length) {
+            const mq = miss.reduce((a, r) => a + r.q, 0), txt = miss.slice(0, 12).map(r => `${r.u}${r.rev ? ' R' : ''} ×${r.q}`).join(', ') + (miss.length > 12 ? '…' : '');
+            if (!ok.length) {
+              log(`⚠ Su Cardmarket non risulta in vendita nessuna delle ${tot} copie compilate: non ho inviato nulla. Premi "Mettere in vendita le carte" (o controlla gli errori di Cardmarket) e poi di nuovo il pulsante verde.`, '#ff6b6b');
+              lastSnap = rows; return;
+            }
+            if (!confirm(`Su Cardmarket risultano in vendita ${tot - mq} copie su ${tot}.\n\nNon risultano: ${txt} (${mq} copie). Forse Cardmarket le ha rifiutate.\n\nInvio al gestionale solo le ${tot - mq} copie che risultano in vendita?`)) { lastSnap = rows; log('Invio annullato: niente è cambiato nel gestionale.'); return; }
+            rows = ok;
+          }
+        }
+      }
+    } catch (e) { checked = false; }
+    finally { sending = false; $('csGest').disabled = false; }
+    if (!checked && !confirm(`Non riesco a controllare su Cardmarket che le ${tot} copie siano davvero in vendita.\n\nLe hai messe in vendita con "Mettere in vendita le carte"? Se sì, premi OK e le invio al gestionale.`)) { lastSnap = rows; return; }
+    lastSnap = []; before = null;
     const entry = { exp: exp.id, name: exp.name, at: new Date().toISOString(), rows, cards: catalog() };
     // segno nella lista le carte inviate
     const w = wanted(), done = doneGet();
@@ -1051,7 +1124,7 @@
     const aj = activeJob();
     if (aj && !left) { aj.done = true; try { localStorage.setItem(JKEY, JSON.stringify(aj)); } catch (e) {} }
     log(`Inviate al gestionale ${rows.reduce((a, r) => a + r.q, 0)} copie: ora nel gestionale risultano In vendita.` +
-      (left ? ` Restano ${left} copie della lista da compilare in altre pagine.` : ' Tutta la lista è stata inviata ✔'), left ? '#ff9f43' : '#3ecf6e');
+      (left ? ` Restano ${left} copie della lista da mettere in vendita (in questa o in altre pagine).` : ' Tutta la lista è stata inviata ✔'), left ? '#ff9f43' : '#3ecf6e');
   }
   function sendToGest(listed) {
     const exp = expansion();
@@ -1138,6 +1211,7 @@
     $('csGo').disabled = true; $('csGo').textContent = 'Compilo…';
     $('csLog').textContent = ''; $('csMsg').textContent = '';
     try { await run(); } catch (e) { log('Errore: ' + e.message, '#ff6b6b'); }
+    if (snapshot().length) takeBefore();
     $('csGo').disabled = false; $('csGo').textContent = 'Compila di nuovo';
     $('csGo').classList.toggle('ghost', snapshot().length > 0);
     steps();

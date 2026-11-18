@@ -149,7 +149,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 18/11 ore 7:40</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 18/11 ore 22:40</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -205,7 +205,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}<a href="#" id="oClip">Incolla elenco</a></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 18/11 22:40</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -263,6 +263,8 @@
         if (!doc0) doc0 = doc;
         if (!filterForm) { const se = doc.querySelector('select[name="idExpansion"]'); filterForm = se && (se.closest('form') || se.form); }
         const rows = parseRows(doc, over.isReverseHolo === 'Y');
+        // dove si trova l'offerta: serve per aprirne il riquadro "Modifica" (Edizione + Reverse + pagina, come con CERCA)
+        rows.forEach(o => { o.fx = { e: over.idExpansion || '0', r: over.isReverseHolo || '0', s: page }; });
         const tx = doc.body.textContent;
         const pm = tx.match(/Pagina\s+\d+\s+di\s+(\d+)\s*(\+?)/i);
         if (pm) { pages = +pm[1]; capped = capped || !!pm[2]; }
@@ -377,7 +379,36 @@
     const modal = () => document.getElementById('modal');
     const modalOpen = () => { const m = modal(); return !!m && (m.classList.contains('show') || getComputedStyle(m).display === 'block'); };
     let lastInput = null;
-    async function openEdit(id) {
+    // porta nella pagina la riga dell'offerta: carico la pagina filtrata per Edizione (come scegliere l'Edizione e premere CERCA)
+    // e metto le sue righe al posto di quelle mostrate, così il riquadro "Modifica" si apre dalla riga vera
+    async function bringRow(o) {
+      const sel = `#stockRow${o.id} a[data-modal*="EditArticleModal"]`;
+      if (document.querySelector(sel)) return true;
+      if (!filterForm) { const se = document.querySelector('select[name="idExpansion"]'); filterForm = se && (se.closest('form') || se.form); }
+      const fx = o.fx || { e: '0', r: o.rev ? 'Y' : 'N', s: 1 };
+      // prima la pagina in cui l'ho letta, poi le altre pagine dello stesso set (le offerte si spostano se ne cambi altre)
+      let pages = 1;
+      const tryPage = async s => {
+        const r = await fetch(`/it/Pokemon/Stock/Offers/Singles?${filterQs({ idExpansion: fx.e, isReverseHolo: fx.r, site: s })}`, { credentials: 'include' });
+        if (!r.ok) return false;
+        const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+        const pm = doc.body.textContent.match(/Pagina\s+\d+\s+di\s+(\d+)/i); if (pm) pages = +pm[1];
+        const row = doc.getElementById('stockRow' + o.id);
+        if (!row) return false;
+        const box = (document.querySelector('[id^="stockRow"]') || {}).parentElement || document.querySelector('.table-body');
+        const src = row.parentElement;
+        if (!box || !src) return false;
+        box.innerHTML = src.innerHTML;
+        // aggiorno anche il filtro mostrato, così si vede quale Edizione è in pagina
+        const se = document.querySelector('select[name="idExpansion"]'); if (se && fx.e !== '0') se.value = fx.e;
+        return !!document.querySelector(sel);
+      };
+      if (await tryPage(fx.s || 1)) return true;
+      for (let s = 1; s <= Math.min(pages, 15); s++) { if (s === fx.s) continue; await sleep(500); if (await tryPage(s)) return true; }
+      return false;
+    }
+    async function openEdit(id, o) {
+      if (o) { prog(`Cerco ${o.name} nella sua Edizione…`); await bringRow(o); }
       const real = document.querySelector(`#stockRow${id} a[data-modal*="EditArticleModal"]`);
       let a = real;
       if (!a) {
@@ -419,6 +450,8 @@
 
     async function run() {
       if (!job || !offers) return;
+      // offerte lette con la versione vecchia: non so in che Edizione/pagina sono, le rileggo
+      if (offers.list.some(o => !o.fx)) { await readAll(); if (!offers) return; }
       running = true; stopReq = false; stopHard = false; render();
       const auto = !!$o('oAuto')?.checked;
       for (const x of matchAll()) {
@@ -427,7 +460,7 @@
         const key = x.it.k + '#' + x.o.id;
         if (x.tq === 0) { done[key] = { st: 'zero', tq: 0 }; ls.set(DKEY, done); render(); continue; }   // a 0 copie: la togli tu
         prog(`Apro ${x.it.code || ''} ${x.it.u} ${x.it.n || ''}${x.it.rev ? ' Reverse' : ''}…`);
-        const inp = await openEdit(x.o.id);
+        const inp = await openEdit(x.o.id, x.o);
         if (!inp) { done[key] = { st: 'err' }; ls.set(DKEY, done); prog('Il riquadro "Modifica" non si è aperto: ricarica la pagina (F5) e riprova.'); break; }
         const m = modal();
         // controllo: il riquadro è di questa carta?

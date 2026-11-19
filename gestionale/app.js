@@ -59,11 +59,15 @@ function softSave() { ghSoft = true; try { save(); } finally { ghSoft = false; }
 let saveFailed = false;
 function save() {
   const js = JSON.stringify(state); undoRecord(js);
+  // avviso in anticipo se lo spazio del browser (circa 5 MB) sta per finire
+  if (js.length > 4e6 && !save.warned) { save.warned = true; setTimeout(() => toast(`Dati salvati: ${(js.length / 1024).toFixed(0)} KB su circa 5.000. Avvisami: va spostato l'archivio in uno spazio più grande.`), 500); }
   try { localStorage.setItem(KEY, js); saveFailed = false; }
   catch (e) {
     // spazio del browser finito: libero le copie temporanee di TCGdex e riprovo
     tcgPurge(true);
-    try { localStorage.setItem(KEY, js); saveFailed = false; }
+    // avviso in anticipo se lo spazio del browser (circa 5 MB) sta per finire
+  if (js.length > 4e6 && !save.warned) { save.warned = true; setTimeout(() => toast(`Dati salvati: ${(js.length / 1024).toFixed(0)} KB su circa 5.000. Avvisami: va spostato l'archivio in uno spazio più grande.`), 500); }
+  try { localStorage.setItem(KEY, js); saveFailed = false; }
     catch (e2) { if (!saveFailed) alert('Il browser non riesce più a salvare i dati (spazio finito).\n\nScarica subito un backup: Impostazioni → Backup nel PC → "Scarica un backup".'); saveFailed = true; }
   }
   bkSchedule(); ghSchedule();
@@ -604,7 +608,9 @@ function renderSettings() {
     ['danger', '⚠️', 'Zona pericolosa', 'Svuota carte in vendita', 'dz']];
   if (!SECS.some(x => x[0] === setSec)) setSec = 'gh';
   const secEls = [...$('main').querySelectorAll('.setgrid > section')];
-  secEls.forEach((el, i) => { el.dataset.s = SECS[i][0]; el.classList.toggle('on', SECS[i][0] === setSec); });
+  // le sezioni sono nello stesso ordine dell'elenco, senza il Registro (che apre una pagina sua)
+  const SECP = SECS.filter(x => x[0] !== 'log');
+  secEls.forEach((el, i) => { el.dataset.s = SECP[i] ? SECP[i][0] : ''; el.classList.toggle('on', el.dataset.s === setSec); });
   $('setNav').innerHTML = SECS.map(([id, ic, t, sub, cls]) => `<button class="${id === setSec ? 'on' : ''} ${cls}" data-s="${id}"><span class="ic">${ic}</span><span class="tx"><b>${t}</b><small>${esc(sub)}</small></span>${cls === 'bad' ? '<i>!</i>' : ''}</button>`).join('');
   $('setNav').onclick = e => { const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.s === 'log') { goTab('__log'); return; }   // il registro ha una pagina sua

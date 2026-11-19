@@ -32,7 +32,7 @@ h1{margin:0;font-size:17px;letter-spacing:-.005em;color:#fff;white-space:nowrap}
 .tabs .tb i{letter-spacing:0}
 .wrap{border-top:3px solid var(--tabc,var(--navy))}
 main.pgin{animation:pgIn .18s ease-out}
-@keyframes pgIn{from{opacity:.35;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes pgIn{from{opacity:.35}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){main.pgin{animation:none}}
 .tabs .tb i{font-style:normal;font-size:11.5px;font-weight:700;background:#e3f3ea;color:var(--ok);border-radius:99px;padding:1px 7px;margin-left:6px}
 .ghf{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:8px 0}
@@ -155,7 +155,7 @@ aside input[type=search]{width:100%}
 
 .mkc .small{color:var(--mut)}
 #sets a .n.sb{background:#e9edf3;color:var(--sbc)}#sets a .n.v{background:#fdebdc;color:var(--var)}
-main{flex:1;overflow:auto;padding:22px 28px 70px}
+main{flex:1;overflow:auto;scrollbar-gutter:stable;padding:22px 28px 70px}
 .sethead{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
 .sethead .logo{height:52px;max-width:170px;object-fit:contain}
 .sethead h2{margin:0;font-size:26px;letter-spacing:-.015em;color:var(--fg)}

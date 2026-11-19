@@ -3,7 +3,7 @@
 // e imposta il prezzo = "Da" (prezzo minimo) oppure "Tendenza" ± i centesimi scelti.
 // I due valori li legge dalla pagina stessa (campi nascosti di ogni riga): nessuna richiesta a Cardmarket.
 // Non invia nulla da solo.
-(() => {
+(async () => {
   // ---------- grafica comune dei riquadri (isolata dalla grafica di Cardmarket con lo Shadow DOM) ----------
   const CS_CSS = `
     :host{all:initial}
@@ -114,6 +114,23 @@
       return true;
     } catch (e) { return false; }
   }
+  // L'elenco del gestionale arriva nel nome della scheda. Se si è perso (per esempio Cardmarket ha chiesto il login),
+  // lo chiedo al gestionale che ha aperto questa scheda: risponde solo se ha un elenco in attesa, e accetto solo da lui.
+  if (!/^cs(job|edit|check)=/.test(String(window.name || '').trim()) && window.opener) {
+    const p = await new Promise(res => {
+      const t = setTimeout(() => { removeEventListener('message', on); res(null); }, 1200);
+      function on(e) {
+        if (e.origin !== 'https://mamouse87.github.io' || !e.data || e.data.cs !== 'job' || typeof e.data.p !== 'string') return;
+        clearTimeout(t); removeEventListener('message', on); res(e.data.p);
+      }
+      addEventListener('message', on);
+      try { window.opener.postMessage({ cs: 'want' }, 'https://mamouse87.github.io'); } catch (e) { clearTimeout(t); removeEventListener('message', on); res(null); }
+    });
+    // lo stesso elenco già ricevuto non lo riprendo (non ricomincio un lavoro già iniziato)
+    let last = ''; try { last = localStorage.getItem('cs_last_in') || ''; } catch (e) {}
+    if (p && p.slice(0, 200) + p.length !== last) window.name = p;
+  }
+  if (/^cs(job|edit|check)=/.test(String(window.name || '').trim())) { try { localStorage.setItem('cs_last_in', String(window.name).trim().slice(0, 200) + String(window.name).trim().length); } catch (e) {} }
   if (intakeAny(window.name)) {
     const wasEdit = /^cs(edit|check)=/.test(window.name);
     try { window.name = ''; } catch (e) {}
@@ -159,7 +176,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 19/11 b</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 19/11 c</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -238,7 +255,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 19/11 b</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 19/11 c</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }

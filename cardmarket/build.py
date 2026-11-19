@@ -2,6 +2,8 @@
 # Uso: npx terser cm-filler.js -c -m -o /tmp/min.js && python3 build.py /tmp/min.js
 import sys, urllib.parse, html
 code = open(sys.argv[1]).read().strip()
+# "void": il pulsante non deve restituire nulla, altrimenti il browser sostituisce la pagina con il risultato
+if not code.startswith('void '): code = 'void ' + code
 bm = 'javascript:' + urllib.parse.quote(code, safe="!*'();:@&=+$,/?#[]-_.~")
 page = f'''<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

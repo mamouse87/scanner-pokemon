@@ -200,6 +200,7 @@ function mergeCatalog(exp) {
 function importFromHash() {
   const m = location.hash.match(/^#cm2=(.+)$/);
   if (!m) return null;
+  csPendingDone();   // il risultato è arrivato: l'elenco non va più consegnato allo script
   history.replaceState(null, '', location.pathname);
   let d;
   try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Dati da Cardmarket non leggibili.'); return null; }
@@ -674,11 +675,27 @@ function renderSettings() {
 // ---------- controllo con Cardmarket: le offerte lette dallo script (tu collegato) confrontate con il magazzino ----------
 // Lo script manda '#cmchk=' con tutte le offerte delle singole Pokémon. L'elenco resta solo in questo browser
 // (localStorage 'gestionaleCheck'); nello stato c'è solo la data dell'ultimo controllo (state.chkAt).
+// ---------- consegna dell'elenco allo script anche dopo il login su Cardmarket ----------
+// L'elenco viaggia nel nome della scheda (window.name). Se Cardmarket chiede il login e il nome si perde,
+// lo script lo richiede a questa pagina (la scheda di Cardmarket è stata aperta da qui): rispondo solo a cardmarket.com.
+const CS_PEND = 'gestionaleCsPending';
+function openCm(url, payload) {
+  try { localStorage.setItem(CS_PEND, JSON.stringify({ at: Date.now(), p: payload })); } catch (e) {}
+  return window.open(url, payload);
+}
+function csPendingDone() { try { localStorage.removeItem(CS_PEND); } catch (e) {} }
+window.addEventListener('message', e => {
+  if (e.origin !== 'https://www.cardmarket.com' || !e.data || e.data.cs !== 'want' || !e.source) return;
+  let P = null; try { P = JSON.parse(localStorage.getItem(CS_PEND)); } catch (x) {}
+  if (!P || !P.p || Date.now() - P.at > 12 * 3600e3) return;          // niente in attesa (o troppo vecchio)
+  try { e.source.postMessage({ cs: 'job', p: P.p }, 'https://www.cardmarket.com'); } catch (x) {}
+});
 const CHK_KEY = 'gestionaleCheck';
 let chk = (() => { try { return JSON.parse(localStorage.getItem(CHK_KEY)) || null; } catch (e) { return null; } })();
 function importCheckFromHash() {
   const m = location.hash.match(/^#cmchk=(.+)$/);
   if (!m) return false;
+  csPendingDone();   // il risultato è arrivato: l'elenco non va più consegnato allo script
   history.replaceState(null, '', location.pathname);
   let d;
   try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Elenco delle offerte non leggibile.'); return true; }
@@ -774,7 +791,7 @@ function openQtyEdit(rows, why, scope) {
       return { k: r.k, code: setCode(l), exp: l.expName || state.cm[l.exp]?.name || '', u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q, qt: Math.max(0, r.qt), old: l.price, price: null }; }) };
   const enc = 'csedit=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
   try { navigator.clipboard.writeText(enc); } catch (e) {}
-  const win = window.open(OFFERS_URL, enc);
+  const win = openCm(OFFERS_URL, enc);
   if (!win) { alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.'); return false; }
   logOp('quantita', scope || '', `Preparato "${name}" (${why}): ${job.items.map(i => `${i.code}${i.u}${i.rev ? ' R' : ''} → ${i.qt}`).join(', ')}`, null);
   save();
@@ -836,7 +853,7 @@ function openStockCheck() {
     $('dClose').onclick = closeDlg;
     $('kGo').onclick = () => {
       const fix = $('kFix').checked; localStorage.setItem('gestionaleChkFix', fix ? '1' : '0');
-      const w = window.open(OFFERS_URL, 'cscheck=' + Date.now() + '.' + chkSetsParam(fix));
+      const w = openCm(OFFERS_URL, 'cscheck=' + Date.now() + '.' + chkSetsParam(fix));
       if (!w) alert('Il browser ha bloccato la nuova scheda: permetti i popup per questa pagina e riprova.');
       else if (fix) logOp('quantita', '', 'Controllo con correzione delle copie in più su Cardmarket avviato', null);
       closeDlg();
@@ -2633,7 +2650,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
       };
       const enc = 'csjob=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
       try { navigator.clipboard.writeText(enc); } catch (e) {}
-      const win = window.open('https://www.cardmarket.com/it/Pokemon/Stock/ListingMethods/BulkListing', enc);
+      const win = openCm('https://www.cardmarket.com/it/Pokemon/Stock/ListingMethods/BulkListing', enc);
       if (!win) { alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.'); return; }
       closeDlg();
       toast(`Elenco ${name} pronto per lo script Card Scanner`);
@@ -2732,7 +2749,7 @@ async function openPriceEdit(scopeSet, opt = {}) {
           old: l.price, price: c.p, b: c.m ? (l.rb || b) : c.used, o: c.m ? (l.ro ?? 0) : plusC, ref: c.ref ?? null, m: c.m ? 1 : 0 })) };
       const enc = 'csedit=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
       try { navigator.clipboard.writeText(enc); } catch (e) {}
-      const win = window.open(OFFERS_URL, enc);
+      const win = openCm(OFFERS_URL, enc);
       if (!win) { alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.'); return; }
       logOp('prezzo', scope, `Preparato "${name}": ${ch.length} offerte da cambiare (${BASEN[b]}${plusC ? ` ${plusC > 0 ? '+' : '−'} ${eur(Math.abs(plusC) / 100)}` : ''})`, ch.reduce((a, r) => a + r.l.q, 0));
       save(); closeDlg();
@@ -2745,6 +2762,7 @@ const SavedListsName = n => String(n).normalize('NFD').replace(/[̀-ͯ]/g, '').s
 function importEditFromHash() {
   const m = location.hash.match(/^#cmedit=(.+)$/);
   if (!m) return false;
+  csPendingDone();   // il risultato è arrivato: l'elenco non va più consegnato allo script
   history.replaceState(null, '', location.pathname);
   let d;
   try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Dati delle modifiche non leggibili.'); return false; }

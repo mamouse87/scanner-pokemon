@@ -482,7 +482,7 @@ async function renderSet() {
 }
 // ---------- schede in alto e impostazioni ----------
 let lastSet = null;   // ultimo set aperto nella scheda "Carte"
-const TABS = [['cards', 'Carte'], ['__out', 'Fuori mercato'], ['__chk', 'Controllo'], ['__dash', 'Statistiche'], ['__sales', 'Vendite'], ['__log', 'Registro']];
+const TABS = [['cards', 'Carte'], ['__out', 'Fuori mercato'], ['__chk', 'Controllo'], ['__dash', 'Statistiche'], ['__sales', 'Vendite']];
 // colore di ogni segnalibro (continua sul bordo della pagina sotto)
 const TABC = { cards: '#1d3d7a', __out: '#d9620f', __chk: '#c8372d', __dash: '#7c4dcc', __sales: '#1f8f55', __log: '#6e7c93', __set: '#1d3d7a' };
 function renderTabs() {
@@ -599,13 +599,16 @@ function renderSettings() {
     ['mk', '📈', 'Prezzi di mercato', state.revAt ? 'Aggiornati ' + fmtDT(state.revAt) : 'Mai aggiornati', ''],
     ['rules', '⚖️', 'Regole di prezzo', `${BASEN[up.base]} · soglia ${thrCfg().c} cent. / ${thrCfg().pct}%`, ''],
     ['tools', '🧰', 'Strumenti', 'Script, app, Cardmarket', ''],
+    ['log', '📜', 'Registro', `${(state.log || []).length} operazioni`, ''],
     ['data', '🗂', 'Dati salvati', `${(size / 1024).toFixed(0)} KB usati`, ''],
     ['danger', '⚠️', 'Zona pericolosa', 'Svuota carte in vendita', 'dz']];
   if (!SECS.some(x => x[0] === setSec)) setSec = 'gh';
   const secEls = [...$('main').querySelectorAll('.setgrid > section')];
   secEls.forEach((el, i) => { el.dataset.s = SECS[i][0]; el.classList.toggle('on', SECS[i][0] === setSec); });
   $('setNav').innerHTML = SECS.map(([id, ic, t, sub, cls]) => `<button class="${id === setSec ? 'on' : ''} ${cls}" data-s="${id}"><span class="ic">${ic}</span><span class="tx"><b>${t}</b><small>${esc(sub)}</small></span>${cls === 'bad' ? '<i>!</i>' : ''}</button>`).join('');
-  $('setNav').onclick = e => { const b = e.target.closest('button'); if (!b) return; setSec = b.dataset.s;
+  $('setNav').onclick = e => { const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.s === 'log') { goTab('__log'); return; }   // il registro ha una pagina sua
+    setSec = b.dataset.s;
     $('setNav').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); secEls.forEach(el => el.classList.toggle('on', el.dataset.s === setSec)); };
   const reload = () => { bkShow(); renderTabs(); renderSettings(); };
   if ($('gGo')) $('gGo').onclick = async () => {
@@ -1218,7 +1221,7 @@ function renderLog() {
   const sets = [...new Set(all.map(x => x.set).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const qq = simp(logF.q);
   const list = all.filter(x => (!logF.t || x.t === logF.t) && (!logF.set || x.set === logF.set) && (!qq || simp(x.txt + ' ' + x.set).includes(qq)));
-  $('main').innerHTML = `<div class="sethead"><div><h2>📜 Registro operazioni</h2>
+  $('main').innerHTML = `<p style="margin:0 0 8px"><a href="#" id="logBack">← Impostazioni</a></p><div class="sethead"><div><h2>📜 Registro operazioni</h2>
     <div class="sub">Tutto quello che succede nel gestionale, con data e ora: carte in Standby, messe in vendita, vendute, tolte, prezzi e quantità cambiati, variazioni di mercato.</div></div>
     <div class="row"><button id="lgCsv">⬇ Esporta (CSV)</button></div></div>
     <div class="filters"><select id="lgT"><option value="">Tutte le operazioni</option>${Object.entries(LOGT).map(([k, v]) => `<option value="${k}" ${logF.t === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
@@ -1232,6 +1235,7 @@ function renderLog() {
   $('lgQ').oninput = () => { logF.q = $('lgQ').value; clearTimeout(renderLog.t); renderLog.t = setTimeout(() => { renderLog(); const q = $('lgQ'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 300); };
   $('lgCsv').onclick = () => downloadCsv(`registro-operazioni-${new Date().toISOString().slice(0, 10)}.csv`,
     [['Data e ora', 'Operazione', 'Set', 'Dettagli', 'Copie']].concat(list.map(x => [new Date(x.at).toLocaleString('it-IT'), (LOGT[x.t] || x.t).replace(/^\S+\s/, ''), x.set, x.txt, x.q ?? ''])));
+  $('logBack').onclick = e => { e.preventDefault(); goTab('__set'); };
 }
 
 // ---------- annulla / ripeti: ultime 20 operazioni, anche dopo aver chiuso il gestionale ----------
@@ -3227,7 +3231,8 @@ function bkShow() {
   if (bkState !== 'off' && bkState !== 'nosupport') lines.push({ ok: `Cartella: attiva · ultimo salvataggio ${t(at)}`, paused: 'Cartella: in pausa', err: 'Cartella: errore' }[bkState]);
   if (!lines.length) lines.push('Backup non attivo: clicca per attivarlo');
   const lb = err ? 'Errore backup' : bkOk() ? '' : bkState === 'paused' ? 'In pausa' : 'Backup spento';
-  b.textContent = lb ? '⚠ ' + lb : '✓ Salvato'; b.title = lines.join('\n');
+  // un pallino discreto: verde = salvato; arancione con la scritta solo se c'è un problema
+  b.innerHTML = `<i class="sd"></i>${lb ? esc(lb) : ''}`; b.title = (lb ? '' : 'Dati salvati\n') + lines.join('\n');
   b.className = 'tsave' + (lb ? ' warn' : '');
 }
 function downloadBackup() {

@@ -498,7 +498,7 @@ async function renderSet() {
       ${copies || sbQ ? `<button class="ghost" id="bSel" title="Scegli più carte da togliere dalla vendita o riportare in Standby">☑ ${selMode ? 'Fine selezione' : 'Seleziona'}</button>
         <button class="ghost" id="bCl" title="PDF da stampare con le carte di questo set: il cliente segna quelle che vuole">📋 Lista per i clienti</button>` : ''}
       ${copies ? `<button id="bEditCM" title="Cambia su Cardmarket i prezzi delle carte di questo set (es. da Tendenza a prezzo minimo)">✏️ Cambia prezzi</button>` : ''}
-      ${sbQ ? `<button class="pri" id="bOpenCM" title="Scegli il prezzo e prepara le carte in Standby per lo script Card Scanner">Metti in vendita (${sbQ} in Standby)</button>` : cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="_blank" class="pribtn" title="Pagina &quot;Inserisci carte bulk&quot; di questo set su Cardmarket">Apri su Cardmarket ↗</a>` : ''}
+      ${sbQ ? `<button class="pri" id="bOpenCM" title="Scegli il prezzo e prepara le carte in Standby per lo script Card Scanner">Metti in vendita (${sbQ} in Standby)</button>` : cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="cardscanner" referrerpolicy="no-referrer" class="pribtn" title="Pagina &quot;Inserisci carte bulk&quot; di questo set su Cardmarket">Apri su Cardmarket ↗</a>` : ''}
     </div></div>
     <div class="figs">
       <div class="fig f-ok"><b>${copies}</b><span>copie in vendita · ${Object.keys(byNum).length} carte</span></div>
@@ -664,7 +664,7 @@ function renderSettings() {
       <p class="small">I sei valori di Cardmarket (Da, Tendenza, Media, Media 1/7/30 giorni) e il Consigliato, letti da TCGdex per tutte le carte in vendita e in Standby. Si aggiornano da soli all'apertura se hanno più di ${AUTO_H} ore, poi ogni ora.</p>
       <dl class="kv"><dt>Ultimo aggiornamento</dt><dd>${state.revAt ? fmtDT(state.revAt) : 'mai'}</dd>
         <dt>Price Guide di Cardmarket</dt><dd>${state.pg ? `caricata il ${fmtDT(state.pg.at)}` : 'non caricata (facoltativa)'}${state.pgAuto ? ' · si scarica da sola' : ''}</dd></dl>
-      <div class="row"><button class="pri" id="sUpd">🔄 Aggiorna adesso</button><button id="sPg">📂 Carica Price Guide…</button><a class="small" href="${PG_PAGE}" target="_blank" rel="noreferrer">dove si scarica</a></div>
+      <div class="row"><button class="pri" id="sUpd">🔄 Aggiorna adesso</button><button id="sPg">📂 Carica Price Guide…</button><a class="small" href="${PG_PAGE}" target="cardscanner" referrerpolicy="no-referrer">dove si scarica</a></div>
     </section>
     <section class="sc">
       <h3>⚖️ Regole di prezzo predefinite</h3>
@@ -684,7 +684,7 @@ function renderSettings() {
       <ul class="links">
         <li><a href="../cardmarket/" target="_blank">Pulsante Card Scanner per Cardmarket</a><span class="small">pagina di installazione e istruzioni</span></li>
         <li><a href="https://github.com/mamouse87/scanner-pokemon/releases" target="_blank" rel="noreferrer">App Card Scanner per Android</a><span class="small">ultima versione da installare sul telefono</span></li>
-        <li><a href="https://www.cardmarket.com/it/Pokemon/Stock/Offers/Singles" target="_blank" rel="noreferrer">Le mie offerte su Cardmarket</a><span class="small">per cambiare i prezzi con lo script</span></li>
+        <li><a href="https://www.cardmarket.com/it/Pokemon/Stock/Offers/Singles" target="cardscanner" referrerpolicy="no-referrer">Le mie offerte su Cardmarket</a><span class="small">per cambiare i prezzi con lo script</span></li>
       </ul>
     </section>
     <section class="sc">
@@ -776,15 +776,18 @@ function renderSettings() {
 }
 
 // ---------- controllo con Cardmarket: le offerte lette dallo script (tu collegato) confrontate con il magazzino ----------
-// Lo script manda '#cmchk=' con tutte le offerte delle singole Pokémon. L'elenco resta solo in questo browser
-// (localStorage 'gestionaleCheck'); nello stato c'è solo la data dell'ultimo controllo (state.chkAt).
-// ---------- consegna dell'elenco allo script anche dopo il login su Cardmarket ----------
-// L'elenco viaggia nel nome della scheda (window.name). Se Cardmarket chiede il login e il nome si perde,
-// lo script lo richiede a questa pagina (la scheda di Cardmarket è stata aperta da qui): rispondo solo a cardmarket.com.
-const CS_PEND = 'gestionaleCsPending';
+// Lo script manda '#cmchk=' con tutte le offerte delle singole Pokémon. Dal 19/11 l'elenco sta nei dati (state.chk),
+// così viaggia con i backup e l'altro PC vede lo stesso controllo; prima stava solo in questo browser ('gestionaleCheck').
+// ---------- consegna dell'elenco allo script, sempre nella stessa scheda di Cardmarket ----------
+// Tutto ciò che il gestionale apre su Cardmarket va nella scheda chiamata CM_TAB: se è già aperta la riuso.
+// L'elenco per lo script viaggia nell'indirizzo, dopo il # (non arriva al server di Cardmarket): lo script lo legge
+// e lo toglie. Se la scheda è già sulla stessa pagina e lo script è aperto, lo script prende subito l'elenco nuovo.
+// Se Cardmarket chiede il login, l'indirizzo con il # si perde: lo script lo richiede a questa pagina
+// (la scheda è stata aperta da qui; rispondo solo a cardmarket.com), altrimenti basta ripremere il pulsante.
+const CS_PEND = 'gestionaleCsPending', CM_TAB = 'cardscanner';
 function openCm(url, payload) {
   try { localStorage.setItem(CS_PEND, JSON.stringify({ at: Date.now(), p: payload })); } catch (e) {}
-  return window.open(url, payload);
+  return window.open(url.split('#')[0] + '#' + payload, CM_TAB);
 }
 function csPendingDone() { try { localStorage.removeItem(CS_PEND); } catch (e) {} }
 window.addEventListener('message', e => {
@@ -794,7 +797,13 @@ window.addEventListener('message', e => {
   try { e.source.postMessage({ cs: 'job', p: P.p }, 'https://www.cardmarket.com'); } catch (x) {}
 });
 const CHK_KEY = 'gestionaleCheck';
-let chk = (() => { try { return JSON.parse(localStorage.getItem(CHK_KEY)) || null; } catch (e) { return null; } })();
+Object.defineProperty(globalThis, 'chk', { configurable: true, get: () => state.chk || null, set: v => { state.chk = v || null; } });
+// vecchio controllo salvato solo in questo browser: lo sposto nei dati (se nei dati non ce n'è già uno)
+try {
+  const old = JSON.parse(localStorage.getItem(CHK_KEY) || 'null');
+  if (old && old.list && !state.chk) state.chk = old;               // va nei dati al prossimo salvataggio
+  else if (old) localStorage.removeItem(CHK_KEY);                       // già nei dati: la vecchia copia non serve più
+} catch (e) {}
 function importCheckFromHash() {
   const m = location.hash.match(/^#cmchk=(.+)$/);
   if (!m) return false;
@@ -814,7 +823,6 @@ function importCheckFromHash() {
     Object.entries(by).forEach(([set, a]) => logOp('quantita', set, `Controllo: copie corrette su Cardmarket (vale il gestionale): ${a.join(', ')}`, null));
     setTimeout(() => toast(`Copie corrette su Cardmarket durante il controllo: ${d.fixed.filter(r => !r.zero).length}`), 1500);
   }
-  try { localStorage.setItem(CHK_KEY, JSON.stringify(chk)); } catch (e) {}
   state.chkAt = chk.at; softSave();
   selected = '__chk';
   const n = chkDiffs().length;
@@ -836,6 +844,8 @@ function chkDiffs() {
     const t = tailOf(l.u, l.rev, l.lang), code = String(setCode(l) || '').toUpperCase();
     const os = (code && byCode[code + t]) || byExp[simp(l.expName || state.cm[l.exp]?.name) + t] || [];
     os.forEach(o => used.add(o));
+    // messa in vendita (o aggiunte copie) dopo il controllo: quel controllo non la poteva vedere, non la segnalo
+    if (l.date && /T/.test(l.date) && Date.parse(l.date) > Date.parse(chk.at)) continue;
     if (!os.length) { if (!chk.rx || chk.rx.includes(String(l.exp))) out.push({ type: 'miss', k, l, os }); continue; }
     const q = os.reduce((a, o) => a + o.q, 0), prices = [...new Set(os.map(o => r2(o.price)))];
     if (q !== l.q) out.push({ type: 'qty', k, l, os, q });
@@ -865,7 +875,7 @@ function chkAfterListing(added) {
       ((o.code && x.code === o.code) || simp(x.exp) === simp(o.exp)));
     if (same) same.q += q; else chk.list.push(o);
   });
-  try { localStorage.setItem(CHK_KEY, JSON.stringify(chk)); } catch (e) {}
+  softSave();
 }
 /** dopo una correzione fatta (e verificata) dallo script su Cardmarket, aggiorno il controllo: la differenza sparisce.
  *  r.qt = copie giuste (correzione delle copie), r.price = nuovo prezzo (cambio prezzi) */
@@ -882,7 +892,7 @@ function chkAfterFix(res) {
     if (rem > 0 && d.os[0]) d.os[0].q += rem;
   });
   chk.list = chk.list.filter(o => o.q > 0);
-  try { localStorage.setItem(CHK_KEY, JSON.stringify(chk)); } catch (e) {}
+  softSave();
 }
 function openQtyEdit(rows, why, scope) {
   rows = rows.filter(r => state.listings[r.k] || r.l);
@@ -1759,9 +1769,9 @@ $('main').addEventListener('click', e => {
   const cmLink = x => cmCardUrl(cm, c.name, !!x.rev, x.lang || 'it');
   const vName = x => `${x.rev ? 'Reverse Holo' : 'Normale'} · ${LANGN[x.lang || 'it'] || x.lang}`;
   const v0 = ls[0]?.[1] || sb[0]?.[1] || { rev: false, lang: 'it' };
-  const cmA = x => `<a class="cd-cml" href="${esc(cmLink(x))}" target="_blank" rel="noreferrer" title="Apri su Cardmarket con i filtri ${esc(vName(x))}">Cardmarket ↗</a>`;
+  const cmA = x => `<a class="cd-cml" href="${esc(cmLink(x))}" target="cardscanner" referrerpolicy="no-referrer" title="Apri su Cardmarket con i filtri ${esc(vName(x))}">Cardmarket ↗</a>`;
   openDlg(`<div class="cdx">
-    <div class="cd-img"><a class="cd-cm" href="${esc(cmLink(v0))}" target="_blank" rel="noreferrer" title="Apri su Cardmarket: ${esc(vName(v0))}">${imgTag(srcs, false) || `<div class="cd-ph">${esc(c.localId)}</div>`}<span>Apri su Cardmarket ↗<small>${esc(vName(v0))}</small></span></a><p class="small">${srcs.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noreferrer">immagine ${i + 1}</a>`).join(' · ') || 'nessuna immagine'}</p></div>
+    <div class="cd-img"><a class="cd-cm" href="${esc(cmLink(v0))}" target="cardscanner" referrerpolicy="no-referrer" title="Apri su Cardmarket: ${esc(vName(v0))}">${imgTag(srcs, false) || `<div class="cd-ph">${esc(c.localId)}</div>`}<span>Apri su Cardmarket ↗<small>${esc(vName(v0))}</small></span></a><p class="small">${srcs.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noreferrer">immagine ${i + 1}</a>`).join(' · ') || 'nessuna immagine'}</p></div>
     <div class="cd-main">
       <div class="cd-head"><div><span class="cd-num">${esc(c.localId)}</span><h3>${esc(c.name)}</h3>
         <div class="cd-sub">${[el.querySelector('.rar')?.textContent.trim(), current.setName].filter(Boolean).map(esc).join(' · ')}</div></div>
@@ -2692,7 +2702,7 @@ function jobVals(k) {
 async function openOnCardmarket(setId, setName, cmCat) {
   const list = Object.entries(state.standby || {}).filter(([, x]) => x.s === setId)
     .sort((a, b) => (parseInt(a[1].u) || 0) - (parseInt(b[1].u) || 0) || String(a[1].u).localeCompare(String(b[1].u)) || a[1].rev - b[1].rev);
-  if (!list.length) { if (cmCat) window.open(CMBULK + encodeURIComponent(cmCat.id), '_blank'); else window.open('https://www.cardmarket.com/it/Pokemon', '_blank'); return; }
+  if (!list.length) { if (cmCat) window.open(CMBULK + encodeURIComponent(cmCat.id), CM_TAB); else window.open('https://www.cardmarket.com/it/Pokemon', CM_TAB); return; }
   // prezzi di mercato freschi prima di decidere
   await tcg('/sets/' + encodeURIComponent(setId), 24 * 7); await tcg('@en/sets/' + encodeURIComponent(setId), 24 * 7); // per la sigla
   if (list.some(([k]) => { const M = sbmOf(k); return !M || Date.now() - new Date(M.at) > AUTO_H * 3600e3; })) {

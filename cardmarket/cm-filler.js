@@ -58,12 +58,13 @@
     .ft{padding:9px 16px;border-top:1px solid #e3e8f0;background:#f6f8fb;font-size:12px;display:flex;gap:14px;justify-content:flex-end;white-space:nowrap;align-items:center}
     .ft a{color:#5b6678;text-decoration:none}.ft a:hover{color:#12284c;text-decoration:underline}
     .hide{display:none!important}
+    .ag{padding:6px 14px;font-size:12px;color:#5b6577;background:#f4f6fa;border-bottom:1px solid #e3e7ee}.ag.old{background:#fff4e5;color:#8a4b00}
   `;
   /** crea un riquadro isolato: restituisce l'elemento ospite e la radice in cui cercare gli elementi */
   function csPanel(mode) {
     const host = document.createElement('div');
     const root = host.attachShadow({ mode: 'open' });
-    root.innerHTML = `<style>${CS_CSS}</style><div class="pn"><div class="hd"><span class="t">Card Scanner</span><span class="m">${mode}</span><button class="x" id="pnX" title="Chiudi (premi di nuovo il pulsante per riaprirlo)">✕</button></div><div id="pnIn" style="display:flex;flex-direction:column;min-height:0;flex:1"></div></div>`;
+    root.innerHTML = `<style>${CS_CSS}</style><div class="pn"><div class="hd"><span class="t">Card Scanner</span><span class="m">${mode}</span><button class="x" id="pnX" title="Chiudi (premi di nuovo il pulsante per riaprirlo)">✕</button></div>${inAgo()}<div id="pnIn" style="display:flex;flex-direction:column;min-height:0;flex:1"></div></div>`;
     document.body.appendChild(host);
     root.getElementById('pnX').onclick = () => {
       host.style.display = 'none';
@@ -73,11 +74,19 @@
     };
     return { host, root };
   }
+  /** riga sotto il titolo: a che ora è arrivata dal gestionale l'operazione che lo script sta usando */
+  function inAgo() {
+    let at = 0; try { at = +localStorage.getItem('cs_in_at') || 0; } catch (e) {}
+    if (!at) return '';
+    const old = Date.now() - at > 30 * 60e3, d = new Date(at);
+    const when = d.toDateString() === new Date().toDateString() ? 'alle ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : 'il ' + d.toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `<div class="ag${old ? ' old' : ''}">Operazione ricevuta dal gestionale ${when}.${old ? ' Non è quella giusta? Ripremi il pulsante nel gestionale: arriva in questa scheda.' : ''}</div>`;
+  }
   const stepsHtml = (names, cur, okUpTo) => `<div class="steps">${names.map((n, i) =>
     `<div class="st ${i < okUpTo ? 'ok' : i === cur ? 'on' : ''}"><b>${i < okUpTo ? '✓' : i + 1}</b>${n}</div>`).join('')}</div>`;
 
   // ---------- elenco preparato dal gestionale ("Apri su Cardmarket") ----------
-  // arriva nel nome della scheda (window.name = "csjob=…") e resta salvato in cardmarket.com finché non è tutto inviato
+  // arriva nell'indirizzo dopo il # (o nel nome della scheda) e resta salvato in cardmarket.com finché non è tutto inviato
   const JKEY = 'cs_job';
   const jobGet = () => { try { return JSON.parse(localStorage.getItem(JKEY)) || null; } catch (e) { return null; } };
   /** elenco del gestionale: csjob= (carte da mettere in vendita) o csedit= (prezzi da cambiare) */
@@ -114,28 +123,42 @@
       return true;
     } catch (e) { return false; }
   }
-  // L'elenco del gestionale arriva nel nome della scheda. Se si è perso (per esempio Cardmarket ha chiesto il login),
-  // lo chiedo al gestionale che ha aperto questa scheda: risponde solo se ha un elenco in attesa, e accetto solo da lui.
-  if (!/^cs(job|edit|check)=/.test(String(window.name || '').trim()) && window.opener) {
-    const p = await new Promise(res => {
-      const t = setTimeout(() => { removeEventListener('message', on); res(null); }, 1200);
+  // ---------- operazione nuova dal gestionale ----------
+  // Il gestionale apre sempre la stessa scheda (nome "cardscanner") e mette l'operazione nell'indirizzo, dopo il #.
+  // Se manca (Cardmarket ha chiesto il login e l'indirizzo è cambiato): nome della scheda (vecchio modo), poi la chiedo
+  // al gestionale che ha aperto questa scheda (rispondo/accetto solo tra cardmarket.com e il gestionale).
+  const CS_RX = /^cs(job|edit|check)=/, CS_TAB = 'cardscanner';
+  let inP = '';
+  const hm = String(location.hash || '').match(/^#(cs(?:job|edit|check)=.+)$/);
+  if (hm) { inP = hm[1]; try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+  else if (CS_RX.test(String(window.name || '').trim())) inP = String(window.name).trim();
+  else if (window.opener) {
+    inP = await new Promise(res => {
+      const t = setTimeout(() => { removeEventListener('message', on); res(''); }, 1200);
       function on(e) {
         if (e.origin !== 'https://mamouse87.github.io' || !e.data || e.data.cs !== 'job' || typeof e.data.p !== 'string') return;
         clearTimeout(t); removeEventListener('message', on); res(e.data.p);
       }
       addEventListener('message', on);
-      try { window.opener.postMessage({ cs: 'want' }, 'https://mamouse87.github.io'); } catch (e) { clearTimeout(t); removeEventListener('message', on); res(null); }
-    });
-    // lo stesso elenco già ricevuto non lo riprendo (non ricomincio un lavoro già iniziato)
-    let last = ''; try { last = localStorage.getItem('cs_last_in') || ''; } catch (e) {}
-    if (p && p.slice(0, 200) + p.length !== last) window.name = p;
+      try { window.opener.postMessage({ cs: 'want' }, 'https://mamouse87.github.io'); } catch (e) { clearTimeout(t); removeEventListener('message', on); res(''); }
+    }) || '';
   }
-  if (/^cs(job|edit|check)=/.test(String(window.name || '').trim())) { try { localStorage.setItem('cs_last_in', String(window.name).trim().slice(0, 200) + String(window.name).trim().length); } catch (e) {} }
-  if (intakeAny(window.name)) {
-    const wasEdit = /^cs(edit|check)=/.test(window.name);
-    try { window.name = ''; } catch (e) {}
+  // la stessa operazione già ricevuta non la riprendo (non ricomincio un lavoro già iniziato)
+  let lastIn = ''; try { lastIn = localStorage.getItem('cs_last_in') || ''; } catch (e) {}
+  const sigIn = inP ? inP.slice(0, 200) + inP.length : '';
+  if (inP && CS_RX.test(inP) && sigIn !== lastIn && intakeAny(inP)) {
+    try { localStorage.setItem('cs_last_in', sigIn); localStorage.setItem('cs_in_at', String(Date.now())); } catch (e) {}
+    const wasEdit = /^cs(edit|check)=/.test(inP);
     if (!wasEdit && window.__csPanel) { window.__csPanel.remove(); window.__csPanel = null; } // elenco nuovo: rifaccio il pannello
     if (wasEdit && window.__csOffers) { window.__csOffers.remove(); window.__csOffers = null; }
+  }
+  // la scheda tiene il suo nome: la prossima volta il gestionale riapre questa invece di una nuova
+  try { if (window.name !== CS_TAB) window.name = CS_TAB; } catch (e) {}
+  // operazione nuova mentre lo script è aperto in questa pagina: ricarico, così non continua quella vecchia.
+  // Poi premi di nuovo il pulsante e lo script prende quella nuova.
+  if (!window.__csHashOn) {
+    window.__csHashOn = true;
+    addEventListener('hashchange', () => { if (/^#cs(job|edit|check)=/.test(location.hash)) location.reload(); });
   }
   // ================= LE MIE OFFERTE: cambio prezzi =================
   // Sulla pagina "Le mie offerte" (Stock/Offers/Singles) lo script legge tutte le pagine delle offerte
@@ -176,7 +199,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 19/11 c</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 19/11 d</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -255,11 +278,11 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 19/11 c</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 19/11 d</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
-        if (intakeAny(t)) { job = ls.get(EKEY, null); done = { __job: job.name, __read: 1 }; ls.set(DKEY, done); offers = null; render(); readAll(); } else alert('Negli appunti non c\'è un elenco di prezzi del gestionale.');
+        if (intakeAny(t)) { try { localStorage.setItem('cs_in_at', String(Date.now())); } catch (er) {} job = ls.get(EKEY, null); done = { __job: job.name, __read: 1 }; ls.set(DKEY, done); offers = null; render(); readAll(); } else alert('Negli appunti non c\'è un elenco di prezzi del gestionale.');
       };
       R.querySelectorAll('#oRead').forEach(b => b.onclick = e => { e.preventDefault(); readAll(); });
       R.querySelectorAll('#oSend').forEach(b => b.onclick = () => send());
@@ -1217,7 +1240,7 @@
     e.preventDefault();
     let t = '';
     try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csjob=)') || ''; }
-    if (intake(t)) { showJob(); showProgress(); showGest(); log('Elenco dal gestionale caricato ✔', '#3ecf6e'); }
+    if (intake(t)) { try { localStorage.setItem('cs_in_at', String(Date.now())); } catch (er) {} showJob(); showProgress(); showGest(); log('Elenco dal gestionale caricato ✔', '#3ecf6e'); }
     else alert('Negli appunti non c\'è un elenco del gestionale. Nel gestionale premi "Metti in vendita su Cardmarket".');
   };
   showJob();

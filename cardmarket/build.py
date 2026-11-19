@@ -37,6 +37,7 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <li>Le offerte da portare a 0 copie lo script non le cancella mai: le togli tu.</li></ol>
 <h2>Cosa fa lo script su Cardmarket</h2>
 <p>Lo script non legge password e non mette in vendita nulla da solo: "Mettere in vendita le carte" lo premi sempre tu. Cambia prezzi e copie solo quando premi ▶: senza la spunta <b>Conferma automatica</b> ogni modifica la confermi tu; con la spunta la conferma lo script, una carta ogni 3 secondi, e poi la ricontrolla.</p>
+<p>Il gestionale apre Cardmarket sempre nella stessa scheda: se è già aperta, la riusa. Se Cardmarket ti chiede di accedere, dopo l'accesso ripremi il pulsante nel gestionale: l'operazione arriva in quella scheda. In alto nel riquadro dello script vedi a che ora è arrivata l'operazione che sta usando.</p>
 <p>Dopo "Invia al gestionale" i dati tornano nella pagina del gestionale già aperta (se si apre una scheda nuova, passa i dati a quella già aperta e si chiude da sola). In fondo al riquadro dello script c'è la versione: se non è quella nuova, elimina il pulsante dai preferiti e trascinalo di nuovo da questa pagina.</p>
 <h2>In alternativa</h2>
 <p>Se il pulsante non funziona: sulla pagina di Cardmarket premi <code>F12</code> → <b>Console</b>, incolla il codice e premi Invio.</p>

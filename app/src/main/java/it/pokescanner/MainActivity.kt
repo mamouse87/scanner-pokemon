@@ -125,6 +125,19 @@ class MainActivity : AppCompatActivity() {
     private var lastAddTime = 0L
     private val DUP_MS = 3000L
     private val votes = Votes()
+    // lettura veloce (solo la fascia del numero) e cronometro
+    private val roi = FastRoi()
+    @Volatile private var fastRead = true
+    private var showTimes = false
+    private val frameTimes = ArrayDeque<Long>()
+    private var ocrMs = 0f
+    private var candSince = 0L
+    private var noCandN = 0
+    private var lastAcceptAt = 0L
+    private var lastRecMs = 0L
+    private var lastCycleMs = 0L
+    private val recHist = ArrayDeque<Long>()
+    private var lastZone = ""
 
     private val langs = listOf("it", "en", "fr", "de", "es", "pt", "ja")
 
@@ -159,6 +172,8 @@ class MainActivity : AppCompatActivity() {
         fanMode = prefs.getBoolean("fan", false)
         nameCheck = prefs.getBoolean("nameCheck", true)
         reverseMode = prefs.getBoolean("reverseMode", false)
+        fastRead = prefs.getBoolean("fastRead", true)
+        showTimes = prefs.getBoolean("showTimes", false)
 
         // schermo sempre acceso mentre scansioni
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -368,6 +383,7 @@ class MainActivity : AppCompatActivity() {
                 val zs = cam.cameraInfo.zoomState.value ?: return true
                 val z = (zs.zoomRatio * d.scaleFactor).coerceIn(zs.minZoomRatio, zs.maxZoomRatio)
                 cam.cameraControl.setZoomRatio(z)
+                roi.reset()
                 return true
             }
         })
@@ -389,13 +405,20 @@ class MainActivity : AppCompatActivity() {
         val swap = rot == 90 || rot == 270
         val w = if (swap) proxy.height else proxy.width
         val h = if (swap) proxy.width else proxy.height
-        recognizer.process(InputImage.fromMediaImage(media, rot))
+        // lettura veloce: solo la fascia del numero (se la conosco), altrimenti tutta l'immagine
+        val zone = if (!fanMode && fastRead) roi.next(w, h) else null
+        val crop = zone?.let { try { FastRoi.crop(proxy, it, rot) } catch (_: Exception) { null } }
+        val input = if (crop != null) InputImage.fromByteArray(crop.nv21, crop.w, crop.h, rot, InputImage.IMAGE_FORMAT_NV21)
+                    else InputImage.fromMediaImage(media, rot)
+        val t0 = System.nanoTime()
+        recognizer.process(input)
             .addOnSuccessListener { text ->
                 try {
                     if (!paused && (fanMode || scanning)) {
+                        val ms = (System.nanoTime() - t0) / 1_000_000f
                         val pl = proxy.planes[0]
                         val yp = Recognizer.YPlane(pl.buffer, pl.rowStride, pl.pixelStride, proxy.width, proxy.height, rot)
-                        onFrame(text, w, h, yp)
+                        onFrame(Recognizer.lines(text, crop?.dx ?: 0, crop?.dy ?: 0), w, h, yp, crop?.rect, ms)
                     }
                 } catch (_: Exception) {
                 } finally { proxy.close() }
@@ -405,11 +428,12 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------- modalità carta singola ----------------
 
-    private fun onFrame(text: Text, w: Int, h: Int, yp: Recognizer.YPlane) {
+    private fun onFrame(lines: List<Recognizer.Line>, w: Int, h: Int, yp: Recognizer.YPlane, zone: android.graphics.Rect? = null, ms: Float = 0f) {
         val sd = set ?: return
-        val lines = Recognizer.lines(text)
         val scan = Recognizer.scanLines(lines, sd)
         lastScan = scan
+        if (!fanMode) roi.update(scan.good.mapNotNull { it.box }, zone, w, h)
+        times(ms, zone, w, h)
         overlay.show(scan, w, h)
 
         if (fanMode) {
@@ -422,6 +446,9 @@ class MainActivity : AppCompatActivity() {
         val now = System.currentTimeMillis()
         computeSignature(yp, w, h)
         votes.add(now, nums.toSet())
+        // cronometro: da quando vedo un numero nuovo
+        if (nums.any { it != locked }) { if (candSince == 0L) candSince = now; noCandN = 0 }
+        else if (++noCandN >= 3) candSince = 0L
 
         // 1) carta tolta? Solo se l'immagine è cambiata davvero (2 fotogrammi) e il suo numero non si legge.
         //    Un calo di luce o un riflesso non la sbloccano.
@@ -489,6 +516,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         val (variant, sure) = decideVariant()
+        stopwatch(System.currentTimeMillis())
         lockCurrent(n)
         // stessa carta di nuovo entro pochi secondi: probabilmente è la stessa copia ancora davanti alla fotocamera
         if (n == lastAddN && variant == lastAddVar && System.currentTimeMillis() - lastAddTime < DUP_MS) {
@@ -499,6 +527,44 @@ class MainActivity : AppCompatActivity() {
         addCard(n, if (sure) "" else "variante non letta", variant)
         resetCand(); hideForce()
         status("Ok, prossima carta.")
+    }
+
+    /** Carta riconosciuta: tempo dal primo numero visto al bip, e tempo dalla carta precedente. */
+    private fun stopwatch(now: Long) {
+        if (candSince > 0) { lastRecMs = now - candSince; recHist.addLast(lastRecMs); while (recHist.size > 20) recHist.removeFirst() }
+        lastCycleMs = if (lastAcceptAt > 0 && now - lastAcceptAt < 60_000) now - lastAcceptAt else 0
+        lastAcceptAt = now; candSince = 0L
+    }
+
+    /** Letture al secondo e durata di ogni lettura; li mostra sull'anteprima se "Mostra i tempi" è attivo. */
+    private fun times(ms: Float, zone: android.graphics.Rect?, w: Int, h: Int) {
+        val now = System.currentTimeMillis()
+        frameTimes.addLast(now)
+        while (frameTimes.isNotEmpty() && now - frameTimes.first() > 2000) frameTimes.removeFirst()
+        if (ms > 0) ocrMs = if (ocrMs == 0f) ms else ocrMs * 0.8f + ms * 0.2f
+        lastZone = if (zone == null) "immagine intera" else "fascia ${zone.height() * 100 / max(1, h)}%"
+        if (!showTimes || fanMode) { overlay.info = null; overlay.zone = null; return }
+        val fmt = { v: Long -> String.format(java.util.Locale.ITALY, "%.1f s", v / 1000f) }
+        val avg = if (recHist.isEmpty()) 0L else recHist.sum() / recHist.size
+        overlay.zone = zone
+        overlay.info = "⏱ ${frameTimes.size / 2} letture/s · ${ocrMs.toInt()} ms ciascuna · $lastZone\n" +
+            (if (lastAcceptAt == 0L) "Scansiona una carta per vedere i tempi"
+             else "ultima: riconosciuta in ${fmt(lastRecMs)}" + (if (lastCycleMs > 0) " · dalla precedente ${fmt(lastCycleMs)}" else "") +
+                  (if (recHist.size >= 3) " · media ${fmt(avg)} (${recHist.size} carte)" else ""))
+    }
+
+    private fun showOptions() {
+        val items = arrayOf("Lettura veloce: legge solo la fascia del numero (più letture al secondo)", "Mostra i tempi sull'anteprima (cronometro)")
+        val checked = booleanArrayOf(fastRead, showTimes)
+        AlertDialog.Builder(this).setTitle("Opzioni di scansione")
+            .setMultiChoiceItems(items, checked) { _, i, v -> checked[i] = v }
+            .setPositiveButton("Ok") { _, _ ->
+                fastRead = checked[0]; showTimes = checked[1]
+                prefs.edit().putBoolean("fastRead", fastRead).putBoolean("showTimes", showTimes).apply()
+                roi.reset(); recHist.clear(); lastAcceptAt = 0L
+                if (!showTimes) { overlay.info = null; overlay.zone = null; overlay.invalidate() }
+            }
+            .setNegativeButton("Annulla", null).show()
     }
 
     private fun lockCurrent(n: String) { locked = n; lockedSig = curSig; goneN = 0 }
@@ -789,7 +855,9 @@ class MainActivity : AppCompatActivity() {
                 "SUONI: bip corto = carta nuova aggiunta · campanella = carta già presente nella lista (un'altra copia) · suono basso e lungo = errore di lettura che dura (set sbagliato, nome non letto, due numeri insieme).\n\n" +
                 "6. In 📋 Lista trovi tutte le carte: tocca il nome di un set per chiuderle in una lista numerata, poi 📤 Invia liste al gestionale manda i file al PC."
             )
-            .setPositiveButton("Ho capito", null).show()
+            .setPositiveButton("Ho capito", null)
+            .setNeutralButton("Opzioni…") { _, _ -> showOptions() }
+            .show()
     }
 
     /** Carta nuova aggiunta: bip corto (come prima). */

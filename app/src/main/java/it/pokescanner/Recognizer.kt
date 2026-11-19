@@ -20,10 +20,13 @@ object Recognizer {
     // Sigla del set: 3-4 caratteri, almeno 2 lettere (SVI, PAF, MEW, MEG…). Le lingue (IT, EN) hanno 2 lettere.
     private val CODE = Regex("^[A-Z][A-Z0-9]{2,3}$")
 
-    fun lines(text: Text): List<Line> =
-        text.textBlocks.flatMap { b ->
-            b.lines.map { l -> Line(l.text, l.boundingBox, l.elements.map { it.text to it.boundingBox }) }
+    /** Righe lette; dx, dy spostano le posizioni quando è stata letta solo una zona dell'immagine. */
+    fun lines(text: Text, dx: Int = 0, dy: Int = 0): List<Line> {
+        fun mv(r: Rect?) = if (r == null || (dx == 0 && dy == 0)) r else Rect(r).apply { offset(dx, dy) }
+        return text.textBlocks.flatMap { b ->
+            b.lines.map { l -> Line(l.text, mv(l.boundingBox), l.elements.map { it.text to mv(it.boundingBox) }) }
         }
+    }
 
     private fun codeBoxOf(ln: Line): Rect? =
         ln.words.firstOrNull { (w, _) ->

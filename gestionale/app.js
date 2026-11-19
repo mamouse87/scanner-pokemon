@@ -320,6 +320,8 @@ function nextImg(im) {
 let filter = 'all', filterText = '', current = null;
 // filtri in più della griglia: rarità, prezzo da/a, copie minime, ordinamento
 const cf = { rar: '', pmin: '', pmax: '', q: '', sort: 'num' };
+const cfOn = () => !!(cf.rar || cf.pmin !== '' || cf.pmax !== '' || cf.q || cf.sort !== 'num');
+let cfOpen = false, varOpen = false;   // riga dei filtri aperta, riquadro dei prezzi cambiati aperto
 // selezione di più carte nel set (per togliere dalla vendita, riportare in Standby…)
 let selMode = false, selSet = null;
 const sel = new Set();
@@ -391,22 +393,18 @@ async function renderSet() {
   let h = `<div class="sethead"><div class="row" style="gap:16px">${logo ? `<img class="logo" src="${esc(logo)}.png" alt="" data-logo="1">` : ''}
       <div><h2>${esc(setName)}</h2><div class="sub">${cards.length} carte${extra ? `: ${official} + ${extra} fuoriserie` : ''}</div></div></div>
     <div class="row">
-      ${copies ? `<button id="bEditCM" title="Cambia su Cardmarket i prezzi delle carte di questo set (es. da Tendenza a prezzo minimo)">✏️ Cambia prezzi di questo set</button>` : ''}
-      ${copies || sbQ ? `<details class="menu"><summary>Altro ▾</summary><div class="mn">
-        <button id="bSel">☑ Seleziona carte (togli, riporta in Standby…)</button>
-        <button id="bCl">📋 Lista PDF per i clienti</button>
-        <button id="bClF">📷 Foto della lista di un cliente…</button>
-        ${vars.length ? `<button id="bPdf2">📄 PDF revisione prezzi</button>` : ''}
-        ${cmCat ? `<button id="bBulk">↗ Pagina "Inserisci carte bulk" del set</button>` : ''}</div></details>` : ''}
-      ${sbQ ? `<button class="pri" id="bOpenCM" title="Scegli il prezzo e prepara le carte in Standby per lo script Card Scanner">Metti in vendita su Cardmarket (${sbQ} in Standby)</button>` : cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="_blank"><button>Apri su Cardmarket ↗</button></a>` : ''}
+      ${copies || sbQ ? `<button class="ghost" id="bSel" title="Scegli più carte da togliere dalla vendita o riportare in Standby">☑ ${selMode ? 'Fine selezione' : 'Seleziona'}</button>
+        <button class="ghost" id="bCl" title="PDF da stampare con le carte di questo set: il cliente segna quelle che vuole">📋 Lista per i clienti</button>` : ''}
+      ${copies ? `<button id="bEditCM" title="Cambia su Cardmarket i prezzi delle carte di questo set (es. da Tendenza a prezzo minimo)">✏️ Cambia prezzi</button>` : ''}
+      ${sbQ ? `<button class="pri" id="bOpenCM" title="Scegli il prezzo e prepara le carte in Standby per lo script Card Scanner">Metti in vendita (${sbQ} in Standby)</button>` : cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="_blank" class="pribtn" title="Pagina &quot;Inserisci carte bulk&quot; di questo set su Cardmarket">Apri su Cardmarket ↗</a>` : ''}
     </div></div>
     <div class="figs">
       <div class="fig f-ok"><b>${copies}</b><span>copie in vendita · ${Object.keys(byNum).length} carte</span></div>
       <div class="fig"><b>${eur(value) || '0,00 €'}</b><span>valore ai tuoi prezzi</span></div>
       ${sbQ ? `<div class="fig f-sb"><b>${sbQ}</b><span>in Standby · stima ${eur(sbEst('low'))}–${eur(sbEst('trend'))}</span></div>` : ''}
-      ${vars.length ? `<div class="fig f-var"><b>${vars.length}</b><span>variazioni di prezzo</span></div>` : ''}
+      ${vars.length ? `<button class="fig f-var figbtn" id="bVarBox" title="Mostra o nascondi il riquadro dei prezzi cambiati"><b>${vars.length}</b><span>prezzi di mercato cambiati · <u>${varOpen ? 'nascondi' : 'rivedi'}</u></span></button>` : ''}
     </div>
-    ${vars.length ? `<div class="notice var"><span><b>${vars.length} ${vars.length === 1 ? 'carta ha' : 'carte hanno'} il prezzo di mercato cambiato</b> rispetto a quando l'hai messa in vendita.</span>
+    ${vars.length && varOpen ? `<div class="notice var"><span><b>${vars.length} ${vars.length === 1 ? 'carta ha' : 'carte hanno'} il prezzo di mercato cambiato</b> rispetto a quando l'hai messa in vendita.</span>
       <span class="row"><button id="bPdf">📄 PDF revisione</button><button id="bConf">✔ Conferma prezzi</button></span></div>` : ''}
     ${selMode ? `<div class="selbar"><b id="selN">0 selezionate</b>
       <button id="sAll">Seleziona tutte quelle visibili</button><button id="sNone">Nessuna</button>
@@ -414,8 +412,9 @@ async function renderSet() {
       <button id="sDel" class="danger">🗑 Togli dalla vendita</button><button id="sToSb">↩ Riporta in Standby</button><button id="sDelSb">🗑 Togli dallo Standby</button>
       <button id="sDone" class="pri">Fine</button></div>` : ''}
     <div class="toolbar"><div class="chips" id="fChips">${chip('all', 'Tutte')}${chip('yes', 'In vendita')}${cntF.sb ? chip('sb', 'Standby') : ''}${cntF.var ? chip('var', 'Variazioni') : ''}${cntF.rev ? chip('rev', 'Reverse') : ''}${chip('no', 'Mancanti')}</div>
-      <input type="search" id="qCard" placeholder="Cerca per nome o numero…" style="margin-left:auto"></div>
-    <div class="toolbar tb2" id="cfBar">
+      <input type="search" id="qCard" placeholder="Nome o numero…" style="margin-left:auto">
+      <button id="cfTog" class="${cfOpen || cfOn() ? 'on' : ''}" title="Rarità, prezzo, copie e ordinamento">⚙ Filtri e ordine ${cfOpen || cfOn() ? '▴' : '▾'}${cfOn() ? ' <i class="cfdot"></i>' : ''}</button></div>
+    <div class="toolbar tb2" id="cfBar" ${cfOpen || cfOn() ? '' : 'hidden'}>
       <label>Rarità <select id="cfRar"><option value="">Tutte</option></select></label>
       <label title="Il tuo prezzo; per le carte in Standby il Consigliato">Prezzo <input type="number" id="cfMin" min="0" step="0.01" placeholder="da" value="${esc(cf.pmin)}"> – <input type="number" id="cfMax" min="0" step="0.01" placeholder="a" value="${esc(cf.pmax)}"> €</label>
       <label>Copie <select id="cfQ"><option value="">Tutte</option><option value="1">1 sola</option><option value="2">2 o più</option><option value="4">4 o più</option><option value="10">10 o più</option></select></label>
@@ -465,15 +464,15 @@ async function renderSet() {
   $('cfReset').onclick = () => { Object.assign(cf, { rar: '', pmin: '', pmax: '', q: '', sort: 'num' }); filter = 'all'; filterText = ''; renderSet(); };
   cfSort();
   $('fChips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; filter = b.dataset.f; $('fChips').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); applyCardFilter(); };
-  if ($('bPdf2')) $('bPdf2').onclick = () => pdfVariations(vars, setName);
-  if ($('bBulk')) $('bBulk').onclick = () => window.open(CMBULK + encodeURIComponent(cmCat.id), '_blank');
+  if ($('bVarBox')) $('bVarBox').onclick = () => { varOpen = !varOpen; renderSet(); };
+  // con un filtro attivo la riga resta aperta (per toglierlo c'è "Azzera filtri")
+  $('cfTog').onclick = () => { if (cfOn()) { $('cfBar').querySelector('select')?.focus(); return; } cfOpen = !cfOpen; renderSet(); };
   if ($('bPdf')) $('bPdf').onclick = () => pdfVariations(vars, setName);
   if ($('bOpenCM')) $('bOpenCM').onclick = () => openOnCardmarket(selected, setName, cmCat);
   if ($('bConf')) $('bConf').onclick = () => varDialog(vars, `Conferma prezzi · ${setName}`);
   if ($('bEditCM')) $('bEditCM').onclick = () => openPriceEdit(mine[0]?.[1].expName || state.cm[mine[0]?.[1].exp]?.name || '');
   if ($('bSel')) $('bSel').onclick = () => { selMode = !selMode; sel.clear(); renderSet(); };
   if ($('bCl')) $('bCl').onclick = () => pdfClients();
-  if ($('bClF')) $('bClF').onclick = () => clPickPhotos();
   if (selMode) {
     const upd = () => { $('selN').textContent = `${sel.size} carte selezionate`; document.querySelectorAll('.card').forEach(el => el.classList.toggle('sel', sel.has(el.dataset.n))); };
     $('sAll').onclick = () => { document.querySelectorAll('.card:not(.hide)').forEach(el => { if (!el.classList.contains('no')) sel.add(el.dataset.n); }); upd(); };

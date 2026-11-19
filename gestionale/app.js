@@ -301,6 +301,20 @@ function imgTag(srcs, lazy) {
   if (!srcs.length) return '';
   return `<img ${lazy ? 'loading="lazy"' : ''} referrerpolicy="no-referrer" src="${esc(srcs[0])}" data-srcs="${esc(srcs.slice(1).join('|'))}" alt="">`;
 }
+/** pagina della carta su Cardmarket con i filtri già messi: lingua della carta e Normale / Reverse Holo.
+ *  Il link viene dalla pagina "Inserisci carte bulk" (campo ur dell'elenco del set); se manca cerco per nome. */
+const CM_LANG = { en: 1, fr: 2, de: 3, es: 4, it: 5, pt: 8 };
+function cmCardUrl(cm, name, rev, lang) {
+  let u;
+  try {
+    u = cm && cm.ur ? new URL(cm.ur, 'https://www.cardmarket.com') : null;
+    if (u && u.origin !== 'https://www.cardmarket.com') u = null;
+  } catch (e) { u = null; }
+  if (!u) { u = new URL('https://www.cardmarket.com/it/Pokemon/Products/Search'); u.searchParams.set('searchString', (cm && cm.n) || name || ''); return u.href; }
+  u.searchParams.set('language', String(CM_LANG[lang || 'it'] || 5));
+  u.searchParams.set('isReverseHolo', rev ? 'Y' : 'N');
+  return u.href;
+}
 // immagini che non si caricano: provo la fonte successiva (niente onerror nell'HTML: la Content-Security-Policy li blocca)
 document.addEventListener('error', e => {
   const im = e.target;
@@ -1651,8 +1665,13 @@ $('main').addEventListener('click', e => {
   };
   const hist = l => { const a = ((state.hist || {})[histKey(l)] || []); return a.length >= 2 ? histChart(l, 'Andamento') : `<p class="cd-none">Andamento: il grafico compare dopo almeno 2 giorni di prezzi raccolti${a.length ? ' (finora 1)' : ''}.</p>`; };
   const fig = (v, l, cls = '') => `<div class="${cls}"><b>${v}</b><span>${l}</span></div>`;
+  // link a Cardmarket: l'immagine apre la prima variante (in vendita, poi Standby, altrimenti Normale italiana)
+  const cmLink = x => cmCardUrl(cm, c.name, !!x.rev, x.lang || 'it');
+  const vName = x => `${x.rev ? 'Reverse Holo' : 'Normale'} · ${LANGN[x.lang || 'it'] || x.lang}`;
+  const v0 = ls[0]?.[1] || sb[0]?.[1] || { rev: false, lang: 'it' };
+  const cmA = x => `<a class="cd-cml" href="${esc(cmLink(x))}" target="_blank" rel="noreferrer" title="Apri su Cardmarket con i filtri ${esc(vName(x))}">Cardmarket ↗</a>`;
   openDlg(`<div class="cdx">
-    <div class="cd-img">${imgTag(srcs, false) || `<div class="cd-ph">${esc(c.localId)}</div>`}<p class="small">${srcs.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noreferrer">immagine ${i + 1}</a>`).join(' · ') || 'nessuna immagine'}</p></div>
+    <div class="cd-img"><a class="cd-cm" href="${esc(cmLink(v0))}" target="_blank" rel="noreferrer" title="Apri su Cardmarket: ${esc(vName(v0))}">${imgTag(srcs, false) || `<div class="cd-ph">${esc(c.localId)}</div>`}<span>Apri su Cardmarket ↗<small>${esc(vName(v0))}</small></span></a><p class="small">${srcs.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noreferrer">immagine ${i + 1}</a>`).join(' · ') || 'nessuna immagine'}</p></div>
     <div class="cd-main">
       <div class="cd-head"><div><span class="cd-num">${esc(c.localId)}</span><h3>${esc(c.name)}</h3>
         <div class="cd-sub">${[el.querySelector('.rar')?.textContent.trim(), current.setName].filter(Boolean).map(esc).join(' · ')}</div></div>
@@ -1663,7 +1682,7 @@ $('main').addEventListener('click', e => {
         ${vs.map(({ l, v }) => `<div>${l.rev ? 'Reverse' : 'Normale'}: ${BASEN[l.rb || 'low']} ${eur(v.ref)} (${fmtD(l.refAt)}) → <b>${eur(v.cur)}</b> · con la tua regola <b>${eur(v.sugg)}</b> (tuo ${eur(l.price)})</div>`).join('')}
         <p class="row" style="margin:6px 0 0"><button class="sm pri" id="dVar">Conferma / tieni il prezzo…</button></p></div>` : ''}
       ${ls.map(([k, l]) => `<section class="cd-v on" data-k="${esc(k)}">
-        <header><b>${l.rev ? '<span class="rv">Reverse Holo</span>' : 'Normale'}</b><span>${LANGN[l.lang] || l.lang}</span><em class="st">In vendita</em>${verdict(k, l)}</header>
+        <header><b>${l.rev ? '<span class="rv">Reverse Holo</span>' : 'Normale'}</b><span>${LANGN[l.lang] || l.lang}</span><em class="st">In vendita</em>${verdict(k, l)}${ls.length + sb.length > 1 ? cmA(l) : ''}</header>
         <div class="cd-row">
           <label>Prezzo €<input type="number" min="0" step="0.01" value="${l.price ?? ''}" data-f="price"><small>dal ${fmtD(l.pAt || l.date)}</small></label>
           <label>Copie<input type="number" min="0" value="${l.q}" data-f="q"></label>
@@ -1673,7 +1692,7 @@ $('main').addEventListener('click', e => {
         <div class="cd-foot">${hist(l)}<span class="small">${src(mOf(k))}</span></div>
       </section>`).join('')}
       ${sb.map(([k, x]) => `<section class="cd-v sb" data-sb="${esc(k)}">
-        <header><b>${x.rev ? '<span class="rv">Reverse Holo</span>' : 'Normale'}</b><span>${LANGN[x.lang] || x.lang}</span><em class="st">Standby</em></header>
+        <header><b>${x.rev ? '<span class="rv">Reverse Holo</span>' : 'Normale'}</b><span>${LANGN[x.lang] || x.lang}</span><em class="st">Standby</em>${ls.length + sb.length > 1 ? cmA(x) : ''}</header>
         <div class="cd-row"><label>Copie<input type="number" min="0" value="${x.q}" data-f="sbq"></label>
           <div class="cd-rule"><span>Dalla lista</span><b>${esc(x.file || '—')}</b><small>caricata il ${fmtD(x.date)}</small></div></div>
         ${market(sbmOf(k), null, x.rev)}

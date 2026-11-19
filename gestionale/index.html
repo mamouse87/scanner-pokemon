@@ -285,6 +285,15 @@ dialog.cdw{width:min(1040px,95vw);padding:0}
 .cd-img{background:#eef1f6;padding:22px 18px;border-right:1px solid var(--line)}
 .cd-img img{width:100%;border-radius:10px;box-shadow:0 10px 26px rgba(24,34,58,.22);display:block}
 .cd-img .small{margin:10px 0 0;text-align:center}
+.cd-cm{display:block;color:inherit;text-decoration:none;border-radius:12px}
+.cd-cm img{transition:transform .15s,box-shadow .15s}
+.cd-cm:hover img{transform:translateY(-2px);box-shadow:0 14px 30px rgba(24,34,58,.3)}
+.cd-cm>span{display:block;margin-top:12px;text-align:center;font-weight:700;font-size:13.5px;color:#1d3d7a}
+.cd-cm>span small{display:block;font-weight:400;font-size:12px;color:var(--mut)}
+.cd-cm:hover>span{text-decoration:underline}
+.cd-cm:focus-visible{outline:3px solid #f3c33c;outline-offset:4px}
+.cd-cml{margin-left:auto;font-size:12.5px;font-weight:700;color:#1d3d7a;text-decoration:none;white-space:nowrap}
+.cd-cml:hover{text-decoration:underline}.cd-tag+.cd-cml{margin-left:0}
 .cd-main{padding:20px 24px 22px;min-width:0}
 .cd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .cd-head h3{display:inline;margin:0;font-size:24px;letter-spacing:-.01em}

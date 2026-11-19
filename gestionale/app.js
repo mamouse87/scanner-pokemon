@@ -205,7 +205,7 @@ function importFromHash() {
   try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Dati da Cardmarket non leggibili.'); return null; }
   mergeCatalog(d.exp);
   let n = 0, last = d.exp, fromSb = 0;
-  const addedTxt = [];
+  const addedTxt = [], newly = [];
   for (const sub of d.listed || []) {
     mergeCatalog({ id: sub.exp, name: sub.name, cards: sub.cards });
     last = { id: sub.exp, name: sub.name };
@@ -223,6 +223,7 @@ function importFromHash() {
       else if (r.price != null) { L.ref = null; } // prezzo senza regola: il riferimento arriva col primo aggiornamento
       if (r.price != null) L.pAt = sub.at;
       n += r.q;
+      newly.push({ k, q: r.q, price: r.price != null ? r.price : L.price });
       addedTxt.push(`${L.u || r.u}${r.rev ? ' R' : ''} ×${r.q}${r.price != null ? ' a ' + eur(r.price) : ''}`);
       // le copie caricate su Cardmarket escono dallo Standby
       // (all'avvio l'elenco dei set TCGdex può non essere ancora caricato: abbino anche per nome del set)
@@ -233,6 +234,7 @@ function importFromHash() {
       if (X) { const m = Math.min(X.q, r.q); X.q -= m; fromSb += m; if (X.q <= 0) { delete state.standby[sk]; delete (state.sbMarket || {})[sk]; } }
     }
   }
+  chkAfterListing(newly);
   if (n) logOp('vendita', last?.name, `Messe in vendita su Cardmarket (script Card Scanner)${fromSb ? `, ${fromSb} copie tolte dallo Standby` : ''}: ` + addedTxt.join(', '), n);
   save();
   if (n) setTimeout(() => updatePrices(false), 1500);
@@ -731,6 +733,20 @@ function chkDiffs() {
   return out;
 }
 /** prepara per lo script l'elenco delle quantità da correggere su Cardmarket: rows = [{k, qt}] (qt = copie giuste) */
+/** carte appena messe in vendita dallo script (che ha già controllato che siano su Cardmarket):
+ *  le aggiungo alle offerte dell'ultimo controllo, così non risultano "solo nel gestionale" */
+function chkAfterListing(added) {
+  if (!chk || !added.length) return;
+  added.forEach(({ k, q, price }) => {
+    const L = state.listings[k]; if (!L) return;
+    const o = { code: String(setCode(L) || '').toUpperCase(), num: L.u, rev: !!L.rev, lang: L.lang || 'it', q, price: price != null ? r2(price) : null, name: info(L).name, exp: L.expName || state.cm[L.exp]?.name || '' };
+    // stessa carta allo stesso prezzo: Cardmarket aggiunge le copie alla stessa offerta
+    const same = chk.list.find(x => x.num && norm(x.num) === norm(o.num) && x.rev === o.rev && (x.lang || 'it') === o.lang && x.price === o.price &&
+      ((o.code && x.code === o.code) || simp(x.exp) === simp(o.exp)));
+    if (same) same.q += q; else chk.list.push(o);
+  });
+  try { localStorage.setItem(CHK_KEY, JSON.stringify(chk)); } catch (e) {}
+}
 /** dopo una correzione fatta (e verificata) dallo script su Cardmarket, aggiorno il controllo: la differenza sparisce.
  *  r.qt = copie giuste (correzione delle copie), r.price = nuovo prezzo (cambio prezzi) */
 function chkAfterFix(res) {

@@ -25,8 +25,19 @@ const today = () => new Date().toISOString();
 // sold = [...]
 let state = load();
 // (annulla) stato di partenza = quello salvato nel browser
+// I dati stanno nell'archivio grande del browser (IndexedDB, letto da boot.js prima di avviare questa pagina) e, finché
+// ci stanno, anche in una copia di riserva nel vecchio spazio da 5 MB (localStorage). All'apertura prendo la più recente.
+const SAVED_AT = 'gestionaleSalvatoIl';
+const DBOK = () => window.__gsBootOk === true && 'indexedDB' in window;
+function loadRaw() {
+  const db = window.__gsBoot;
+  let ls = null, lsAt = '';
+  try { ls = localStorage.getItem(KEY); lsAt = localStorage.getItem(SAVED_AT) || ''; } catch (e) {}
+  if (db && db.js && (!ls || !lsAt || db.at >= lsAt)) return db.js;
+  return ls;
+}
 function load() {
-  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.listings) return Object.assign({ cm: {}, sold: [], standby: {} }, s); } catch (e) {}
+  try { const s = JSON.parse(loadRaw()); if (s && s.listings) return Object.assign({ cm: {}, sold: [], standby: {} }, s); } catch (e) {}
   const s = { cm: {}, listings: {}, sold: [], standby: {} };
   // dalla versione precedente tengo gli elenchi Cardmarket, le carte in vendita e le vendite
   try {
@@ -57,18 +68,87 @@ function tcgPurge(all) {
 /** salvataggio di dati che il gestionale aggiorna da solo (prezzi di mercato, sigle): per GitHub non sono "modifiche tue" */
 function softSave() { ghSoft = true; try { save(); } finally { ghSoft = false; } }
 let saveFailed = false;
+let lsOff = false, lsOk = true, dbFail = false, dbTold = false, dbConn = null, dbBusy = false, dbNext = null;
 function save() {
   const js = JSON.stringify(state); undoRecord(js);
-  // avviso in anticipo se lo spazio del browser (circa 5 MB) sta per finire
-  if (js.length > 4e6 && !save.warned) { save.warned = true; setTimeout(() => toast(`Dati salvati: ${(js.length / 1024).toFixed(0)} KB su circa 5.000. Avvisami: va spostato l'archivio in uno spazio più grande.`), 500); }
-  try { localStorage.setItem(KEY, js); saveFailed = false; }
-  catch (e) {
-    // spazio del browser finito: libero le copie temporanee di TCGdex e riprovo
-    tcgPurge(true);
-    try { localStorage.setItem(KEY, js); saveFailed = false; }
-    catch (e2) { if (!saveFailed) alert('Il browser non riesce più a salvare i dati (spazio finito).\n\nScarica subito un backup: Impostazioni → Backup nel PC → "Scarica un backup".'); saveFailed = true; }
+  const at = new Date().toISOString();
+  // 1) copia nel vecchio spazio (5 MB), finché ci sta
+  lsOk = false;
+  if (!lsOff || dbFail) {
+    try { localStorage.setItem(KEY, js); localStorage.setItem(SAVED_AT, at); lsOk = true; }
+    catch (e) {
+      if (DBOK() && !dbFail) {
+        // vecchio spazio pieno: tolgo la copia di riserva, i dati restano nell'archivio grande
+        lsOff = true; try { localStorage.removeItem(KEY); localStorage.removeItem(SAVED_AT); } catch (x) {}
+      } else {
+        // niente archivio grande: libero le copie temporanee di TCGdex e riprovo
+        tcgPurge(true);
+        try { localStorage.setItem(KEY, js); localStorage.setItem(SAVED_AT, at); lsOk = true; } catch (e2) {}
+      }
+    }
+  }
+  // 2) archivio grande
+  if (DBOK()) dbPut({ at, js });
+  else {
+    if (js.length > 4e6 && !save.warned) { save.warned = true; setTimeout(() => toast(`Dati salvati: ${(js.length / 1024).toFixed(0)} KB su circa 5.000. Questo browser non ha l'archivio grande: avvisami.`), 500); }
+    if (!lsOk) saveFail(); else saveFailed = false;
   }
   bkSchedule(); ghSchedule();
+}
+/** "Spazio usato": quanto occupano i dati e quanto spazio c'è ancora nell'archivio grande del browser */
+async function spaceInfo(size) {
+  if (!DBOK() || !navigator.storage?.estimate) return;
+  let txt = `${(size / 1024).toFixed(0)} KB`;
+  try {
+    const e = await navigator.storage.estimate(), free = (e.quota || 0) - (e.usage || 0);
+    const gb = free / 1024 ** 3;
+    if (free > 0) txt += ` · liberi ancora ${gb >= 1 ? gb.toFixed(0) + ' GB' : (free / 1024 ** 2).toFixed(0) + ' MB'}`;
+  } catch (e) {}
+  try { if (navigator.storage.persisted && !(await navigator.storage.persisted())) txt += ' · ⚠ non protetti: Chrome potrebbe cancellarli solo se il disco si riempie (i backup restano)'; } catch (e) {}
+  if (lsOff) txt += ' · la copia di riserva da 5 MB non ci sta più (restano i backup)';
+  if ($('stSpace')) $('stSpace').textContent = txt;
+}
+function saveFail() {
+  if (!saveFailed) alert('Il browser non riesce più a salvare i dati.\n\nScarica subito un backup: Impostazioni → Backup nel PC → "Scarica un backup".');
+  saveFailed = true;
+}
+function dbOpen() {
+  if (dbConn) return Promise.resolve(dbConn);
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('gestionaleDati', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('d');
+    r.onsuccess = () => { dbConn = r.result; dbConn.onversionchange = () => { dbConn.close(); dbConn = null; }; dbConn.onclose = () => { dbConn = null; }; res(dbConn); };
+    r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error('archivio bloccato'));
+  });
+}
+async function dbGet() {
+  const db = await dbOpen();
+  return new Promise((res, rej) => { const g = db.transaction('d', 'readonly').objectStore('d').get('state'); g.onsuccess = () => res(g.result); g.onerror = () => rej(g.error); });
+}
+/** scrive nell'archivio grande; se arrivano altri salvataggi mentre scrive, tiene solo l'ultimo */
+function dbPut(v) {
+  dbNext = v;
+  if (dbBusy) return;
+  dbBusy = true;
+  (async () => {
+    while (dbNext) {
+      const x = dbNext; dbNext = null;
+      try {
+        const db = await dbOpen();
+        await new Promise((res, rej) => {
+          const t = db.transaction('d', 'readwrite');
+          t.objectStore('d').put(x, 'state');
+          t.oncomplete = res; t.onerror = t.onabort = () => rej(t.error || new Error('scrittura annullata'));
+        });
+        dbFail = false; if (lsOk || lsOff) saveFailed = false;
+      } catch (e) {
+        dbConn = null; dbFail = true;
+        if (!lsOk) saveFail();                       // nemmeno la copia di riserva: avviso
+        else if (!dbTold) { dbTold = true; toast('Archivio grande non disponibile: i dati sono salvati solo nello spazio da 5 MB.'); }
+      }
+    }
+    dbBusy = false;
+  })();
 }
 const lkey = (p, rev, lang) => `${p}|${rev ? 'R' : 'N'}|${lang || 'it'}`;
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 4000); }
@@ -525,6 +605,7 @@ let setSec = 'gh';
 // ---------- gestionale installabile come app (Chrome/Edge): manifest.json + sw.js ----------
 let pwaPrompt = null;
 const pwaStandalone = () => { try { return matchMedia('(display-mode: standalone)').matches; } catch (e) { return false; } };
+if (window.__gsPwa) pwaPrompt = window.__gsPwa;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); pwaPrompt = e; if (selected === '__set') renderSettings(); });
 window.addEventListener('appinstalled', () => { pwaPrompt = null; toast('Gestionale installato: lo trovi sul desktop e nel menu Start ✔'); if (selected === '__set') renderSettings(); });
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -602,7 +683,7 @@ function renderSettings() {
         <dt>Standby</dt><dd>${Object.values(state.standby || {}).reduce((a, x) => a + x.q, 0)} copie</dd>
         <dt>Vendite</dt><dd>${state.sold.length} righe</dd><dt>Registro</dt><dd>${(state.log || []).length} operazioni</dd>
         <dt>Carte di Cardmarket conosciute</dt><dd>${nCards} (${Object.keys(state.cm).length} set) · ${tcgSets.length} set da TCGdex</dd>
-        <dt>Spazio usato</dt><dd>${(size / 1024).toFixed(0)} KB di circa 5.000 KB</dd></dl>
+        <dt>Spazio usato</dt><dd id="stSpace">${(size / 1024).toFixed(0)} KB${DBOK() ? '' : ' di circa 5.000 KB'}</dd></dl>
     </section>
     <section class="sc danger">
       <h3>⚠️ Zona pericolosa</h3>
@@ -626,6 +707,7 @@ function renderSettings() {
   const SECP = SECS.filter(x => x[0] !== 'log');
   secEls.forEach((el, i) => { el.dataset.s = SECP[i] ? SECP[i][0] : ''; el.classList.toggle('on', el.dataset.s === setSec); });
   $('setNav').innerHTML = SECS.map(([id, ic, t, sub, cls]) => `<button class="${id === setSec ? 'on' : ''} ${cls}" data-s="${id}"><span class="ic">${ic}</span><span class="tx"><b>${t}</b><small>${esc(sub)}</small></span>${cls === 'bad' ? '<i>!</i>' : ''}</button>`).join('');
+  spaceInfo(size);
   $('setNav').onclick = e => { const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.s === 'log') { goTab('__log'); return; }   // il registro ha una pagina sua
     setSec = b.dataset.s;
@@ -3360,9 +3442,12 @@ if (BC) BC.onmessage = e => {
   if (d.type === 'ping' && d.from !== myId && !secondary) BC.postMessage({ type: 'pong', from: myId, to: d.from });
   if (d.type === 'data' && d.to === myId && d.hash) {
     // dati arrivati da Cardmarket tramite una scheda nuova: li prendo qui (stessa elaborazione del cambio di indirizzo)
-    state = load();
-    location.hash = d.hash;
-    try { window.focus(); } catch (er) {}
+    (async () => {
+      if (DBOK()) { try { window.__gsBoot = await dbGet(); } catch (er) {} }
+      state = load();
+      location.hash = d.hash;
+      try { window.focus(); } catch (er) {}
+    })();
   }
 };
 function otherTab() {
@@ -3389,6 +3474,8 @@ function otherTab() {
     return;
   }
   undoLast = JSON.stringify(state);
+  // primo avvio con l'archivio grande: ci copio subito i dati che finora stavano solo nel vecchio spazio
+  if (DBOK() && !window.__gsBoot) { let at = ''; try { at = localStorage.getItem(SAVED_AT) || ''; } catch (e) {} dbPut({ at: at || new Date().toISOString(), js: undoLast }); }
   tcgPurge(false);
   bkInit(); undoInit();
   if (gh) {

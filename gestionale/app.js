@@ -65,9 +65,7 @@ function save() {
   catch (e) {
     // spazio del browser finito: libero le copie temporanee di TCGdex e riprovo
     tcgPurge(true);
-    // avviso in anticipo se lo spazio del browser (circa 5 MB) sta per finire
-  if (js.length > 4e6 && !save.warned) { save.warned = true; setTimeout(() => toast(`Dati salvati: ${(js.length / 1024).toFixed(0)} KB su circa 5.000. Avvisami: va spostato l'archivio in uno spazio più grande.`), 500); }
-  try { localStorage.setItem(KEY, js); saveFailed = false; }
+    try { localStorage.setItem(KEY, js); saveFailed = false; }
     catch (e2) { if (!saveFailed) alert('Il browser non riesce più a salvare i dati (spazio finito).\n\nScarica subito un backup: Impostazioni → Backup nel PC → "Scarica un backup".'); saveFailed = true; }
   }
   bkSchedule(); ghSchedule();

@@ -292,15 +292,19 @@ function importFromHash() {
       const k = lkey(r.p, r.rev, r.lang);
       const c = state.cm[sub.exp]?.cards?.[r.p] || {};
       const L = state.listings[k] || (state.listings[k] = { p: r.p, exp: sub.exp, expName: sub.name, u: r.u || c.u || '', rev: r.rev, lang: r.lang, q: 0, price: null, date: sub.at, com: '' });
+      // copie aggiunte a una carta già in vendita allo stesso prezzo: la regola e il riferimento restano quelli di prima
+      const keep = L.q > 0 && L.price != null && r.price != null && r2(r.price) === r2(L.price);
       L.q += r.q;
       if (r.price != null) L.price = r.price;
       L.date = sub.at; L.com = r.com || L.com; L.expName = sub.name || L.expName;
       if (!L.u) L.u = r.u || c.u || '';
       // regola del prezzo scelta nello script e valore di mercato al caricamento: da qui parte il controllo giornaliero
-      if (r.b) { L.rb = r.b; L.ro = r.o || 0; }
-      if (r.ref != null) { L.ref = r2(r.ref); L.refAt = sub.at; }
-      else if (r.price != null) { L.ref = null; } // prezzo senza regola: il riferimento arriva col primo aggiornamento
-      if (r.price != null) L.pAt = sub.at;
+      if (!keep) {
+        if (r.b) { L.rb = r.b; L.ro = r.o || 0; }
+        if (r.ref != null) { L.ref = r2(r.ref); L.refAt = sub.at; }
+        else if (r.price != null) { L.ref = null; } // prezzo senza regola: il riferimento arriva col primo aggiornamento
+        if (r.price != null) L.pAt = sub.at;
+      }
       n += r.q;
       newly.push({ k, q: r.q, price: r.price != null ? r.price : L.price });
       addedTxt.push(`${L.u || r.u}${r.rev ? ' R' : ''} ×${r.q}${r.price != null ? ' a ' + eur(r.price) : ''}`);
@@ -2734,8 +2738,17 @@ async function openOnCardmarket(setId, setName, cmCat) {
     await updatePrices(false);
   }
   const cfg = upCfg(), over = {};
+  // carta già in vendita: uso il prezzo che ha già nel gestionale, così su Cardmarket le copie nuove finiscono
+  // nella stessa offerta (stesso prezzo) invece di crearne una seconda a un prezzo diverso
+  const saleOf = {};
+  list.forEach(([k, x]) => {
+    const p = sbPid(x), lang = x.lang || 'it';
+    const L = (p && state.listings[lkey(p, x.rev, lang)]) || Object.values(state.listings).find(l => norm(l.u) === norm(x.u) && !!l.rev === !!x.rev && (l.lang || 'it') === lang && tcgIdFor(setOf(l)) === setId);
+    if (L && L.q > 0 && L.price != null) saleOf[k] = L;
+  });
   const priceOf = (k, b, plus) => {
     if (over[k] != null) return { p: over[k], m: 1 };
+    if (saleOf[k]) return { p: r2(saleOf[k].price), sale: 1 };
     const v = jobVals(k), F = { low: 'lo', trend: 't', cons: 'c' };
     const used = [b, ...BASEALT[b]].find(x => v[F[x]] != null);
     return used == null ? { p: null } : { p: r2(Math.max(0.02, v[F[used]] + plus)), alt: used !== b, used };
@@ -2750,7 +2763,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
         <td>${x.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale'}</td><td class="n">${x.q}</td>
         <td class="n">${eur(v.lo) || '—'}</td><td class="n">${eur(v.t) || '—'}</td><td class="n">${eur(v.c) || '—'}</td>
         <td class="n"><input type="number" min="0.02" step="0.01" class="upP" value="${r.p != null ? r.p.toFixed(2) : ''}" placeholder="scrivilo" style="${r.m ? 'border-color:var(--acc);font-weight:700' : ''}">
-          <small>${r.m ? 'scritto da te' : r.p == null ? (x.rev && M && !M.rv ? 'manca il prezzo Reverse' : 'manca il prezzo') : r.alt ? `da ${BASEN[r.used]}` : ''}</small></td></tr>`;
+          <small>${r.m ? 'scritto da te' : r.sale ? `già in vendita (${saleOf[k].q})` : r.p == null ? (x.rev && M && !M.rv ? 'manca il prezzo Reverse' : 'manca il prezzo') : r.alt ? `da ${BASEN[r.used]}` : ''}</small></td></tr>`;
     }).join('');
     $('upInfo').innerHTML = `${list.length} righe · ${list.reduce((a, [, x]) => a + x.q, 0)} copie · valore ${eur(tot)}` +
       (miss ? ` · <b style="color:#e5484d">${miss} senza prezzo: scrivilo qui o lo scrivi tu su Cardmarket</b>` : '');
@@ -2763,6 +2776,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
   openDlg(`<h3>Metti in vendita su Cardmarket · ${esc(setName)}</h3>
     <p class="small">Scegli il prezzo: lo script Card Scanner lo userà così com'è, con i valori giusti per le <b>Normali</b> e per le <b>Reverse</b>.
     Se serve puoi cambiare il prezzo di una singola carta nella tabella.</p>
+    ${Object.keys(saleOf).length ? `<p class="small">Le carte <b>già in vendita</b> (${Object.keys(saleOf).length}) usano il prezzo che hanno già: così su Cardmarket le copie nuove si aggiungono alla stessa offerta. Se è fuori mercato te lo segnala il gestionale come sempre.</p>` : ''}
     <div class="filters"><label>Prezzo = <select id="upBase"><option value="low">"Da" (prezzo minimo)</option><option value="trend">Tendenza</option><option value="cons">Consigliato</option></select>
       <select id="upSign"><option value="1">+</option><option value="-1">−</option></select>
       <input type="number" id="upPlus" min="0" step="1" style="width:70px"> cent.</label><span class="small" id="upInfo"></span></div>
@@ -2788,7 +2802,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
       const job = {
         v: 1, at: today(), name, set: cmCat?.name || setName, sid: setId, cm: cmCat?.id || '', lang, com: list.find(([, x]) => x.com)?.[1].com || '',
         base: b, plus: plusC,
-        items: list.map(([k, x]) => Object.assign({ u: x.u, rev: !!x.rev, q: x.q, n: x.n || '', r: x.r || '' }, jobVals(k), over[k] != null ? { mp: over[k] } : {}))
+        items: list.map(([k, x]) => Object.assign({ u: x.u, rev: !!x.rev, q: x.q, n: x.n || '', r: x.r || '' }, jobVals(k), over[k] != null ? { mp: over[k] } : saleOf[k] ? { mp: r2(saleOf[k].price) } : {}))
       };
       const enc = 'csjob=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
       try { navigator.clipboard.writeText(enc); } catch (e) {}

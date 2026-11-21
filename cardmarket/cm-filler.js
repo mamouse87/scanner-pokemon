@@ -199,7 +199,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 21/11 c</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 21/11 d</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -278,7 +278,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 21/11 c</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 21/11 d</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -539,9 +539,22 @@
       return fail(`⚠ ${x.o.name}: Cardmarket non ha aggiornato le copie entro 20 secondi (restano ${cur}). Premi ▶ per riprovare, oppure togli la spunta "Conferma automatica" e premi tu il pulsante.`);
     }
     // prezzo: riquadro "Modifica" aperto dalla riga vera, dentro la pagina dell'Edizione; dopo il salvataggio rileggo il prezzo
+    // Cardmarket unisce due offerte della stessa carta quando hanno lo stesso prezzo: l'offerta cambiata sparisce
+    // (o cambia numero) e resta una sola riga con il prezzo nuovo. Questo per me vuol dire "fatto".
+    async function mergedOk(x, target, doc) {
+      const fx = x.o.fx || { e: '0', r: x.o.rev ? 'Y' : 'N', s: 1 };
+      const same = o => o.rev === !!x.it.rev && (o.lang || 'it') === (x.it.lang || 'it') && nrm(o.num) === nrm(x.o.num) &&
+        (o.code && x.o.code ? o.code === x.o.code : smp(o.name) === smp(x.o.name)) && o.price != null && Math.abs(o.price - target) < 0.005;
+      if (doc && parseRows(doc, fx.r === 'Y' ? true : !!x.it.rev).some(same)) return true;
+      try { const r = await readPages({ idExpansion: fx.e, isReverseHolo: fx.r === '0' ? (x.it.rev ? 'Y' : 'N') : fx.r }, x.o.name, false); return r.list.some(same); } catch (e) { return false; }
+    }
     async function priceStep(x, auto) {
       const fr = await frameRow(x, !auto);
-      if (fr.err) return fail(fr.err);
+      if (fr.err) {
+        // riga sparita: se c'è già una sola offerta della carta al prezzo giusto, Cardmarket le ha unite → fatto
+        if (/Non trovo la riga/.test(fr.err) && await mergedOk(x, Math.round(x.it.price * 100) / 100, null)) { prog(`${x.o.name}: su Cardmarket le offerte sono già unite al prezzo giusto ✓`); return 'ok'; }
+        return fail(fr.err);
+      }
       const { f, doc, row } = fr, W = doc.defaultView;
       const priceOf = r => { const pt = r && (r.querySelector('.price-container .fw-bold') || r.querySelector('.fw-bold')); return pt ? parseFloat(pt.textContent.replace(/[^\d,.]/g, '').replace(',', '.')) : null; };
       const target = Math.round(x.it.price * 100) / 100;
@@ -583,6 +596,7 @@
         const d2 = new DOMParser().parseFromString(await r.text(), 'text/html');
         const now = priceOf(d2.getElementById('stockRow' + x.o.id));
         if (now != null && Math.abs(now - target) < 0.005) return 'ok';
+        if (now == null && await mergedOk(x, target, d2)) { prog(`${x.o.name}: prezzo cambiato, Cardmarket ha unito le offerte della carta ✓`); return 'ok'; }
         if (now != null) return fail(`⚠ ${x.o.name}: dopo "MODIFICA ARTICOLO" su Cardmarket il prezzo è ancora ${eur(now)} (doveva essere ${eur(target)}). Mi fermo.`);
       } catch (e) {}
       return fail(`⚠ ${x.o.name}: non riesco a ricontrollare il prezzo su Cardmarket. Premi "Verifica i prezzi".`);

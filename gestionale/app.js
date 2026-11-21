@@ -1018,7 +1018,7 @@ function renderChk() {
   const bulkCm = () => { const t = chkF.type, n = list.filter(d => d.type === t && (t !== 'multi' || d.l?.price != null)).length;
     return n > 1 && t === 'qty' ? `<button id="kAllCm" class="pri">Correggi tutte su Cardmarket (${n})</button>`
       : n > 1 && t === 'multi' ? `<button id="kAllPm" class="pri">Un solo prezzo su Cardmarket per tutte (${n})</button>` : ''; };
-  const bulk = t => { const n = list.filter(d => d.type === t && (t !== 'extra' || (d.E && d.card))).length; return n > 1 && chkF.type === t ? `<button id="kAll" data-t="${t}">${{ qty: 'Usa le quantità di Cardmarket', price: 'Usa i prezzi di Cardmarket', miss: 'Togli tutte dal gestionale', extra: 'Aggiungi tutte al gestionale' }[t]} (${n})</button>` : ''; };
+  const bulk = t => { if (t === 'multi') return ''; const n = list.filter(d => d.type === t && (t !== 'extra' || (d.E && d.card))).length; return n > 1 && chkF.type === t ? `<button id="kAll" data-t="${t}">${{ qty: 'Usa le quantità di Cardmarket', price: 'Usa i prezzi di Cardmarket', miss: 'Togli tutte dal gestionale', extra: 'Aggiungi tutte al gestionale' }[t]} (${n})</button>` : ''; };
   $('main').innerHTML = `<div class="sethead"><div><h2>Controllo con Cardmarket</h2>
     <div class="sub">Confronta le carte in vendita nel gestionale con le offerte lette sul tuo negozio. "Usa…" corregge il gestionale; "Correggi su Cardmarket" fa cambiare le copie su Cardmarket dallo script.</div></div>
     <button class="pri" id="kNew">🔎 ${chk ? 'Nuovo controllo' : 'Controlla adesso'}</button></div>

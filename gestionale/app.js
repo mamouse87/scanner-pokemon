@@ -911,6 +911,23 @@ function openQtyEdit(rows, why, scope) {
   toast(`Elenco ${name} pronto: su Cardmarket premi Card Scanner e poi ▶ Correggi le quantità`);
   return true;
 }
+/** stessa carta in più offerte su Cardmarket a prezzi diversi: lo script porta tutte le offerte al prezzo del gestionale */
+function openPriceFix(ds, why) {
+  ds = ds.filter(x => x.l && x.l.price != null);
+  if (!ds.length) return false;
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  const name = `PREZZO-UNICO_${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
+  const job = { v: 1, type: 'edit', at: today(), name, base: 'gest', plus: 0,
+    items: ds.map(({ k, l }) => ({ k, code: setCode(l), exp: setOf(l), u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q,
+      old: null, price: r2(l.price), b: l.rb || 'low', o: l.ro ?? 0, ref: l.ref ?? null, m: 1 })) };
+  const enc = 'csedit=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
+  const win = openCm(OFFERS_URL, enc);
+  if (!win) { alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.'); return false; }
+  logOp('prezzo', '', `Preparato "${name}" (${why}): ${job.items.map(i => `${i.code}${i.u}${i.rev ? ' R' : ''} → ${eur(i.price)}`).join(', ')}`, null);
+  save();
+  toast(`Elenco ${name} pronto: su Cardmarket premi Card Scanner e poi ▶ Cambia i prezzi`);
+  return true;
+}
 /** applica una correzione al gestionale (mai a Cardmarket). Ritorna il testo per il registro. */
 function chkApply(d) {
   const nm = l => `${l.u}${l.rev ? ' R' : ''} ${info(l).name || ''}`.trim();
@@ -990,10 +1007,13 @@ function renderChk() {
       : d.type === 'price' ? `<button class="sm" data-a="${i}">Usa ${eur(d.price)}</button>`
       : d.type === 'miss' ? `<button class="sm" data-a="${i}">Togli dal gestionale</button>`
       : d.type === 'extra' ? (d.E && d.card ? `<button class="sm" data-a="${i}">Aggiungi al gestionale</button>` : '<span class="small" title="Sulla pagina Inserisci carte bulk del set premi Card Scanner e poi Aggiorna i dati del set nel gestionale">carta non ancora nel catalogo del gestionale</span>')
+      : l && l.price != null ? `<button class="sm pri" data-pm="${i}" title="Lo script cambia su Cardmarket il prezzo delle offerte di questa carta che non sono a ${eur(l.price)} (il prezzo del gestionale)">Tutte a ${eur(l.price)} su Cardmarket</button>`
       : '<span class="small">il gestionale tiene un solo prezzo per carta</span>';
     return `<tr><td>${card}</td><td>${rev}</td><td><span class="ktag k-${d.type}">${T[d.type]}</span></td><td class="n">${g}</td><td class="n">${c}</td><td style="text-align:right">${act}</td></tr>`;
   };
-  const bulkCm = () => { const n = list.filter(d => d.type === 'qty').length; return n > 1 && chkF.type === 'qty' ? `<button id="kAllCm" class="pri">Correggi tutte su Cardmarket (${n})</button>` : ''; };
+  const bulkCm = () => { const t = chkF.type, n = list.filter(d => d.type === t && (t !== 'multi' || d.l?.price != null)).length;
+    return n > 1 && t === 'qty' ? `<button id="kAllCm" class="pri">Correggi tutte su Cardmarket (${n})</button>`
+      : n > 1 && t === 'multi' ? `<button id="kAllPm" class="pri">Un solo prezzo su Cardmarket per tutte (${n})</button>` : ''; };
   const bulk = t => { const n = list.filter(d => d.type === t && (t !== 'extra' || (d.E && d.card))).length; return n > 1 && chkF.type === t ? `<button id="kAll" data-t="${t}">${{ qty: 'Usa le quantità di Cardmarket', price: 'Usa i prezzi di Cardmarket', miss: 'Togli tutte dal gestionale', extra: 'Aggiungi tutte al gestionale' }[t]} (${n})</button>` : ''; };
   $('main').innerHTML = `<div class="sethead"><div><h2>Controllo con Cardmarket</h2>
     <div class="sub">Confronta le carte in vendita nel gestionale con le offerte lette sul tuo negozio. "Usa…" corregge il gestionale; "Correggi su Cardmarket" fa cambiare le copie su Cardmarket dallo script.</div></div>
@@ -1015,6 +1035,10 @@ function renderChk() {
     if (d.type === 'miss' && !confirm(`Togliere ${d.l.u} ${info(d.l).name || ''} (×${d.l.q}) dalle carte in vendita del gestionale?\n\nFallo solo se su Cardmarket non è davvero in vendita.`)) return;
     chkApplyMany([d], d.type); });
   $('main').querySelectorAll('[data-cm]').forEach(b => b.onclick = () => { const d = list[+b.dataset.cm]; openQtyEdit([{ k: d.k, qt: d.l.q }], 'controllo con Cardmarket', d.l.expName); });
+  $('main').querySelectorAll('[data-pm]').forEach(b => b.onclick = () => { const d = list[+b.dataset.pm]; openPriceFix([d], 'controllo: più offerte a prezzi diversi'); });
+  if ($('kAllPm')) $('kAllPm').onclick = () => { const sel = list.filter(d => d.type === 'multi' && d.l?.price != null);
+    if (!confirm(`Lo script porterà su Cardmarket tutte le offerte di ${sel.length} carte al prezzo del gestionale (una sola cifra per carta). Confermi?`)) return;
+    openPriceFix(sel, 'controllo: più offerte a prezzi diversi'); };
   if ($('kAllCm')) $('kAllCm').onclick = () => { const sel = list.filter(d => d.type === 'qty');
     if (!confirm(`Lo script porterà su Cardmarket le copie di ${sel.length} carte a quelle del gestionale. Confermi?`)) return;
     openQtyEdit(sel.map(d => ({ k: d.k, qt: d.l.q })), 'controllo con Cardmarket'); };

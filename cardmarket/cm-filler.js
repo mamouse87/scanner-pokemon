@@ -189,7 +189,7 @@
     window.__csOffers = P;
     const $o = id => R.getElementById(id);
     let tab = 'todo', msg = '';
-    const ruleTxt = j => `${j.base === 'trend' ? 'Tendenza' : j.base === 'cons' ? 'Consigliato' : '"Da" (prezzo minimo)'}${j.plus ? ` ${j.plus > 0 ? '+' : '−'} ${eur(Math.abs(j.plus) / 100)}` : ''}`;
+    const ruleTxt = j => `${j.base === 'gest' ? 'quello del gestionale (un solo prezzo per carta)' : j.base === 'trend' ? 'Tendenza' : j.base === 'cons' ? 'Consigliato' : '"Da" (prezzo minimo)'}${j.plus ? ` ${j.plus > 0 ? '+' : '−'} ${eur(Math.abs(j.plus) / 100)}` : ''}`;
 
     // ---- controllo del magazzino: leggo tutte le offerte e le mando al gestionale (qui non cambio nulla) ----
     function renderCheck() {
@@ -199,7 +199,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 21/11 a</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 21/11 b</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -278,7 +278,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 21/11 a</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 21/11 b</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }

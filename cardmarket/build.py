@@ -13,6 +13,16 @@ a.bm{{display:inline-block;background:#ffcb05;color:#111;font-weight:700;padding
 code,pre{{background:#1c2128;border-radius:6px;padding:2px 6px}} pre{{padding:10px;white-space:pre-wrap;word-break:break-all;max-height:140px;overflow:auto;font-size:11px}}
 h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <h1>Card Scanner → Cardmarket</h1>
+<h2>Estensione di Chrome (in prova)</h2>
+<p>Fa le stesse cose del pulsante, ma non devi premerlo: quando il gestionale prepara un'operazione, su Cardmarket il riquadro si apre da solo, anche dopo che Cardmarket ti ha chiesto di accedere. Il gestionale riusa sempre la stessa scheda di Cardmarket.</p>
+<ol><li>Scarica <a href="../card-scanner-estensione.zip" style="color:#ffcb05"><b>card-scanner-estensione.zip</b></a> ed estrailo in una cartella che <b>non cancellerai</b> (per esempio <code>Documenti\\CardScanner-estensione</code>). Dentro c'è il file <code>manifest.json</code>.</li>
+<li>In Chrome apri <code>chrome://extensions</code> e accendi <b>Modalità sviluppatore</b> (in alto a destra).</li>
+<li>Premi <b>Carica estensione non pacchettizzata</b> e scegli la cartella <code>CardScanner-estensione</code>.</li>
+<li>Premi l'icona del puzzle accanto alla barra degli indirizzi e fissa <b>Card Scanner → Cardmarket</b> con la puntina.</li>
+<li>Ricarica il gestionale (Ctrl+F5) e le schede di Cardmarket aperte.</li></ol>
+<p><b>Uso:</b> dal gestionale premi i soliti pulsanti (Metti in vendita, Cambia prezzi, Nuovo controllo). Sull'icona compare un <b>1</b> arancione finché l'operazione non arriva su Cardmarket. Se chiudi il riquadro, lo riapri cliccando l'icona. Sulle pagine 2, 3… dello stesso set il riquadro si riapre da solo.</p>
+<p><b>Aggiornare:</b> scarica di nuovo lo zip, estrailo sopra la stessa cartella (sostituisci i file), poi in <code>chrome://extensions</code> premi la freccia circolare ↻ sull'estensione e ricarica le schede di Cardmarket.</p>
+<p>Il pulsante qui sotto continua a funzionare: tienilo come riserva finché l'estensione non ti convince.</p>
 <h2>1. Installa il pulsante (una volta, dal PC)</h2>
 <ol><li>Mostra la barra dei preferiti di Chrome: <code>Ctrl+Shift+B</code>.</li>
 <li>Se avevi già il pulsante, eliminalo (tasto destro → Elimina) e trascina di nuovo questo:</li></ol>

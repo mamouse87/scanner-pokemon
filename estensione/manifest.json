@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Card Scanner → Cardmarket",
+  "version": "1.0.0",
+  "description": "Collega il gestionale delle carte a Cardmarket: messa in vendita, cambio prezzi e controllo del magazzino.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://www.cardmarket.com/*", "https://mamouse87.github.io/scanner-pokemon/*"],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "Card Scanner: apri il riquadro su Cardmarket",
+    "default_icon": { "16": "icone/16.png", "32": "icone/32.png", "48": "icone/48.png" }
+  },
+  "icons": { "16": "icone/16.png", "32": "icone/32.png", "48": "icone/48.png", "128": "icone/128.png" },
+  "content_scripts": [
+    { "matches": ["https://www.cardmarket.com/*"], "js": ["ponte-cardmarket.js"], "run_at": "document_start" },
+    { "matches": ["https://www.cardmarket.com/*"], "js": ["cardscanner.js"], "run_at": "document_idle", "world": "MAIN" },
+    { "matches": ["https://mamouse87.github.io/scanner-pokemon/gestionale/*"], "js": ["ponte-gestionale.js"], "run_at": "document_start" }
+  ]
+}

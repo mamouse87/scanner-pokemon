@@ -64,7 +64,7 @@
   function csPanel(mode) {
     const host = document.createElement('div');
     const root = host.attachShadow({ mode: 'open' });
-    root.innerHTML = `<style>${CS_CSS}</style><div class="pn"><div class="hd"><span class="t">Card Scanner</span><span class="m">${mode}</span><button class="x" id="pnX" title="Chiudi (premi di nuovo il pulsante per riaprirlo)">✕</button></div>${inAgo()}<div id="pnIn" style="display:flex;flex-direction:column;min-height:0;flex:1"></div></div>`;
+    root.innerHTML = `<style>${CS_CSS}</style><div class="pn"><div class="hd"><span class="t">Card Scanner</span><span class="m">${mode}</span><button class="x" id="pnX" title="Chiudi (per riaprirlo premi il pulsante o l'icona di Card Scanner)">✕</button></div>${inAgo()}<div id="pnIn" style="display:flex;flex-direction:column;min-height:0;flex:1"></div></div>`;
     document.body.appendChild(host);
     root.getElementById('pnX').onclick = () => {
       host.style.display = 'none';
@@ -113,6 +113,14 @@
       return true;
     } catch (e) { return false; }
   }
+  // estensione di Chrome: l'avvio arriva con { auto, p } (auto = aperto da solo, p = operazione dal gestionale)
+  const EXT = typeof csExt !== 'undefined' && csExt ? csExt : null;
+  // risultati al gestionale: con l'estensione li porta lei nella finestra del gestionale già aperta, altrimenti apro l'indirizzo
+  function toGest(h) {
+    if (window.__csExtOn) { window.postMessage({ csx: 'res', h }, location.origin); return; }
+    window.open('https://mamouse87.github.io/scanner-pokemon/gestionale/' + h, 'gestionaleCarte');
+  }
+  const AGAIN = EXT ? 'il riquadro di Card Scanner si apre da solo' : 'premi di nuovo il pulsante Card Scanner';
   function intake(txt) {
     const m = String(txt || '').trim().match(/^csjob=(.+)$/);
     if (!m) return false;
@@ -130,7 +138,8 @@
   const CS_RX = /^cs(job|edit|check)=/, CS_TAB = 'cardscanner';
   let inP = '';
   const hm = String(location.hash || '').match(/^#(cs(?:job|edit|check)=.+)$/);
-  if (hm) { inP = hm[1]; try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+  if (EXT && EXT.p && CS_RX.test(EXT.p)) inP = EXT.p;
+  else if (hm) { inP = hm[1]; try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
   else if (CS_RX.test(String(window.name || '').trim())) inP = String(window.name).trim();
   else if (window.opener) {
     inP = await new Promise(res => {
@@ -146,7 +155,9 @@
   // la stessa operazione già ricevuta non la riprendo (non ricomincio un lavoro già iniziato)
   let lastIn = ''; try { lastIn = localStorage.getItem('cs_last_in') || ''; } catch (e) {}
   const sigIn = inP ? inP.slice(0, 200) + inP.length : '';
+  let tookNew = false;
   if (inP && CS_RX.test(inP) && sigIn !== lastIn && intakeAny(inP)) {
+    tookNew = true;
     try { localStorage.setItem('cs_last_in', sigIn); localStorage.setItem('cs_in_at', String(Date.now())); } catch (e) {}
     const wasEdit = /^cs(edit|check)=/.test(inP);
     if (!wasEdit && window.__csPanel) { window.__csPanel.remove(); window.__csPanel = null; } // elenco nuovo: rifaccio il pannello
@@ -159,6 +170,15 @@
   if (!window.__csHashOn) {
     window.__csHashOn = true;
     addEventListener('hashchange', () => { if (/^#cs(job|edit|check)=/.test(location.hash)) location.reload(); });
+  }
+  // estensione: dico che l'operazione è arrivata (toglie il numerino sull'icona)
+  if (EXT && EXT.p && inP === EXT.p && (tookNew || sigIn === lastIn)) window.postMessage({ csx: 'taken', sig: sigIn }, location.origin);
+  // estensione, apertura automatica: il riquadro compare da solo solo se c'è un'operazione nuova dal gestionale,
+  // oppure sulla pagina "Inserisci carte bulk" del set di un elenco non ancora finito (pagina 2, 3… del set)
+  if (EXT && EXT.auto && !tookNew) {
+    const j = jobGet(), qid = new URLSearchParams(location.search).get('idExpansion');
+    const onBulk = /\/Stock\/ListingMethods\/BulkListing/i.test(location.pathname) && !!document.getElementById('BulkListingForm');
+    if (!(onBulk && j && !j.done && (!j.cm || !qid || String(j.cm) === qid))) return;
   }
   // ================= LE MIE OFFERTE: cambio prezzi =================
   // Sulla pagina "Le mie offerte" (Stock/Offers/Singles) lo script legge tutte le pagine delle offerte
@@ -199,7 +219,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 21/11 d</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 a</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -234,7 +254,7 @@
     function sendCheck(fixed) {
       const ex = [], o = offers.list.map(x => { let i = ex.indexOf(x.exp); if (i < 0) i = ex.push(x.exp) - 1; return [x.code, x.num, x.rev ? 1 : 0, x.lang, x.qty || 1, x.price, x.name, i]; });
       const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, at: offers.at, ex, o, full: offers.full === false ? 0 : 1, rx: offers.rx || [], warn: offers.warn || [], fixed: fixed || [] }))));
-      window.open(GEST + '#cmchk=' + encodeURIComponent(enc), 'gestionaleCarte');
+      toGest('#cmchk=' + encodeURIComponent(enc));
       ls.set('cs_check_sent', check);
       prog(`Inviate ${o.length} offerte al gestionale ✓ Guarda il risultato nella scheda "Controllo".`);
       renderCheck();
@@ -278,7 +298,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 21/11 d</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 a</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -690,7 +710,7 @@
       }
       if (!res.length) { alert(job.type === 'qty' ? 'Nessuna quantità corretta da inviare.' : 'Nessun prezzo cambiato da inviare.'); return; }
       const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, type: job.type || 'edit', name: job.name, res }))));
-      window.open(GEST + '#cmedit=' + encodeURIComponent(enc), 'gestionaleCarte');
+      toGest('#cmedit=' + encodeURIComponent(enc));
       done.__sent = 1; ls.set(DKEY, done);
       prog(`Inviati ${res.length} ${job.type === 'qty' ? 'risultati' : 'prezzi'} al gestionale ✓`);
       render();
@@ -712,13 +732,13 @@
     if (j && !j.done) {
       const opt = sel && [...sel.options].find(o => simp0(o.textContent) === simp0(j.set));
       const id = j.cm || (opt ? opt.value : '');
-      if (confirm(`Il gestionale ha preparato ${j.items.reduce((a, it) => a + it.q, 0)} copie di "${j.set}".\n\nVado alla pagina "Inserisci carte bulk"${id ? ' del set' : ''}? Quando si apre, premi di nuovo il pulsante Card Scanner.`))
+      if (confirm(`Il gestionale ha preparato ${j.items.reduce((a, it) => a + it.q, 0)} copie di "${j.set}".\n\nVado alla pagina "Inserisci carte bulk"${id ? ' del set' : ''}? Quando si apre, ${AGAIN}.`))
         location.href = '/it/Pokemon/Stock/ListingMethods/BulkListing' + (id ? '?idExpansion=' + encodeURIComponent(id) : '');
       return;
     }
     let ej = null; try { ej = JSON.parse(localStorage.getItem('cs_edit')); } catch (e) {}
-    if (ej && confirm(`Il gestionale ha preparato "${ej.name}" (${ej.items.length} prezzi da cambiare).\n\nVado alla pagina delle tue offerte? Quando si apre, premi di nuovo il pulsante Card Scanner.`)) { location.href = '/it/Pokemon/Stock/Offers/Singles'; return; }
-    alert('Apri prima la pagina "Inserisci carte bulk" di Cardmarket per un\'espansione, poi premi di nuovo il pulsante.\n\nSe hai preparato le carte nel gestionale ("Metti in vendita su Cardmarket"), apri Cardmarket da lì.');
+    if (ej && confirm(`Il gestionale ha preparato "${ej.name}" (${ej.items.length} prezzi da cambiare).\n\nVado alla pagina delle tue offerte? Quando si apre, ${EXT ? 'premi l\'icona di Card Scanner in alto in Chrome' : 'premi di nuovo il pulsante Card Scanner'}.`)) { location.href = '/it/Pokemon/Stock/Offers/Singles'; return; }
+    alert('Apri prima la pagina "Inserisci carte bulk" di Cardmarket per un\'espansione, poi premi di nuovo il pulsante (o l\'icona di Card Scanner).\n\nSe hai preparato le carte nel gestionale ("Metti in vendita su Cardmarket"), apri Cardmarket da lì.');
     return;
   }
 
@@ -1209,7 +1229,7 @@
       listed: listed || []
     };
     const enc = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-    window.open(GEST_URL + '#cm2=' + encodeURIComponent(enc), 'gestionaleCarte');
+    toGest('#cm2=' + encodeURIComponent(enc));
   }
   $('csGest').onclick = sendCompiled;
   $('csCat').onclick = e => { e.preventDefault(); sendToGest([]); };
@@ -1250,7 +1270,7 @@
       const id = j.cm || (opt ? opt.value : '');
       box.className = 'card warn';
       box.innerHTML = `<div class="nm">${esc(j.name || j.set)}</div><div>Il gestionale ha preparato <b>${esc(j.set)}</b> (${copies} copie), ma questa pagina è <b>${esc(exp.name || '?')}</b>.</div>` +
-        (id ? `<button class="big navy" id="csJobGo" style="margin-top:10px">Vai a ${esc(j.set)}</button><div class="mut" style="margin-top:6px">Quando la pagina si apre, premi di nuovo il pulsante Card Scanner.</div>` : '<div class="mut">Scegli il set giusto in "Edizione" e premi di nuovo il pulsante.</div>');
+        (id ? `<button class="big navy" id="csJobGo" style="margin-top:10px">Vai a ${esc(j.set)}</button><div class="mut" style="margin-top:6px">Quando la pagina si apre, ${AGAIN}.</div>` : '<div class="mut">Scegli il set giusto in "Edizione" e premi di nuovo il pulsante.</div>');
       if (id) $('csJobGo').onclick = e => { e.preventDefault(); location.href = location.pathname + '?idExpansion=' + encodeURIComponent(id); };
       $('csGo').classList.add('hide'); $('csSteps').innerHTML = stepsHtml(['Elenco dal gestionale', 'Compila la pagina', 'Metti in vendita e invia'], 0, 0);
       return;

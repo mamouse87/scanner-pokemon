@@ -686,7 +686,7 @@ function renderSettings() {
         : pwaPrompt ? `<p class="small">Icona sul desktop e finestra tutta sua, senza barra degli indirizzi. I dati restano gli stessi e si aggiorna da solo.</p><div class="row"><button class="pri" id="pwaGo">Installa il gestionale come app</button></div>`
         : `<p class="small">Icona sul desktop e finestra tutta sua. In Chrome: menu <b>⋮</b> in alto a destra → <b>Trasmetti, salva e condividi</b> → <b>Installa pagina come app…</b> (oppure l'icona con il monitor e la freccia, a destra nella barra degli indirizzi). Se l'hai già installato, aprilo dall'icona sul desktop.</p>`}</div>
       <ul class="links">
-        <li><a href="../cardmarket/" target="_blank">Pulsante Card Scanner per Cardmarket</a><span class="small">pagina di installazione e istruzioni</span></li>
+        <li><a href="../cardmarket/" target="_blank">Card Scanner per Cardmarket</a><span class="small">${csExt() ? `estensione di Chrome installata (v. ${esc(csExt())}) · ` : ''}estensione o pulsante: installazione e istruzioni</span></li>
         <li><a href="https://github.com/mamouse87/scanner-pokemon/releases" target="_blank" rel="noreferrer">App Card Scanner per Android</a><span class="small">ultima versione da installare sul telefono</span></li>
         <li><a href="https://www.cardmarket.com/it/Pokemon/Stock/Offers/Singles" target="cardscanner" referrerpolicy="no-referrer">Le mie offerte su Cardmarket</a><span class="small">per cambiare i prezzi con lo script</span></li>
       </ul>
@@ -789,8 +789,12 @@ function renderSettings() {
 // Se Cardmarket chiede il login, l'indirizzo con il # si perde: lo script lo richiede a questa pagina
 // (la scheda è stata aperta da qui; rispondo solo a cardmarket.com), altrimenti basta ripremere il pulsante.
 const CS_PEND = 'gestionaleCsPending', CM_TAB = 'cardscanner';
+// Con l'estensione di Chrome installata (il suo ponte segna data-cs-ext sulla pagina) l'operazione la porta lei:
+// la tiene finché non arriva su Cardmarket (anche dopo il login) e riusa la scheda di Cardmarket già aperta.
+const csExt = () => document.documentElement.dataset.csExt || '';
 function openCm(url, payload) {
   try { localStorage.setItem(CS_PEND, JSON.stringify({ at: Date.now(), p: payload })); } catch (e) {}
+  if (csExt()) { window.postMessage({ csExt: 'job', p: payload, url: url.split('#')[0] }, location.origin); return true; }
   return window.open(url.split('#')[0] + '#' + payload, CM_TAB);
 }
 function csPendingDone() { try { localStorage.removeItem(CS_PEND); } catch (e) {} }
@@ -912,7 +916,7 @@ function openQtyEdit(rows, why, scope) {
   if (!win) { alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.'); return false; }
   logOp('quantita', scope || '', `Preparato "${name}" (${why}): ${job.items.map(i => `${i.code}${i.u}${i.rev ? ' R' : ''} → ${i.qt}`).join(', ')}`, null);
   save();
-  toast(`Elenco ${name} pronto: su Cardmarket premi Card Scanner e poi ▶ Correggi le quantità`);
+  toast(`Elenco ${name} pronto: ${csExt() ? 'su Cardmarket il riquadro di Card Scanner si apre da solo: premi' : 'su Cardmarket premi Card Scanner e poi'} ▶ Correggi le quantità`);
   return true;
 }
 /** stessa carta in più offerte su Cardmarket a prezzi diversi: lo script porta tutte le offerte al prezzo del gestionale */
@@ -929,7 +933,7 @@ function openPriceFix(ds, why) {
   if (!win) { alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.'); return false; }
   logOp('prezzo', '', `Preparato "${name}" (${why}): ${job.items.map(i => `${i.code}${i.u}${i.rev ? ' R' : ''} → ${eur(i.price)}`).join(', ')}`, null);
   save();
-  toast(`Elenco ${name} pronto: su Cardmarket premi Card Scanner e poi ▶ Cambia i prezzi`);
+  toast(`Elenco ${name} pronto: ${csExt() ? 'su Cardmarket il riquadro di Card Scanner si apre da solo: premi' : 'su Cardmarket premi Card Scanner e poi'} ▶ Cambia i prezzi`);
   return true;
 }
 /** applica una correzione al gestionale (mai a Cardmarket). Ritorna il testo per il registro. */
@@ -977,7 +981,7 @@ function openStockCheck() {
   openDlg(`<h3>Controlla il magazzino con Cardmarket</h3>
     <p>Lo script legge tutte le tue offerte di carte singole Pokémon (tutte le pagine, Normali e Reverse; oltre 300 offerte le legge set per set) e le manda qui. Il gestionale ti mostra le differenze. Senza la casella qui sotto <b>su Cardmarket non viene cambiato nulla</b>.</p>
     <ol><li>Premi <b>Apri le mie offerte</b>: si apre la pagina di Cardmarket (devi essere collegato).</li>
-      <li>Lì premi <b>📋 Card Scanner → CM</b> nei preferiti, poi <b>🔎 Leggi le mie offerte</b>.</li>
+      <li>${csExt() ? 'Lì il riquadro di Card Scanner si apre da solo' : 'Lì premi <b>📋 Card Scanner → CM</b> nei preferiti'}, poi <b>🔎 Leggi le mie offerte</b>.</li>
       <li>Alla fine premi <b>📤 Invia al gestionale</b>: torni qui con il risultato.</li></ol>
     <label class="sw" style="display:flex;gap:10px;align-items:flex-start;background:#f3f7ff;border:1px solid #cddcf5;border-radius:10px;padding:10px 12px;margin:10px 0">
       <input type="checkbox" id="kFix" ${localStorage.getItem('gestionaleChkFix') === '1' ? 'checked' : ''} style="margin-top:3px">
@@ -2782,7 +2786,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
       <input type="number" id="upPlus" min="0" step="1" style="width:70px"> cent.</label><span class="small" id="upInfo"></span></div>
     <div style="max-height:46vh;overflow:auto"><table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n" title="a metà tra Da e il prezzo a cui la carta si vende davvero">Consigliato</th><th class="n">Prezzo</th></tr></thead><tbody id="upBody"></tbody></table></div>
     <ol class="small" style="line-height:1.7"><li>Premi <b>Apri Cardmarket</b>: si apre la pagina <b>Inserisci carte bulk</b> di Cardmarket.</li>
-    <li>Scegli il set <b>${esc(setName)}</b> in "Edizione", poi premi il pulsante <b>Card Scanner</b> nei preferiti: l'elenco e i prezzi sono già caricati. (Se il set nella pagina non è quello giusto, lo script ti propone "Vai a ${esc(setName)}".)</li>
+    <li>Scegli il set <b>${esc(setName)}</b> in "Edizione", poi ${csExt() ? 'il riquadro di Card Scanner si apre da solo' : 'premi il pulsante <b>Card Scanner</b> nei preferiti'}: l'elenco e i prezzi sono già caricati. (Se il set nella pagina non è quello giusto, lo script ti propone "Vai a ${esc(setName)}".)</li>
     <li>Premi <b>Compila la pagina</b> e controlla i prezzi.</li>
     <li><b>Metti in vendita su Cardmarket</b>, poi premi <b>📤 Invia al gestionale</b>: così qui arrivano solo le carte davvero in vendita.</li></ol>
     <p class="small">Non hai il pulsante Card Scanner nei preferiti? <a href="../cardmarket/" target="_blank">Installalo da qui</a> (lo trovi anche in Impostazioni → Strumenti).</p>
@@ -2879,7 +2883,7 @@ async function openPriceEdit(scopeSet, opt = {}) {
     <p class="small" id="peInfo"></p>
     <div style="max-height:44vh;overflow:auto"><table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Qtà</th><th class="n">Prezzo ora</th><th class="n">Da</th><th class="n">Tendenza</th><th class="n">Consigliato</th><th class="n">Nuovo prezzo</th></tr></thead><tbody id="peBody"></tbody></table></div>
     <ol class="small" style="line-height:1.7"><li>Premi il pulsante qui sotto: si apre la pagina delle tue offerte su Cardmarket.</li>
-      <li>Premi il pulsante <b>Card Scanner</b>: legge tutte le pagine delle tue offerte e trova quelle da cambiare.</li>
+      <li>${csExt() ? 'Il riquadro di Card Scanner si apre da solo' : 'Premi il pulsante <b>Card Scanner</b>'}: legge tutte le pagine delle tue offerte e trova quelle da cambiare.</li>
       <li>Premi <b>▶ Cambia i prezzi</b>: apre una carta alla volta e scrive il prezzo; tu controlli e premi <b>MODIFICA ARTICOLO</b> (oppure scegli la conferma automatica).</li>
       <li>Alla fine premi <b>📤 Invia al gestionale</b>: i nuovi prezzi entrano qui, con la nuova regola.</li></ol>
       <p class="small">Non hai il pulsante Card Scanner nei preferiti? <a href="../cardmarket/" target="_blank">Installalo da qui</a> (lo trovi anche in Impostazioni → Strumenti).</p>
@@ -2909,7 +2913,7 @@ async function openPriceEdit(scopeSet, opt = {}) {
       if (!win) { alert('Il browser ha bloccato l\'apertura di Cardmarket: consenti i popup per questa pagina e riprova.'); return; }
       logOp('prezzo', scope, `Preparato "${name}": ${ch.length} offerte da cambiare (${BASEN[b]}${plusC ? ` ${plusC > 0 ? '+' : '−'} ${eur(Math.abs(plusC) / 100)}` : ''})`, ch.reduce((a, r) => a + r.l.q, 0));
       save(); closeDlg();
-      toast(`Elenco ${name} pronto: premi Card Scanner sulla pagina delle tue offerte`);
+      toast(csExt() ? `Elenco ${name} pronto: su Cardmarket il riquadro di Card Scanner si apre da solo` : `Elenco ${name} pronto: premi Card Scanner sulla pagina delle tue offerte`);
     };
   });
 }

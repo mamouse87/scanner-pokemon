@@ -199,7 +199,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 19/11 d</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 21/11 a</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -278,7 +278,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 19/11 d</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 21/11 a</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -1076,7 +1076,7 @@
   // ---------- controllo della messa in vendita: copie del set su Cardmarket prima e dopo ----------
   const OFF_LANGS = { Italiano: 'it', Inglese: 'en', English: 'en', Francese: 'fr', Tedesco: 'de', Spagnolo: 'es', Portoghese: 'pt', Giapponese: 'ja', Coreano: 'ko' };
   /** copie in vendita di un set su Cardmarket, per numero|variante|lingua (pagina "Le mie offerte" filtrata per Edizione) */
-  async function expQty(idExp) {
+  async function expQty(idExp, onProg) {
     const map = {}; let capped = false;
     for (const rev of ['N', 'Y']) {
       let page = 1, pages = 1;
@@ -1097,6 +1097,7 @@
         const tx = doc.body.textContent, pm = tx.match(/Pagina\s+\d+\s+di\s+(\d+)\s*(\+?)/i);
         if (pm) { pages = +pm[1]; if (pm[2]) capped = true; }
         if (/300\s*\+\s*Risultati/i.test(tx)) capped = true;
+        if (onProg) onProg(`${rev === 'Y' ? 'Reverse' : 'normali'}, pagina ${page} di ${pages}`);
         page++;
         if (!rows.length) break;
         await sleep(400);
@@ -1110,10 +1111,19 @@
     const id = expansion().id;
     if (!id) { before = null; return; }
     const b = { exp: id, at: Date.now(), done: false, p: null };
-    b.p = expQty(id).then(x => { b.done = true; return x; }).catch(() => { b.done = true; return null; });
+    b.p = expQty(id, t => { b.prog = t; }).then(x => { b.done = true; if (!b.late) log('✓ Pronto: ora puoi premere "Mettere in vendita le carte" su Cardmarket.', '#3ecf6e'); return x; }).catch(() => { b.done = true; return null; });
     before = b;
   }
   form.addEventListener('submit', () => { if (before && !before.done) before.late = true; }, true);
+  // Se premi "Mettere in vendita le carte" mentre sto ancora leggendo le carte già in vendita, le ultime pagine lette
+  // conterrebbero già le carte nuove e poi non le troverei "aggiunte". Fermo quel clic e ti chiedo di ripremere tra poco.
+  // (Lo script non preme mai il pulsante al posto tuo.)
+  addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('button[type="submit"],input[type="submit"],button:not([type])');
+    if (!b || !form.contains(b) || !/vendita|vendere|mettere/i.test(b.textContent || b.value || '') || !before || before.done || before.late) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    log(`⏳ Un attimo: sto ancora leggendo le carte del set già in vendita${before.prog ? ' (' + before.prog + ')' : ''}. Ripremi "Mettere in vendita le carte" quando qui compare "Pronto".`, '#ff9f43');
+  }, true);
   const offKey = r => `${norm(r.u)}|${r.rev ? 'R' : 'N'}|${r.lang || 'it'}`;
   let sending = false;
   async function sendCompiled() {
@@ -1138,12 +1148,22 @@
           rows.forEach(r => { const k = offKey(r), take = Math.max(0, Math.min(added[k] || 0, r.q)); if (take) { ok.push(Object.assign({}, r, { q: take })); added[k] -= take; } if (take < r.q) miss.push(Object.assign({}, r, { q: r.q - take })); });
           checked = true;
           if (miss.length) {
+            // copie che ci sono su Cardmarket ma c'erano già quando ho letto "prima": o erano in vendita da prima,
+            // o le hai messe in vendita mentre leggevo (o dopo un nuovo "Compila"). Decidi tu.
+            const there = miss.filter(r => (A.map[offKey(r)] || 0) >= r.q);
+            if (there.length) {
+              const tq = there.reduce((a, r) => a + r.q, 0), tt = there.slice(0, 12).map(r => `${r.u}${r.rev ? ' R' : ''} ×${r.q}`).join(', ') + (there.length > 12 ? '…' : '');
+              if (confirm(`Queste carte ora sono in vendita su Cardmarket, ma c'erano già quando ho controllato dopo "Compila": ${tt} (${tq} copie).\n\nSuccede se le hai messe in vendita mentre leggevo o se hai premuto di nuovo "Compila" dopo averle messe in vendita.\n\nLe hai messe in vendita adesso tu? OK = le invio al gestionale. Annulla = no, erano già in vendita da prima.`)) {
+                there.forEach(r => { ok.push(r); miss.splice(miss.indexOf(r), 1); });
+              }
+            }
             const mq = miss.reduce((a, r) => a + r.q, 0), txt = miss.slice(0, 12).map(r => `${r.u}${r.rev ? ' R' : ''} ×${r.q}`).join(', ') + (miss.length > 12 ? '…' : '');
-            if (!ok.length) {
+            if (!miss.length) { /* tutte confermate */ }
+            else if (!ok.length) {
               log(`⚠ Su Cardmarket non risulta in vendita nessuna delle ${tot} copie compilate: non ho inviato nulla. Premi "Mettere in vendita le carte" (o controlla gli errori di Cardmarket) e poi di nuovo il pulsante verde.`, '#ff6b6b');
               lastSnap = rows; return;
             }
-            if (!confirm(`Su Cardmarket risultano in vendita ${tot - mq} copie su ${tot}.\n\nNon risultano: ${txt} (${mq} copie). Forse Cardmarket le ha rifiutate.\n\nInvio al gestionale solo le ${tot - mq} copie che risultano in vendita?`)) { lastSnap = rows; log('Invio annullato: niente è cambiato nel gestionale.'); return; }
+            else if (!confirm(`Su Cardmarket risultano in vendita ${tot - mq} copie su ${tot}.\n\nNon risultano: ${txt} (${mq} copie). Forse Cardmarket le ha rifiutate.\n\nInvio al gestionale solo le ${tot - mq} copie che risultano in vendita?`)) { lastSnap = rows; log('Invio annullato: niente è cambiato nel gestionale.'); return; }
             rows = ok;
           }
         }

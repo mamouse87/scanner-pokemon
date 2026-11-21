@@ -21,6 +21,8 @@ h2{{color:#ffcb05}} li{{margin:6px 0}}</style></head><body>
 <li>Premi l'icona del puzzle accanto alla barra degli indirizzi e fissa <b>Card Scanner → Cardmarket</b> con la puntina.</li>
 <li>Ricarica il gestionale (Ctrl+F5) e le schede di Cardmarket aperte.</li></ol>
 <p><b>Uso:</b> dal gestionale premi i soliti pulsanti (Metti in vendita, Cambia prezzi, Nuovo controllo). Sull'icona compare un <b>1</b> arancione finché l'operazione non arriva su Cardmarket. Se chiudi il riquadro, lo riapri cliccando l'icona. Sulle pagine 2, 3… dello stesso set il riquadro si riapre da solo.</p>
+<p><b>Avanti da solo</b> (spunta nel riquadro, accesa di serie): sulle pagine "Inserisci carte bulk" lo script compila da solo; tu controlli e premi <b>Mettere in vendita le carte</b> quando compare "Pronto"; poi controlla su Cardmarket, invia al gestionale e passa da solo alla pagina dopo del set (hai 3 secondi per premere "Resta qui"). Il pulsante di Cardmarket lo premi sempre tu.</p>
+<p>Quando c'è una versione nuova dell'estensione, sull'icona compare una <b>↑</b> verde e nel riquadro un avviso con il link a questa pagina.</p>
 <p><b>Aggiornare:</b> scarica di nuovo lo zip, estrailo sopra la stessa cartella (sostituisci i file), poi in <code>chrome://extensions</code> premi la freccia circolare ↻ sull'estensione e ricarica le schede di Cardmarket.</p>
 <p>Il pulsante qui sotto continua a funzionare: tienilo come riserva finché l'estensione non ti convince.</p>
 <h2>1. Installa il pulsante (una volta, dal PC)</h2>

@@ -7,9 +7,9 @@
     if (e.source !== window || !e.data || typeof e.data.csx !== 'string') return;
     const d = e.data;
     if (d.csx === 'want') {
-      const { job } = await chrome.storage.local.get('job');
+      const { job, upd } = await chrome.storage.local.get(['job', 'upd']);
       const fresh = !!(job && !job.taken && Date.now() - job.at < FRESH_MS);
-      window.postMessage({ csx: 'job', p: job ? job.p : '', url: job ? job.url : '', fresh }, location.origin);
+      window.postMessage({ csx: 'job', p: job ? job.p : '', url: job ? job.url : '', fresh, upd: upd && upd.ver ? upd.ver : '', ver: chrome.runtime.getManifest().version }, location.origin);
     } else if (d.csx === 'taken' && typeof d.sig === 'string') {
       const { job } = await chrome.storage.local.get('job');
       if (job && !job.taken && sig(job.p) === d.sig) { job.taken = true; await chrome.storage.local.set({ job }); chrome.runtime.sendMessage({ t: 'badge' }); }

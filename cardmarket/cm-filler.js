@@ -76,6 +76,11 @@
   }
   /** riga sotto il titolo: a che ora è arrivata dal gestionale l'operazione che lo script sta usando */
   function inAgo() {
+    const e = t => String(t ?? '').replace(/[^0-9a-z.]/gi, '');
+    const up = EXT && EXT.upd ? `<div class="ag old">↑ C'è la versione nuova dell'estensione (${e(EXT.upd)}; tu hai la ${e(EXT.ver || '?')}). <a href="https://mamouse87.github.io/scanner-pokemon/cardmarket/" target="_blank" rel="noopener" style="color:inherit;font-weight:700">Scaricala e aggiornala</a></div>` : '';
+    return up + inAgo0();
+  }
+  function inAgo0() {
     let at = 0; try { at = +localStorage.getItem('cs_in_at') || 0; } catch (e) {}
     if (!at) return '';
     const old = Date.now() - at > 30 * 60e3, d = new Date(at);
@@ -219,7 +224,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 a</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 b</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -298,7 +303,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 a</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 b</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -777,6 +782,7 @@
       <div class="msg" id="csMsg"></div>
       <button class="big go hide" id="csGest"></button>
       <button class="big" id="csGo">Compila la pagina</button>
+      ${EXT ? '<label class="mut" style="display:flex;gap:8px;align-items:flex-start;margin:2px 0 8px;cursor:pointer"><input type="checkbox" id="csAuto" style="margin-top:3px"><span><b style="color:#1d2433">Avanti da solo</b>: compila la pagina, dopo "Mettere in vendita le carte" la invia al gestionale e passa alla pagina dopo. "Mettere in vendita" lo premi sempre tu.</span></label>' : ''}
       <div id="csProg" class="hide"></div>
       <div><label class="mut" for="csComment">Commento sulle offerte</label><input id="csComment" placeholder="es. Collezione privata"></div>
       <details id="csDet" class="hide"><summary class="mut" style="cursor:pointer">Dettagli della compilazione</summary><div id="csLog" class="log"></div></details>
@@ -791,7 +797,7 @@
     $('csLog').appendChild(d);
     $('csDet').classList.remove('hide');
     // i messaggi importanti (esito, errori) anche in evidenza sopra
-    if (/^\s*(Compilate|⚠|Inviate|Nessuna|Errore)/.test(t)) { const m = document.createElement('div'); m.className = d.className; m.textContent = t.trim(); $('csMsg').appendChild(m); }
+    if (/^\s*(Compilate|⚠|Inviate|Nessuna|Errore|⏳|➡|✓)/.test(t)) { const m = document.createElement('div'); m.className = d.className; m.textContent = t.trim(); $('csMsg').appendChild(m); }
   };
   function steps() {
     const j = jobGet(), act = activeJob();
@@ -1062,10 +1068,11 @@
     });
     return w;
   }
+  let lastCounts = { tot: 0, sent: 0, hereLeft: 0, otherLeft: 0 };
   function showProgress() {
     const box = $('csProg');
     const list = parseInput($('csInput').value).items;
-    if (!list.length) { box.classList.add('hide'); steps(); return; }
+    if (!list.length) { lastCounts = { tot: 0, sent: 0, hereLeft: 0, otherLeft: 0 }; box.classList.add('hide'); steps(); return; }
     const done = Object.assign({}, doneGet()), here = pageRows();
     let tot = 0, sent = 0, hereLeft = 0, otherLeft = 0;
     const rowsHtml = list.map(it => {
@@ -1080,6 +1087,7 @@
         : isHere ? '<span class="pill todo">da compilare qui</span>' : '<span class="pill oth">altra pagina</span>';
       return `<div class="li" style="${left ? '' : 'opacity:.55'}"><span class="c">${esc(it.num)}${it.rev ? ' <span class="rv">R</span>' : ''}</span><span class="n">${esc(it.name || '')}</span><span class="p">×${left || it.qty} ${st}</span></div>`;
     }).join('');
+    lastCounts = { tot, sent, hereLeft, otherLeft };
     box.classList.remove('hide');
     box.innerHTML = `<div class="stat"><span>Inviate al gestionale <b>${sent}</b> di ${tot} copie</span><span class="mut">${hereLeft} da compilare qui · ${otherLeft} in altre pagine</span></div>
       <div class="bar"><i style="width:${tot ? Math.round(sent / tot * 100) : 0}%"></i></div>
@@ -1145,7 +1153,7 @@
     const id = expansion().id;
     if (!id) { before = null; return; }
     const b = { exp: id, at: Date.now(), done: false, p: null };
-    b.p = expQty(id, t => { b.prog = t; }).then(x => { b.done = true; if (!b.late) log('✓ Pronto: ora puoi premere "Mettere in vendita le carte" su Cardmarket.', '#3ecf6e'); return x; }).catch(() => { b.done = true; return null; });
+    b.p = expQty(id, t => { b.prog = t; }).then(x => { b.done = true; b.val = x; if (!b.late) log('✓ Pronto: ora puoi premere "Mettere in vendita le carte" su Cardmarket.', '#3ecf6e'); return x; }).catch(() => { b.done = true; return null; });
     before = b;
   }
   form.addEventListener('submit', () => { if (before && !before.done) before.late = true; }, true);
@@ -1160,16 +1168,18 @@
   }, true);
   const offKey = r => `${norm(r.u)}|${r.rev ? 'R' : 'N'}|${r.lang || 'it'}`;
   let sending = false;
-  async function sendCompiled() {
-    if (sending) return;
+  // opt.auto (estensione, "Avanti da solo"): niente domande; 'retry' = non vedo ancora tutte le carte, 'stop' = non posso controllare
+  async function sendCompiled(opt) {
+    const auto = !!(opt && opt.auto === true);
+    if (sending) return 'retry';
     let rows = keepSnap();
     if (!rows.length) rows = lastSnap;
-    if (!rows.length) { log('Nessuna carta compilata in questa pagina.', '#ff6b6b'); return; }
+    if (!rows.length) { if (!auto) log('Nessuna carta compilata in questa pagina.', '#ff6b6b'); return 'stop'; }
     const exp = expansion();
     // controllo su Cardmarket: invio al gestionale solo le copie che risultano davvero in vendita
     sending = true; $('csGest').disabled = true;
     const tot = rows.reduce((a, r) => a + r.q, 0);
-    log('Controllo su Cardmarket che le carte siano davvero in vendita…');
+    if (!auto) log('Controllo su Cardmarket che le carte siano davvero in vendita…');
     let checked = false;
     try {
       const B = before && before.exp === exp.id && !before.late ? await before.p : null;
@@ -1181,6 +1191,7 @@
           const ok = [], miss = [];
           rows.forEach(r => { const k = offKey(r), take = Math.max(0, Math.min(added[k] || 0, r.q)); if (take) { ok.push(Object.assign({}, r, { q: take })); added[k] -= take; } if (take < r.q) miss.push(Object.assign({}, r, { q: r.q - take })); });
           checked = true;
+          if (miss.length && auto) { lastSnap = rows; return 'retry'; }
           if (miss.length) {
             // copie che ci sono su Cardmarket ma c'erano già quando ho letto "prima": o erano in vendita da prima,
             // o le hai messe in vendita mentre leggevo (o dopo un nuovo "Compila"). Decidi tu.
@@ -1204,6 +1215,7 @@
       }
     } catch (e) { checked = false; }
     finally { sending = false; $('csGest').disabled = false; }
+    if (!checked && auto) { lastSnap = rows; return 'stop'; }
     if (!checked && !confirm(`Non riesco a controllare su Cardmarket che le ${tot} copie siano davvero in vendita.\n\nLe hai messe in vendita con "Mettere in vendita le carte"? Se sì, premi OK e le invio al gestionale.`)) { lastSnap = rows; return; }
     lastSnap = []; before = null;
     const entry = { exp: exp.id, name: exp.name, at: new Date().toISOString(), rows, cards: catalog() };
@@ -1219,6 +1231,7 @@
     if (aj && !left) { aj.done = true; try { localStorage.setItem(JKEY, JSON.stringify(aj)); } catch (e) {} }
     log(`Inviate al gestionale ${rows.reduce((a, r) => a + r.q, 0)} copie: ora nel gestionale risultano In vendita.` +
       (left ? ` Restano ${left} copie della lista da mettere in vendita (in questa o in altre pagine).` : ' Tutta la lista è stata inviata ✔'), left ? '#ff9f43' : '#3ecf6e');
+    return 'sent';
   }
   function sendToGest(listed) {
     const exp = expansion();
@@ -1300,6 +1313,70 @@
   showJob();
   showGest();
   showProgress();
+
+  // ---------- "Avanti da solo" (solo con l'estensione) ----------
+  // compila da solo, dopo il TUO clic su "Mettere in vendita le carte" controlla e invia al gestionale da solo,
+  // poi passa alla pagina dopo del set. Lo script non preme mai il pulsante di Cardmarket.
+  if ($('csAuto')) { $('csAuto').checked = store.get('auto', '1') === '1'; $('csAuto').onchange = () => { store.set('auto', $('csAuto').checked ? '1' : '0'); if (!$('csAuto').checked) stayHere = true; }; }
+  const autoOn = () => !!($('csAuto') && $('csAuto').checked);
+  let stayHere = false, autoBusy = false;
+  const pageNo = () => { const m = document.body.textContent.match(/Pagina\s+(\d+)\s+di\s+(\d+)/i); return m ? { cur: +m[1], tot: +m[2] } : { cur: 1, tot: 1 }; };
+  function goNext() {
+    if (!autoOn() || stayHere) return;
+    const c = lastCounts;
+    if (!c.otherLeft || c.hereLeft) return;
+    const { cur, tot } = pageNo();
+    if (cur >= tot) { log(`⚠ Restano ${c.otherLeft} copie della lista che non trovo da questa pagina in poi: controlla le pagine prima di questa o il set su Cardmarket.`, '#ff9f43'); return; }
+    const u = new URL(location.href); u.searchParams.set('site', String(cur + 1));
+    log(`➡ Tra 3 secondi vado alla pagina ${cur + 1} di ${tot}…`, '#3ecf6e');
+    const b = document.createElement('button'); b.className = 'big'; b.textContent = 'Resta qui'; b.style.marginTop = '6px';
+    b.onclick = () => { stayHere = true; b.remove(); log('Resto su questa pagina.'); };
+    $('csMsg').appendChild(b);
+    setTimeout(() => { if (!stayHere && autoOn()) location.href = u.toString(); }, 3000);
+  }
+  // se Cardmarket ricarica la pagina dopo "Mettere in vendita", riprendo da qui (lo salvo subito, al clic)
+  function savePend(rows0) {
+    if (!before || !before.done || !before.val || before.val.capped || !rows0.length) return;
+    try { sessionStorage.setItem('cs_pend', JSON.stringify({ lid: listId(), exp: before.exp, rows: rows0, B: before.val, at: Date.now() })); } catch (e) {}
+  }
+  async function autoVerify() {
+    if (!autoOn() || autoBusy) return;
+    autoBusy = true;
+    try {
+      const rows0 = lastSnap.length ? lastSnap : keepSnap();
+      if (!rows0.length) return;
+      const B = before && before.done && !before.late ? await before.p : null;
+      if (!B || B.capped) { log('⚠ Non posso controllare da solo questa pagina: quando Cardmarket ha finito premi il pulsante verde.', '#ff9f43'); return; }
+      savePend(rows0);
+      log('⏳ Aspetto che Cardmarket metta in vendita le carte, poi le invio al gestionale da solo…', '#3ecf6e');
+      for (let i = 0; i < 8; i++) {
+        await sleep(i ? 4000 : 2500);
+        const r = await sendCompiled({ auto: true });
+        if (r === 'sent') { try { sessionStorage.removeItem('cs_pend'); } catch (e) {} goNext(); return; }
+        if (r === 'stop') break;
+      }
+      try { sessionStorage.removeItem('cs_pend'); } catch (e) {}
+      log('⚠ Non vedo ancora tutte le carte in vendita su Cardmarket: quando ha finito premi il pulsante verde (ti chiederò cosa fare con quelle che mancano).', '#ff9f43');
+    } finally { autoBusy = false; }
+  }
+  // il tuo clic su "Mettere in vendita le carte" (se non l'ho fermato perché stavo ancora leggendo)
+  form.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('button[type="submit"],input[type="submit"],button:not([type])');
+    if (!b || !/vendita|vendere|mettere/i.test(b.textContent || b.value || '') || !autoOn()) return;
+    savePend(keepSnap()); setTimeout(autoVerify, 0);
+  }, true);
+  if (EXT && form) {
+    let pend = null; try { pend = JSON.parse(sessionStorage.getItem('cs_pend') || 'null'); } catch (e) {}
+    if (pend && (Date.now() - pend.at > 10 * 60e3 || pend.lid !== listId())) { try { sessionStorage.removeItem('cs_pend'); } catch (e) {} pend = null; }
+    if (pend && autoOn()) {
+      // pagina ricaricata dopo "Mettere in vendita": riprendo il controllo e l'invio
+      lastSnap = pend.rows; before = { exp: pend.exp, done: true, p: Promise.resolve(pend.B) };
+      autoVerify();
+    } else if (autoOn() && activeJob() && !snapshot().length) {
+      if (lastCounts.hereLeft) setTimeout(() => $('csGo').onclick(), 300);
+      else goNext();
+    }
+  }
 
   $('csGo').onclick = async () => {
     $('csGo').disabled = true; $('csGo').textContent = 'Compilo…';
@@ -1407,6 +1484,6 @@
     if (noPrice) log(`\n⚠ ${noPrice} righe SENZA PREZZO (bordo rosso): scrivi tu il prezzo prima di metterle in vendita.`, '#ff3b3b');
     log(`\nCompilate ${total} copie. Verde = normali, viola = Reverse, arancione = da controllare (${warnings}).`, '#3ecf6e');
     showGest();
-    if (filled.length) log('Controlla la pagina e metti in vendita su Cardmarket (lo fai tu). Poi premi il pulsante verde "Invia al gestionale".', '#3ecf6e');
+    if (filled.length) log(autoOn() ? 'Controlla la pagina e premi tu "Mettere in vendita le carte" (quando qui compare "Pronto"): poi la invio io al gestionale e passo alla pagina dopo.' : 'Controlla la pagina e metti in vendita su Cardmarket (lo fai tu). Poi premi il pulsante verde "Invia al gestionale".', '#3ecf6e');
   }
 })();

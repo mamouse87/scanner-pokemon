@@ -45,7 +45,7 @@ starter = r'''
         if (!here) { banner(r, bulk); return; }
       }
       const bar = document.getElementById('csExtBar'); if (bar) bar.remove();
-      await window.__csMain({ auto, p });
+      await window.__csMain({ auto, p, upd: r && r.upd || '', ver: r && r.ver || '' });
     }
     catch (e) { console.error('Card Scanner', e); }
     finally { busy = false; }

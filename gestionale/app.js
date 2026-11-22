@@ -456,6 +456,29 @@ function cmCardUrl(cm, name, rev, lang) {
   u.searchParams.set('isReverseHolo', rev ? 'Y' : 'N');
   return u.href;
 }
+/** pagina Cardmarket di una variante speciale. TCGdex dà solo il numero prodotto, non l'indirizzo:
+ *  1) indirizzo vero se lo conosco (elenco della pagina bulk dei Supplementi mandato dallo script);
+ *  2) ricostruito dalla carta normale: …/Ascended-Heroes/Erikas-Oddish-ASC001 → …/Ascended-Heroes-Additionals/Erikas-Oddish-V2-xASC001
+ *     (V1, V2… in ordine di numero prodotto, come fa Cardmarket; senza V se la variante è una sola);
+ *  3) altrimenti la ricerca per nome. */
+function vxCmUrl(cm, x, cardId, name, lang) {
+  const withLang = u => { u.searchParams.set('language', String(CM_LANG[lang || 'it'] || 5)); return u.href; };
+  const E = Object.values(state.cm).find(e => e.cards?.[x.vp]?.ur);
+  try { if (E) { const u = new URL(E.cards[x.vp].ur, 'https://www.cardmarket.com'); if (u.origin === 'https://www.cardmarket.com') return withLang(u); } } catch (e) {}
+  try {
+    const u = cm && cm.ur ? new URL(cm.ur, 'https://www.cardmarket.com') : null;
+    const seg = u ? u.pathname.split('/').filter(Boolean) : [];
+    const m = seg.length >= 2 && seg[seg.length - 1].match(/^(.*?)(?:-V\d+)?-([A-Za-z]*\d+[a-z]?)$/);
+    const V = varCache(cardId), sib = (V?.x || []).map(v => v.p).sort((a, b) => a - b), i = sib.indexOf(String(x.vp));
+    if (u && u.origin === 'https://www.cardmarket.com' && m && i >= 0) {
+      const exp = seg[seg.length - 2].replace(/-Additionals$/, '') + '-Additionals';
+      seg[seg.length - 2] = exp; seg[seg.length - 1] = `${m[1]}${sib.length > 1 ? '-V' + (i + 1) : ''}-x${m[2]}`;
+      return withLang(new URL('/' + seg.join('/'), 'https://www.cardmarket.com'));
+    }
+  } catch (e) {}
+  const u = new URL('https://www.cardmarket.com/it/Pokemon/Products/Search'); u.searchParams.set('searchString', (cm && cm.n) || name || '');
+  return u.href;
+}
 // immagini che non si caricano: provo la fonte successiva (niente onerror nell'HTML: la Content-Security-Policy li blocca)
 document.addEventListener('error', e => {
   const im = e.target;
@@ -1897,7 +1920,7 @@ $('main').addEventListener('click', e => {
   const hist = l => { const a = ((state.hist || {})[histKey(l)] || []); return a.length >= 2 ? histChart(l, 'Andamento') : `<p class="cd-none">Andamento: il grafico compare dopo almeno 2 giorni di prezzi raccolti${a.length ? ' (finora 1)' : ''}.</p>`; };
   const fig = (v, l, cls = '') => `<div class="${cls}"><b>${v}</b><span>${l}</span></div>`;
   // link a Cardmarket: l'immagine apre la prima variante (in vendita, poi Standby, altrimenti Normale italiana)
-  const cmLink = x => cmCardUrl(cm, c.name, x.vp ? null : !!x.rev, x.lang || 'it');
+  const cmLink = x => x.vp ? vxCmUrl(cm, x, c.id, c.name, x.lang || 'it') : cmCardUrl(cm, c.name, !!x.rev, x.lang || 'it');
   const vName = x => `${vLab(x)} · ${LANGN[x.lang || 'it'] || x.lang}`;
   const VC = c.id ? varCache(c.id) : null, noRev = VC && VC.det && !VC.rev;
   const v0 = ls[0]?.[1] || sb[0]?.[1] || { rev: false, lang: 'it' };

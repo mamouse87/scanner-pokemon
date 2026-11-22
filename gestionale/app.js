@@ -160,6 +160,24 @@ const vLab = x => x && x.vp ? (x.vl || 'Variante speciale') : x && x.rev ? 'Reve
 const vHtml = x => x && x.vp ? `<span class="vxl" title="Variante speciale: su Cardmarket è un prodotto a parte">${esc(x.vl || 'Speciale')}</span>` : x && x.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale';
 const vTag = x => x && x.vp ? ' ' + (x.vl || 'speciale') : x && x.rev ? ' R' : '';
 const VKEY = id => 'tcgVar:' + id;
+const SUPRX = /:\s*(supplementi|additionals?)\s*$/i;
+const isSupName = n => SUPRX.test(String(n || ''));
+const slugOf = u => { const t = String(u || '').split(/[?#]/)[0].replace(/\/+$/, ''); return t.slice(t.lastIndexOf('/') + 1); };
+/** indirizzo (slug) del prodotto di una carta speciale in vendita, dall'elenco della pagina bulk mandato dallo script */
+const slOfL = l => l && l.vp ? slugOf(state.cm[l.exp]?.cards?.[l.p]?.ur) || undefined : undefined;
+/** slug → numero prodotto, per le offerte lette dallo script (Supplementi: V1 e V2 hanno lo stesso numero di carta) */
+function pidBySlug() {
+  const m = {};
+  Object.values(state.cm).forEach(E => Object.values(E.cards || {}).forEach(c => { if (c.ur && (isSupName(E.name) || /-V\d+-/.test(c.ur))) m[slugOf(c.ur)] = String(c.p); }));
+  return m;
+}
+/** nome e sigla di una variante speciale (dalle varianti TCGdex della carta) */
+function vxInfoOf(setId, u, p) {
+  const S = tcgCached('/sets/' + encodeURIComponent(setId)) || tcgCached('@en/sets/' + encodeURIComponent(setId));
+  const c = (S?.cards || []).find(x => norm(x.localId) === norm(u));
+  const v = c && (varCache(c.id)?.x || []).find(o => o.p === String(p));
+  return v ? { vl: v.l, vb: v.b } : null;
+}
 /** varianti di una carta già lette da TCGdex: { base, rev (esiste la Reverse semplice), det (TCGdex ha l'elenco), x: [{p, l, b}] } */
 function varCache(cardId) { if (!cardId) return null; try { return JSON.parse(localStorage.getItem(VKEY(cardId))); } catch (e) { return null; } }
 const unacc = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -277,7 +295,7 @@ async function loadMyCodes() {
 
 /** set TCGdex corrispondente a un'espansione di Cardmarket (stesso nome italiano) */
 function tcgIdFor(expName) {
-  const n = simp(expName);
+  const n = simp(String(expName || '').replace(SUPRX, ''));
   if (!n) return null;
   const s = tcgSets.find(x => simp(x.name) === n) || tcgSets.find(x => simp(x.name).includes(n) || n.includes(simp(x.name)));
   return s ? s.id : null;
@@ -336,10 +354,16 @@ function importFromHash() {
   for (const sub of d.listed || []) {
     mergeCatalog({ id: sub.exp, name: sub.name, cards: sub.cards });
     last = { id: sub.exp, name: sub.name };
+    const sid0 = tcgIdFor(sub.name);
     for (const r of sub.rows) {
-      const k = lkey(r.p, r.rev, r.lang);
+      // variante speciale (pagina dei Supplementi): prodotto a parte; la casella Reverse fissa di Cardmarket non conta
+      const sbX = Object.values(state.standby || {}).find(x => x.vp && x.vp === String(r.p));
+      const vx = r.x || r.v === 'S' || sbX || isSupName(sub.name);
+      const VI = vx ? (r.vl ? { vl: r.vl, vb: r.vb } : sbX ? { vl: sbX.vl, vb: sbX.vb } : vxInfoOf(sid0, r.u, r.p) || { vl: 'Variante speciale', vb: 'SP' }) : null;
+      const rv = vx ? false : !!r.rev;
+      const k = lkey(r.p, rv, r.lang);
       const c = state.cm[sub.exp]?.cards?.[r.p] || {};
-      const L = state.listings[k] || (state.listings[k] = { p: r.p, exp: sub.exp, expName: sub.name, u: r.u || c.u || '', rev: r.rev, lang: r.lang, q: 0, price: null, date: sub.at, com: '' });
+      const L = state.listings[k] || (state.listings[k] = Object.assign({ p: r.p, exp: sub.exp, expName: sub.name, u: r.u || c.u || '', rev: rv, lang: r.lang, q: 0, price: null, date: sub.at, com: '' }, vx ? { vp: String(r.p), vl: VI.vl, vb: VI.vb } : {}));
       // copie aggiunte a una carta già in vendita allo stesso prezzo: la regola e il riferimento restano quelli di prima
       const keep = L.q > 0 && L.price != null && r.price != null && r2(r.price) === r2(L.price);
       L.q += r.q;
@@ -355,12 +379,12 @@ function importFromHash() {
       }
       n += r.q;
       newly.push({ k, q: r.q, price: r.price != null ? r.price : L.price });
-      addedTxt.push(`${L.u || r.u}${r.rev ? ' R' : ''} ×${r.q}${r.price != null ? ' a ' + eur(r.price) : ''}`);
+      addedTxt.push(`${L.u || r.u}${vTag(L)} ×${r.q}${r.price != null ? ' a ' + eur(r.price) : ''}`);
       // le copie caricate su Cardmarket escono dallo Standby
       // (all'avvio l'elenco dei set TCGdex può non essere ancora caricato: abbino anche per nome del set)
       const sid = tcgIdFor(sub.name), un = norm(r.u || c.u || '');
       const sk = Object.keys(state.standby || {}).find(k => { const x = state.standby[k];
-        return (x.s === sid || simp(x.sn) === simp(sub.name)) && norm(x.u) === un && !!x.rev === !!r.rev && (x.lang || 'it') === (r.lang || 'it'); });
+        return (x.s === sid || simp(x.sn) === simp(String(sub.name).replace(SUPRX, ''))) && norm(x.u) === un && vcOf(x) === vcOf(L) && (x.lang || 'it') === (r.lang || 'it'); });
       const X = sk && state.standby[sk];
       if (X) { const m = Math.min(X.q, r.q); X.q -= m; fromSb += m; if (X.q <= 0) { delete state.standby[sk]; delete (state.sbMarket || {})[sk]; } }
     }
@@ -915,7 +939,7 @@ function importCheckFromHash() {
   history.replaceState(null, '', location.pathname);
   let d;
   try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) { alert('Elenco delle offerte non leggibile.'); return true; }
-  const list = (d.o || []).map(r => ({ code: String(r[0] || '').toUpperCase(), num: r[1], rev: !!r[2], lang: r[3] || 'it', q: +r[4] || 1, price: r[5], name: r[6] || '', exp: (d.ex || [])[r[7]] || '' }));
+  const list = (d.o || []).map(r => Object.assign({ code: String(r[0] || '').toUpperCase(), num: r[1], rev: !!r[2], lang: r[3] || 'it', q: +r[4] || 1, price: r[5], name: r[6] || '', exp: (d.ex || [])[r[7]] || '' }, r[8] ? { sl: String(r[8]) } : {}));
   if (!list.length) { alert('Lo script non ha letto nessuna offerta: controllo non fatto. Riprova da "Le mie offerte".'); return true; }
   // lettura parziale (più di 300 offerte): ho letto solo i set in rx, per gli altri non segnalo "solo nel gestionale"
   chk = { at: d.at || new Date().toISOString(), list, rx: d.full === 0 ? (d.rx || []).map(String) : null, warn: d.warn || [] };
@@ -936,16 +960,18 @@ function importCheckFromHash() {
 /** differenze tra magazzino e offerte lette: [{type, k?, l?, os, ...}] */
 function chkDiffs() {
   if (!chk) return [];
-  const tailOf = (num, rev, lang) => `|${norm(num)}|${rev ? 'R' : 'N'}|${lang || 'it'}`;
+  // varianti speciali: per numero prodotto (dall'indirizzo dell'offerta), senza guardare la casella Reverse
+  const bySl = pidBySlug(), ovp = o => o.sl ? (bySl[o.sl] || 'S:' + o.sl) : null;
+  const tailOf = (num, rev, lang, vp) => `|${norm(num)}|${vp ? 'X' + vp : rev ? 'R' : 'N'}|${lang || 'it'}`;
   const byCode = {}, byExp = {}, used = new Set();
   chk.list.forEach(o => {
-    const t = tailOf(o.num, o.rev, o.lang);
+    const t = tailOf(o.num, o.rev, o.lang, ovp(o));
     if (o.code) (byCode[o.code + t] = byCode[o.code + t] || []).push(o);
     if (o.exp) (byExp[simp(o.exp) + t] = byExp[simp(o.exp) + t] || []).push(o);
   });
   const out = [];
   for (const [k, l] of Object.entries(state.listings)) {
-    const t = tailOf(l.u, l.rev, l.lang), code = String(setCode(l) || '').toUpperCase();
+    const t = tailOf(l.u, l.rev, l.lang, l.vp), code = String(setCode(l) || '').toUpperCase();
     const os = (code && byCode[code + t]) || byExp[simp(l.expName || state.cm[l.exp]?.name) + t] || [];
     os.forEach(o => used.add(o));
     // messa in vendita (o aggiunte copie) dopo il controllo: quel controllo non la poteva vedere, non la segnalo
@@ -958,10 +984,10 @@ function chkDiffs() {
   }
   // offerte su Cardmarket che il gestionale non ha: raggruppate per carta
   const extra = {};
-  chk.list.forEach(o => { if (used.has(o)) return; const key = (o.code || simp(o.exp)) + tailOf(o.num, o.rev, o.lang); (extra[key] = extra[key] || []).push(o); });
+  chk.list.forEach(o => { if (used.has(o)) return; const key = (o.code || simp(o.exp)) + tailOf(o.num, o.rev, o.lang, ovp(o)); (extra[key] = extra[key] || []).push(o); });
   Object.values(extra).forEach(os => {
     const o = os[0], E = expByCode(o.code) || Object.values(state.cm).find(e => simp(e.name) === simp(o.exp));
-    const card = E && Object.values(E.cards || {}).find(c => norm(c.u) === norm(o.num));
+    const card = E && ((o.sl && Object.values(E.cards || {}).find(c => c.ur && slugOf(c.ur) === o.sl)) || Object.values(E.cards || {}).find(c => norm(c.u) === norm(o.num)));
     out.push({ type: 'extra', os, o, E, card, q: os.reduce((a, x) => a + x.q, 0) });
   });
   return out;
@@ -973,9 +999,9 @@ function chkAfterListing(added) {
   if (!chk || !added.length) return;
   added.forEach(({ k, q, price }) => {
     const L = state.listings[k]; if (!L) return;
-    const o = { code: String(setCode(L) || '').toUpperCase(), num: L.u, rev: !!L.rev, lang: L.lang || 'it', q, price: price != null ? r2(price) : null, name: info(L).name, exp: L.expName || state.cm[L.exp]?.name || '' };
+    const o = Object.assign({ code: String(setCode(L) || '').toUpperCase(), num: L.u, rev: !!L.rev, lang: L.lang || 'it', q, price: price != null ? r2(price) : null, name: info(L).name, exp: L.expName || state.cm[L.exp]?.name || '' }, slOfL(L) ? { sl: slOfL(L) } : {});
     // stessa carta allo stesso prezzo: Cardmarket aggiunge le copie alla stessa offerta
-    const same = chk.list.find(x => x.num && norm(x.num) === norm(o.num) && x.rev === o.rev && (x.lang || 'it') === o.lang && x.price === o.price &&
+    const same = chk.list.find(x => x.num && norm(x.num) === norm(o.num) && (o.sl ? x.sl === o.sl : x.rev === o.rev && !x.sl) && (x.lang || 'it') === o.lang && x.price === o.price &&
       ((o.code && x.code === o.code) || simp(x.exp) === simp(o.exp)));
     if (same) same.q += q; else chk.list.push(o);
   });
@@ -1005,7 +1031,7 @@ function openQtyEdit(rows, why, scope) {
   const name = `QUANTITA-${scope ? SavedListsName(scope) : 'Tutti'}_${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
   const job = { v: 1, type: 'qty', at: today(), name,
     items: rows.map(r => { const l = r.l || state.listings[r.k];
-      return { k: r.k, code: setCode(l), exp: l.expName || state.cm[l.exp]?.name || '', u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q, qt: Math.max(0, r.qt), old: l.price, price: null }; }) };
+      return Object.assign({ k: r.k, code: setCode(l), exp: l.expName || state.cm[l.exp]?.name || '', u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q, qt: Math.max(0, r.qt), old: l.price, price: null }, l.vp ? { v: 'S', vl: l.vl, vb: l.vb, sl: slOfL(l) } : {}); }) };
   const enc = 'csedit=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
   try { navigator.clipboard.writeText(enc); } catch (e) {}
   const win = openCm(OFFERS_URL, enc);
@@ -1022,7 +1048,7 @@ function openPriceFix(ds, why) {
   const d = new Date(), z = n => String(n).padStart(2, '0');
   const name = `PREZZO-UNICO_${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
   const job = { v: 1, type: 'edit', at: today(), name, base: 'gest', plus: 0,
-    items: ds.map(({ k, l }) => ({ k, code: setCode(l), exp: setOf(l), u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q,
+    items: ds.map(({ k, l }) => ({ k, code: setCode(l), exp: setOf(l), u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q, ...(l.vp ? { v: 'S', vl: l.vl, vb: l.vb, sl: slOfL(l) } : {}),
       old: null, price: r2(l.price), b: l.rb || 'low', o: l.ro ?? 0, ref: l.ref ?? null, m: 1 })) };
   const enc = 'csedit=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
   const win = openCm(OFFERS_URL, enc);
@@ -1043,12 +1069,13 @@ function chkApply(d) {
   }
   if (d.type === 'miss') { const L = state.listings[d.k]; delete state.listings[d.k]; delete (state.market || {})[d.k]; return [L.expName, `${nm(L)} ×${L.q}: tolta dalle carte in vendita`]; }
   if (d.type === 'extra' && d.E && d.card) {
-    const o = d.o, k = lkey(d.card.p, o.rev, o.lang), prices = [...new Set(d.os.map(x => r2(x.price)))];
-    const L = state.listings[k] || (state.listings[k] = { p: d.card.p, exp: d.E.id, expName: d.E.name, u: d.card.u || o.num, rev: o.rev, lang: o.lang, q: 0, price: null, date: today(), com: '' });
+    const o = d.o, vx = !!o.sl || isSupName(d.E.name), orv = vx ? false : !!o.rev, k = lkey(d.card.p, orv, o.lang), prices = [...new Set(d.os.map(x => r2(x.price)))];
+    const VI = vx ? (vxInfoOf(tcgIdFor(d.E.name), d.card.u || o.num, d.card.p) || { vl: 'Variante speciale', vb: 'SP' }) : null;
+    const L = state.listings[k] || (state.listings[k] = Object.assign({ p: d.card.p, exp: d.E.id, expName: d.E.name, u: d.card.u || o.num, rev: orv, lang: o.lang, q: 0, price: null, date: today(), com: '' }, vx ? { vp: String(d.card.p), vl: VI.vl, vb: VI.vb } : {}));
     L.q += d.q; L.price = Math.max(...prices); L.pAt = today();
     // se erano in Standby, escono da lì
     const sid = tcgIdFor(d.E.name);
-    const sk = Object.keys(state.standby || {}).find(x => { const X = state.standby[x]; return (X.s === sid || simp(X.sn) === simp(d.E.name)) && norm(X.u) === norm(o.num) && !!X.rev === !!o.rev && (X.lang || 'it') === (o.lang || 'it'); });
+    const sk = Object.keys(state.standby || {}).find(x => { const X = state.standby[x]; return (X.s === sid || simp(X.sn) === simp(String(d.E.name).replace(SUPRX, ''))) && norm(X.u) === norm(o.num) && vcOf(X) === vcOf(L) && (X.lang || 'it') === (o.lang || 'it'); });
     let fromSb = 0;
     if (sk) { const X = state.standby[sk]; fromSb = Math.min(X.q, d.q); X.q -= fromSb; if (X.q <= 0) { delete state.standby[sk]; delete (state.sbMarket || {})[sk]; } }
     return [d.E.name, `${nm(L)} ×${d.q} a ${eur(L.price)}: aggiunta alle carte in vendita${fromSb ? ` (${fromSb} tolte dallo Standby)` : ''}`];
@@ -1070,7 +1097,7 @@ function chkSetsParam(fix) {
   Object.values(state.standby || {}).forEach(X => { const e = Object.entries(state.cm).find(([, E]) => simp(E.name) === simp(X.sn)); if (e) ids.add(String(e[0])); });
   const e = [...ids].filter(id => /^\d+$/.test(id)).map(id => [id, state.cm[id]?.name || '']);
   // con "correggi subito": le copie giuste di ogni carta in vendita (lo script abbassa solo quelle in più su Cardmarket)
-  const L = fix ? Object.entries(state.listings).map(([k, l]) => [k, setCode(l), l.expName || state.cm[l.exp]?.name || '', l.u, info(l).name, l.rev ? 1 : 0, l.lang || 'it', l.q]) : undefined;
+  const L = fix ? Object.entries(state.listings).map(([k, l]) => { const r = [k, setCode(l), l.expName || state.cm[l.exp]?.name || '', l.u, info(l).name, l.rev ? 1 : 0, l.lang || 'it', l.q]; const sl = slOfL(l); if (sl) r.push(sl); return r; }) : undefined;
   return encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({ e, L })))));
 }
 function openStockCheck() {
@@ -1422,7 +1449,7 @@ function clRegister(L, sel, tot, who, lowerCm) {
     if (left > 0 && Lst) { snap = Object.assign({}, Lst); took = Math.min(left, Lst.q); Lst.q -= took; left -= took; cm.push({ k: r.lk, l: snap, qt: Lst.q }); if (Lst.q <= 0) delete state.listings[r.lk]; }
     const base = Lst || snap;
     state.sold.push({ date, listed: base?.date || null, p: base?.p || null, exp: base?.exp || '', expName: base?.expName || L.setName, name: r.n, num: r.u, rev: r.rev, lang: r.lang, q,
-      price, source: ch, file: L.name, order: oid, buyer: who, took, sbTook, sbk: sbTook ? r.sk : '', sbx, nolist: base ? 0 : 1 });
+      price, source: ch, file: L.name, order: oid, buyer: who, took, sbTook, sbk: sbTook ? r.sk : '', sbx, nolist: base ? 0 : 1, ...(r.vp ? { vp: r.vp, vl: r.vl } : {}) });
     txt.push(`${r.u}${r.rev ? ' R' : ''} ${r.n} ×${q}`);
   });
   state.orders = state.orders || {};
@@ -2334,7 +2361,7 @@ function renderSales() {
     if (!confirm(`Annullare la vendita di ${s.q} × ${s.name}?${back ? ` ${back === 1 ? '1 copia torna' : back + ' copie tornano'} tra quelle in vendita.` : ''}${sbB ? ` ${sbB === 1 ? '1 copia torna' : sbB + ' copie tornano'} in Standby.` : ''}${!back && !sbB ? ' Viene tolta solo dalle vendite (la carta non era nel magazzino del gestionale).' : ''}`)) return;
     if (back) {
       const k = lkey(s.p, s.rev, s.lang);
-      const L = state.listings[k] || (state.listings[k] = { p: s.p, exp: s.exp, expName: s.expName, u: s.num, rev: s.rev, lang: s.lang, q: 0, price: s.price, date: s.listed || s.date, com: '' });
+      const L = state.listings[k] || (state.listings[k] = Object.assign({ p: s.p, exp: s.exp, expName: s.expName, u: s.num, rev: s.rev, lang: s.lang, q: 0, price: s.price, date: s.listed || s.date, com: '' }, s.vp ? { vp: s.vp, vl: s.vl, vb: (vxInfoOf(tcgIdFor(s.expName), s.num, s.vp) || {}).vb || 'SP' } : {}));
       L.q += back;
     }
     if (s.sbTook && s.sbk) {
@@ -2463,7 +2490,7 @@ function orderReview(o, file, pos) {
     ${rows.map((r, i) => `<tr style="${r.left ? '' : 'opacity:.55'}">
       <td><input type="checkbox" data-i="${i}" ${r.left > 0 && (!r.cands.length || r.cands[0].exact || dup) ? 'checked' : ''}></td>
       <td>${esc(r.code)} ${esc(r.num)} <b>${esc(r.name)}</b>${r.rev ? ' <b style="color:var(--rev)">Reverse</b>' : ''} <span class="small">${esc(r.lang.toUpperCase())} ${esc(r.cond)}${r.com ? ' · ' + esc(r.com) : ''}</span>${r.left ? '' : '<div class="small">già registrata</div>'}</td>
-      <td>${r.cands.length ? `<select data-s="${i}">${r.cands.map((c, j) => `<option value="${j}">${esc(c.l.u)} ${esc(state.cm[c.l.exp]?.cards?.[c.l.p]?.n || '')} · ${c.l.rev ? 'Reverse' : 'Normale'} · ${esc((c.l.lang || '').toUpperCase())} (${c.l.q} in vendita)${c.exact ? '' : ' ⚠ variante diversa'}</option>`).join('')}</select>` : ''}
+      <td>${r.cands.length ? `<select data-s="${i}">${r.cands.map((c, j) => `<option value="${j}">${esc(c.l.u)} ${esc(state.cm[c.l.exp]?.cards?.[c.l.p]?.n || '')} · ${esc(vLab(c.l))} · ${esc((c.l.lang || '').toUpperCase())} (${c.l.q} in vendita)${c.exact ? '' : ' ⚠ variante diversa'}</option>`).join('')}</select>` : ''}
         <div class="small" data-w="${i}" style="color:var(--var)"></div></td>
       <td><input type="number" min="1" value="${r.left || r.qty}" data-q="${i}" style="width:56px"></td><td>${eur(r.price)}</td></tr>`).join('')}</table></div>
     <p class="row" style="justify-content:space-between"><span class="small" id="oSum"></span><span><button id="dClose">${pos ? 'Salta questo ordine' : 'Annulla'}</button> <button class="pri" id="dApply">Registra la vendita</button></span></p>`, () => {
@@ -2491,7 +2518,7 @@ function orderReview(o, file, pos) {
           // carta venduta che il gestionale non ha (o non ha più): registro solo la vendita, così l'incasso torna con Cardmarket
           const E = c ? state.cm[c.l.exp] : expByCode(r.code);
           state.sold.push({ date: o.date, listed: c?.l.date || null, p: c?.l.p || null, exp: E?.id || c?.l.exp || '', expName: E?.name || c?.l.expName || r.code, name: r.name, num: r.num,
-            rev: r.rev, lang: r.lang, q: n0, price: r.price, source: 'Cardmarket', file: ref, order: o.id || '', buyer: o.buyer || '', nolist: 1 });
+            rev: r.rev, lang: r.lang, q: n0, price: r.price, source: 'Cardmarket', file: ref, order: o.id || '', buyer: o.buyer || '', nolist: 1, ...(c?.l?.vp ? { vp: c.l.vp, vl: c.l.vl } : {}) });
         }
         q += n0; soldTxt.push(`${r.num}${r.rev ? ' R' : ''} ${r.name} ×${n0} a ${eur(r.price)}`);
       });
@@ -2531,7 +2558,7 @@ function sell(k, q, source, file, price, date, meta) {
   L.q -= n;
   if (meta?.force) n0 = q; else n0 = n;
   state.sold.push({ date: date || today(), listed: L.date, p: L.p, exp: L.exp, expName: L.expName, name: c.n || '', num: L.u || c.u || '', rev: L.rev, lang: L.lang, q: n0,
-    price: price != null ? price : L.price, source, file: file || '', order: meta?.order || '', buyer: meta?.buyer || '', took: n });
+    price: price != null ? price : L.price, source, file: file || '', order: meta?.order || '', buyer: meta?.buyer || '', took: n, ...(L.vp ? { vp: L.vp, vl: L.vl } : {}) });
   if (L.q <= 0) delete state.listings[k];
 }
 
@@ -2905,10 +2932,9 @@ function jobVals(k) {
   return { lo: M.lo ?? null, t: M.t ?? null, c: consOf(M)?.v ?? null };
 }
 async function openOnCardmarket(setId, setName, cmCat) {
-  const list = Object.entries(state.standby || {}).filter(([, x]) => x.s === setId && !x.vp)
-    .sort((a, b) => (parseInt(a[1].u) || 0) - (parseInt(b[1].u) || 0) || String(a[1].u).localeCompare(String(b[1].u)) || a[1].rev - b[1].rev);
-  const xq = Object.values(state.standby || {}).filter(x => x.s === setId && x.vp).reduce((a, x) => a + x.q, 0);
-  if (!list.length && xq) { alert(`In Standby ci sono solo varianti speciali (${xq} copie): per ora restano qui. La loro messa in vendita con lo script arriva con il prossimo aggiornamento.`); return; }
+  const list = Object.entries(state.standby || {}).filter(([, x]) => x.s === setId)
+    .sort((a, b) => !!a[1].vp - !!b[1].vp || (parseInt(a[1].u) || 0) - (parseInt(b[1].u) || 0) || String(a[1].u).localeCompare(String(b[1].u)) || a[1].rev - b[1].rev);
+  const xq = list.filter(([, x]) => x.vp).reduce((a, [, x]) => a + x.q, 0);
   if (!list.length) { if (cmCat) window.open(CMBULK + encodeURIComponent(cmCat.id), CM_TAB); else window.open('https://www.cardmarket.com/it/Pokemon', CM_TAB); return; }
   // prezzi di mercato freschi prima di decidere
   await tcg('/sets/' + encodeURIComponent(setId), 24 * 7); await tcg('@en/sets/' + encodeURIComponent(setId), 24 * 7); // per la sigla
@@ -2922,7 +2948,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
   const saleOf = {};
   list.forEach(([k, x]) => {
     const p = sbPid(x), lang = x.lang || 'it';
-    const L = (p && state.listings[lkey(p, x.rev, lang)]) || Object.values(state.listings).find(l => norm(l.u) === norm(x.u) && !!l.rev === !!x.rev && (l.lang || 'it') === lang && tcgIdFor(setOf(l)) === setId);
+    const L = (p && state.listings[lkey(p, x.vp ? false : x.rev, lang)]) || Object.values(state.listings).find(l => norm(l.u) === norm(x.u) && vcOf(l) === vcOf(x) && (l.lang || 'it') === lang && tcgIdFor(setOf(l)) === setId);
     if (L && L.q > 0 && L.price != null) saleOf[k] = L;
   });
   const priceOf = (k, b, plus) => {
@@ -2939,7 +2965,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
       const v = jobVals(k), M = sbmOf(k), r = priceOf(k, b, plus);
       if (r.p == null) miss++; else tot += r.p * x.q;
       return `<tr data-k="${esc(k)}" style="${r.p == null ? 'background:rgba(229,72,77,.12)' : ''}"><td><b>${esc(cardCode(setId, setName, x.u))}</b> ${esc(x.n)}</td>
-        <td>${x.rev ? '<b style="color:var(--rev)">Reverse</b>' : 'Normale'}</td><td class="n">${x.q}</td>
+        <td>${vHtml(x)}</td><td class="n">${x.q}</td>
         <td class="n">${eur(v.lo) || '—'}</td><td class="n">${eur(v.t) || '—'}</td><td class="n">${eur(v.c) || '—'}</td>
         <td class="n"><input type="number" min="0.02" step="0.01" class="upP" value="${r.p != null ? r.p.toFixed(2) : ''}" placeholder="scrivilo" style="${r.m ? 'border-color:var(--acc);font-weight:700' : ''}">
           <small>${r.m ? 'scritto da te' : r.sale ? `già in vendita (${saleOf[k].q})` : r.p == null ? (x.rev && M && !M.rv ? 'manca il prezzo Reverse' : 'manca il prezzo') : r.alt ? `da ${BASEN[r.used]}` : ''}</small></td></tr>`;
@@ -2953,7 +2979,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
     });
   };
   openDlg(`<h3>Metti in vendita su Cardmarket · ${esc(setName)}</h3>
-    ${xq ? `<p class="small" style="color:#8a5a00">Le ${xq} copie di varianti speciali in Standby (Reverse Energia, Poké Ball…) per ora restano in Standby: la loro messa in vendita con lo script arriva con il prossimo aggiornamento.</p>` : ''}
+    ${xq ? `<p class="small" style="color:#7a4f00">Le <b>${xq} copie di varianti speciali</b> su Cardmarket stanno nella pagina <b>${esc(setName)}: Supplementi</b>: lo script, finite le altre, ti porta lì${list.length > list.filter(([, x]) => x.vp).length ? '' : ' (le apre subito)'}.</p>` : ''}
     <p class="small">Scegli il prezzo: lo script Card Scanner lo userà così com'è, con i valori giusti per le <b>Normali</b> e per le <b>Reverse</b>.
     Se serve puoi cambiare il prezzo di una singola carta nella tabella.</p>
     ${Object.keys(saleOf).length ? `<p class="small">Le carte <b>già in vendita</b> (${Object.keys(saleOf).length}) usano il prezzo che hanno già: così su Cardmarket le copie nuove si aggiungono alla stessa offerta. Se è fuori mercato te lo segnala il gestionale come sempre.</p>` : ''}
@@ -2982,7 +3008,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
       const job = {
         v: 1, at: today(), name, set: cmCat?.name || setName, sid: setId, cm: cmCat?.id || '', lang, com: list.find(([, x]) => x.com)?.[1].com || '',
         base: b, plus: plusC,
-        items: list.map(([k, x]) => Object.assign({ u: x.u, rev: !!x.rev, q: x.q, n: x.n || '', r: x.r || '' }, jobVals(k), over[k] != null ? { mp: over[k] } : saleOf[k] ? { mp: r2(saleOf[k].price) } : {}))
+        items: list.map(([k, x]) => Object.assign({ u: x.u, rev: x.vp ? false : !!x.rev, q: x.q, n: x.n || '', r: x.r || '' }, x.vp ? { v: 'S', p: String(x.vp), vl: x.vl || '', vb: x.vb || '' } : {}, jobVals(k), over[k] != null ? { mp: over[k] } : saleOf[k] ? { mp: r2(saleOf[k].price) } : {}))
       };
       const enc = 'csjob=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
       try { navigator.clipboard.writeText(enc); } catch (e) {}
@@ -3081,7 +3107,7 @@ async function openPriceEdit(scopeSet, opt = {}) {
       const d = new Date(), z = n => String(n).padStart(2, '0');
       const name = `PREZZI-${scope ? SavedListsName(scope) : 'Tutti'}_${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
       const job = { v: 1, type: 'edit', at: today(), name, base: b, plus: plusC,
-        items: ch.map(({ k, l, c }) => ({ k, code: state.cm[l.exp]?.cards?.[l.p]?.c || '', exp: setOf(l), u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q,
+        items: ch.map(({ k, l, c }) => ({ k, code: state.cm[l.exp]?.cards?.[l.p]?.c || '', exp: setOf(l), u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q, ...(l.vp ? { v: 'S', vl: l.vl, vb: l.vb, sl: slOfL(l) } : {}),
           old: l.price, price: c.p, b: c.m ? (l.rb || b) : c.used, o: c.m ? (l.ro ?? 0) : plusC, ref: c.ref ?? null, m: c.m ? 1 : 0 })) };
       const enc = 'csedit=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
       try { navigator.clipboard.writeText(enc); } catch (e) {}

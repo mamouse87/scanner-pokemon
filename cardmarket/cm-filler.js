@@ -4,6 +4,12 @@
 // I due valori li legge dalla pagina stessa (campi nascosti di ogni riga): nessuna richiesta a Cardmarket.
 // Non invia nulla da solo.
 (async () => {
+  // varianti speciali dei "Supplementi" (Reverse Energia / Poké Ball / Master Ball): Cardmarket le distingue solo
+  // dall'indirizzo del prodotto (…-V1-xASC001, …-V2-xASC001)
+  const slugOf = u => { const t = String(u || '').split(/[?#]/)[0].replace(/\/+$/, ''); return t.slice(t.lastIndexOf('/') + 1); };
+  // nuovo modello (dati di TCGdex): ogni variante speciale è un prodotto Cardmarket a parte → lettera S + numero prodotto (p),
+  // con il nome (vl, es. "Reverse Poké Ball") e la sigla (vb, es. "PB") mandati dal gestionale
+  const isVx = v => v === 'S';
   // ---------- grafica comune dei riquadri (isolata dalla grafica di Cardmarket con lo Shadow DOM) ----------
   const CS_CSS = `
     :host{all:initial}
@@ -94,6 +100,19 @@
   // arriva nell'indirizzo dopo il # (o nel nome della scheda) e resta salvato in cardmarket.com finché non è tutto inviato
   const JKEY = 'cs_job';
   const jobGet = () => { try { return JSON.parse(localStorage.getItem(JKEY)) || null; } catch (e) { return null; } };
+  // Edizione dei Supplementi del set dell'elenco, dal menu "Edizione" della pagina bulk (es. "Ascesa Eroica: Supplementi")
+  const SUPRX = /:\s*(supplementi|additionals?)\s*$/i;
+  const simpS = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  function supOf(j) {
+    if (!j || !(j.items || []).some(it => it.v === 'S')) return null;
+    if (j.cmx) return { id: String(j.cmx), name: j.setx || '' };
+    const sel = document.querySelector('select[name="idExpansion"]');
+    const o = sel && [...sel.options].find(o => SUPRX.test(o.textContent) && simpS(o.textContent.replace(SUPRX, '')) === simpS(j.set));
+    if (!o) return null;
+    j.cmx = o.value; j.setx = o.textContent.trim();
+    try { const J = jobGet(); if (J && J.name === j.name) { J.cmx = j.cmx; J.setx = j.setx; localStorage.setItem(JKEY, JSON.stringify(J)); } } catch (e) {}
+    return { id: j.cmx, name: j.setx };
+  }
   /** elenco del gestionale: csjob= (carte da mettere in vendita) o csedit= (prezzi da cambiare) */
   function intakeAny(txt) {
     // cscheck= : il gestionale chiede il controllo del magazzino (leggo le offerte e gliele mando)
@@ -183,7 +202,7 @@
   if (EXT && EXT.auto && !tookNew) {
     const j = jobGet(), qid = new URLSearchParams(location.search).get('idExpansion');
     const onBulk = /\/Stock\/ListingMethods\/BulkListing/i.test(location.pathname) && !!document.getElementById('BulkListingForm');
-    if (!(onBulk && j && !j.done && (!j.cm || !qid || String(j.cm) === qid))) return;
+    if (!(onBulk && j && !j.done && (!j.cm || !qid || String(j.cm) === qid || (supOf(j) && supOf(j).id === qid)))) return;
   }
   // ================= LE MIE OFFERTE: cambio prezzi =================
   // Sulla pagina "Le mie offerte" (Stock/Offers/Singles) lo script legge tutte le pagine delle offerte
@@ -224,7 +243,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 c</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 d</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -257,7 +276,7 @@
       prog(`Lette ${offers.list.length} offerte. ${fix.length} ${fix.length === 1 ? 'carta ha' : 'carte hanno'} più copie su Cardmarket che nel gestionale: premi ▶ Correggi le quantità. Alla fine "Invia al gestionale" manda anche il controllo.`);
     }
     function sendCheck(fixed) {
-      const ex = [], o = offers.list.map(x => { let i = ex.indexOf(x.exp); if (i < 0) i = ex.push(x.exp) - 1; return [x.code, x.num, x.rev ? 1 : 0, x.lang, x.qty || 1, x.price, x.name, i]; });
+      const ex = [], o = offers.list.map(x => { let i = ex.indexOf(x.exp); if (i < 0) i = ex.push(x.exp) - 1; const r = [x.code, x.num, x.rev ? 1 : 0, x.lang, x.qty || 1, x.price, x.name, i]; if (x.sl) r.push(x.sl); return r; });
       const enc = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, at: offers.at, ex, o, full: offers.full === false ? 0 : 1, rx: offers.rx || [], warn: offers.warn || [], fixed: fixed || [] }))));
       toGest('#cmchk=' + encodeURIComponent(enc));
       ls.set('cs_check_sent', check);
@@ -296,14 +315,14 @@
             <div class="bar"><i style="width:${pct}%"></i></div></div>
           ${todo.length ? `<label class="sw"><input type="checkbox" id="oAuto" ${auto ? 'checked' : ''}><span><b>Conferma automatica</b><br><span class="mut">${isQ ? 'Lo script preme da solo il pulsante − o + della riga' : 'Lo script preme da solo "MODIFICA ARTICOLO"'}, una carta ogni 3 secondi. Senza spunta lo premi tu, carta per carta.</span></span></label>` : ''}
           <div><div class="tabs"><button class="tab ${tab === 'todo' ? 'on' : ''}" data-t="todo">Da fare (${todo.length})</button><button class="tab ${tab === 'done' ? 'on' : ''}" data-t="done">Fatte (${fatte.length})</button><button class="tab ${tab === 'miss' ? 'on' : ''}" data-t="miss">Non trovate (${miss.length})</button></div>
-            <div class="list">${listOf.length ? listOf.map(x => `<div class="li"><span class="c">${escH((x.it.code || '') + ' ' + x.it.u)}${x.it.rev ? ' <span class="rv">R</span>' : ''}</span>
+            <div class="list">${listOf.length ? listOf.map(x => `<div class="li"><span class="c">${escH((x.it.code || '') + ' ' + x.it.u)}${isVx(x.it.v) ? ' <span class="rv" style="background:#d99a00">' + esc(x.it.vb || 'SP') + '</span>' : x.it.rev ? ' <span class="rv">R</span>' : ''}</span>
               <span class="n">${escH(x.it.n || x.o?.name || '')}</span>
               <span class="p">${x.it.qt != null ? `${x.o ? x.o.qty : '—'} → <b>${x.tq ?? x.it.qt} copie</b>` : `${x.o ? eur(x.o.price) : eur(x.it.old)} → <b>${eur(x.it.price)}</b>`} ${!x.o ? '' : x.st === 'zero' ? '<span class="pill err">togli a mano</span>' : x.st === 'ok' ? '<span class="pill ok">fatto</span>' : x.st === 'same' ? '<span class="pill ok">già così</span>' : x.st === 'skip' ? '<span class="pill oth">saltata</span>' : x.st === 'err' ? '<span class="pill err">errore</span>' : ''}</span>
               ${!x.o || (x.st === 'err' && x.why) ? `<span class="why">${escH(x.why || '')}</span>` : ''}</div>`).join('')
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 c</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 d</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -334,7 +353,10 @@
         const pt = row.querySelector('.price-container .fw-bold') || row.querySelector('.fw-bold');
         const price = pt ? parseFloat(pt.textContent.replace(/[^\d,.]/g, '').replace(',', '.')) : null;
         const qt = row.querySelector('.amount-container .item-count') || row.querySelector('.item-count');
-        return { id, name: mm ? mm[1].trim() : name, code: mm ? mm[2].toUpperCase() : '', num: mm ? mm[3] : '', exp, lang: lang || 'it', rev, price, qty: qt ? +qt.textContent.trim() : null };
+        const sl = a ? slugOf(a.getAttribute('href')) : '';
+        const o = { id, name: mm ? mm[1].trim() : name, code: mm ? mm[2].toUpperCase() : '', num: mm ? mm[3] : '', exp, lang: lang || 'it', rev, price, qty: qt ? +qt.textContent.trim() : null };
+        if (sl && (/-V\d+-[A-Za-z]*\d+[a-z]?$/.test(sl) || /supplementi|additionals?/i.test(exp))) o.sl = sl;
+        return o;
       }).filter(x => x.id);
     }
     // indirizzo come quello del pulsante CERCA del filtro (modulo GET): tutti i campi del filtro con i loro valori, più i miei
@@ -447,7 +469,9 @@
       const out = [];
       job.items.forEach(it => {
         const tail = `|${nrm(it.u)}|${it.rev ? 'R' : 'N'}|${it.lang || 'it'}`;
-        const os = (it.code && byCode[it.code.toUpperCase() + tail]) || byExp[smp(it.exp) + tail] || [];
+        let os = (it.code && byCode[it.code.toUpperCase() + tail]) || byExp[smp(it.exp) + tail] || [];
+        // variante speciale: le offerte di quel prodotto (V1, V2…), Reverse Holo o no (Cardmarket può tenerle fisse su Reverse)
+        if (it.sl) os = offers.list.filter(o => o.sl === it.sl && (o.lang || 'it') === (it.lang || 'it'));
         if (!os.length) {
           // perché non c'è? cerco la stessa carta con un'altra variante o lingua
           const same = offers.list.filter(o => nrm(o.num) === nrm(it.u) && ((it.code && o.code === it.code.toUpperCase()) || smp(o.exp) === smp(it.exp)));
@@ -543,7 +567,7 @@
       d.set.call(amt, String(Math.abs(diff)));
       amt.dispatchEvent(new W.Event('input', { bubbles: true })); amt.dispatchEvent(new W.Event('change', { bubbles: true }));
       amt.style.outline = '3px solid #ffcb05'; btn.style.outline = '3px solid #ffcb05';
-      const what = `${x.o.name}${x.it.rev ? ' Reverse' : ''}: copie ${cur} → ${x.tq} (${diff < 0 ? 'tolgo ' + -diff : 'aggiungo ' + diff})`;
+      const what = `${x.o.name}${isVx(x.it.v) ? ' ' + (x.it.vl || 'variante speciale') : x.it.rev ? ' Reverse' : ''}: copie ${cur} → ${x.tq} (${diff < 0 ? 'tolgo ' + -diff : 'aggiungo ' + diff})`;
       if (auto) { prog(`${what} · confermo…`); await sleep(700); btn.click(); }
       else prog(`👉 ${what} — nel riquadro con il bordo giallo premi il pulsante ${diff < 0 ? 'rosso −' : 'verde +'} evidenziato (premi ⏸ per saltarla).`);
       let res = null;
@@ -568,10 +592,11 @@
     // (o cambia numero) e resta una sola riga con il prezzo nuovo. Questo per me vuol dire "fatto".
     async function mergedOk(x, target, doc) {
       const fx = x.o.fx || { e: '0', r: x.o.rev ? 'Y' : 'N', s: 1 };
-      const same = o => o.rev === !!x.it.rev && (o.lang || 'it') === (x.it.lang || 'it') && nrm(o.num) === nrm(x.o.num) &&
+      const xr = x.it.sl ? !!x.o.rev : !!x.it.rev;
+      const same = o => o.rev === xr && (o.lang || 'it') === (x.it.lang || 'it') && nrm(o.num) === nrm(x.o.num) && (!x.it.sl || o.sl === x.it.sl) &&
         (o.code && x.o.code ? o.code === x.o.code : smp(o.name) === smp(x.o.name)) && o.price != null && Math.abs(o.price - target) < 0.005;
-      if (doc && parseRows(doc, fx.r === 'Y' ? true : !!x.it.rev).some(same)) return true;
-      try { const r = await readPages({ idExpansion: fx.e, isReverseHolo: fx.r === '0' ? (x.it.rev ? 'Y' : 'N') : fx.r }, x.o.name, false); return r.list.some(same); } catch (e) { return false; }
+      if (doc && parseRows(doc, fx.r === 'Y' ? true : xr).some(same)) return true;
+      try { const r = await readPages({ idExpansion: fx.e, isReverseHolo: fx.r === '0' ? (xr ? 'Y' : 'N') : fx.r }, x.o.name, false); return r.list.some(same); } catch (e) { return false; }
     }
     async function priceStep(x, auto, again) {
       const fr = await frameRow(x, !auto);
@@ -609,7 +634,7 @@
       const title = (m.querySelector('.modal-title, h1, h2, h3, h4, h5') || {}).textContent || '';
       if (title && x.o.name && !smp(title).includes(smp(x.o.name).slice(0, 6))) { f.remove(); return fail(`⚠ Il riquadro aperto ("${title.trim()}") non sembra quello di ${x.o.name}: mi fermo per sicurezza.`); }
       const revBox = m.querySelector('input[name="isReverseHolo"], input[name*="everse"]');
-      if (revBox && revBox.type === 'checkbox' && revBox.checked !== !!x.it.rev) { f.remove(); return fail(`⚠ Il riquadro di ${x.o.name} non è ${x.it.rev ? 'Reverse' : 'normale'} come previsto: mi fermo per sicurezza.`); }
+      if (revBox && revBox.type === 'checkbox' && revBox.checked !== (x.it.sl ? !!x.o.rev : !!x.it.rev)) { f.remove(); return fail(`⚠ Il riquadro di ${x.o.name} non è ${x.it.rev ? 'Reverse' : 'normale'} come previsto: mi fermo per sicurezza.`); }
       Object.getOwnPropertyDescriptor(W.HTMLInputElement.prototype, 'value').set.call(inp, target.toFixed(2));
       inp.dispatchEvent(new W.Event('input', { bubbles: true })); inp.dispatchEvent(new W.Event('change', { bubbles: true }));
       inp.style.outline = '3px solid #ffcb05'; inp.style.background = '#fff7cc';
@@ -618,7 +643,7 @@
       const onSub = () => { submitted = true; };
       if (sb) sb.addEventListener('click', onSub, true);
       if (inp.form) inp.form.addEventListener('submit', onSub, true);
-      const what = `${x.o.name}${x.it.rev ? ' Reverse' : ''}: ${eur(x.o.price)} → ${eur(target)}`;
+      const what = `${x.o.name}${isVx(x.it.v) ? ' ' + (x.it.vl || 'variante speciale') : x.it.rev ? ' Reverse' : ''}: ${eur(x.o.price)} → ${eur(target)}`;
       if (auto && sb) { prog(`${what} · confermo…`); await sleep(700); sb.click(); }
       else prog(`👉 ${what} — nel riquadro con il bordo giallo controlla e premi "MODIFICA ARTICOLO" (chiudi il riquadro di Modifica per saltarla).`);
       for (let t = 0; t < (auto ? 20000 : 30 * 60 * 1000) && isOpen(); t += 250) { await sleep(250); if (stopHard) break; }
@@ -881,6 +906,7 @@
   // ---------- righe della pagina ----------
   function pageRows() {
     const map = new Map();
+    map.byP = new Map();
     form.querySelectorAll('tbody tr').forEach(tr => {
       const a = tr.querySelector('.col-product a');
       if (!a) return;
@@ -889,10 +915,13 @@
       if (!m) return;
       const k = norm(m[3]);
       const rar = tr.querySelector('.rarity-symbol');
-      if (!map.has(k)) map.set(k, {
-        tr, name: m[1].trim(), code: m[2], num: m[3], label: full.replace(/\s+/g, ' '), href: a.getAttribute('href'),
+      const pid = String((field(tr, 'idProduct') || {}).value || '');
+      const row = {
+        tr, name: m[1].trim(), code: m[2], num: m[3], label: full.replace(/\s+/g, ' '), href: a.getAttribute('href'), pid,
         rarity: rar ? (rar.getAttribute('title') || rar.getAttribute('data-bs-original-title') || '') : ''
-      });
+      };
+      if (!map.has(k)) map.set(k, row);
+      if (pid && !map.byP.has(pid)) map.byP.set(pid, row);
     });
     return map;
   }
@@ -910,7 +939,8 @@
     setVal(field(tr, 'idLanguage'), String(o.lang));
     setVal(field(tr, 'idCondition'), '2'); // Near Mint
     const rev = field(tr, 'isReverseHolo');
-    if (rev && !rev.disabled) { rev.checked = o.rev; rev.dispatchEvent(new Event('change', { bubbles: true })); }
+    // varianti speciali: la casella Reverse Holo resta come la mette Cardmarket
+    if (rev && !rev.disabled && !isVx(o.v)) { rev.checked = o.rev; rev.dispatchEvent(new Event('change', { bubbles: true })); }
     setVal(field(tr, 'amount'), String(o.qty));
     if (o.price != null) setVal(field(tr, 'price'), o.price.toFixed(2));
     else if (o.err) setVal(field(tr, 'price'), ''); // la riga duplicata per la Reverse non deve tenere il prezzo della normale
@@ -918,7 +948,8 @@
     // regola del prezzo (per il controllo giornaliero nel gestionale)
     if (o.rule) { tr.dataset.csB = o.rule.b; tr.dataset.csO = String(o.rule.o); tr.dataset.csRef = o.rule.ref != null ? String(o.rule.ref) : ''; tr.dataset.csP = o.price != null ? o.price.toFixed(2) : ''; tr.dataset.csM = o.rule.m ? '1' : ''; }
     else { delete tr.dataset.csB; delete tr.dataset.csO; delete tr.dataset.csRef; delete tr.dataset.csP; delete tr.dataset.csM; }
-    tr.style.outline = '3px solid ' + (o.err ? '#ff3b3b' : o.warn ? '#ff9f43' : o.rev ? '#cc5de8' : '#3ecf6e');
+    if (isVx(o.v)) tr.dataset.csV = o.v; else delete tr.dataset.csV;
+    tr.style.outline = '3px solid ' + (o.err ? '#ff3b3b' : o.warn ? '#ff9f43' : isVx(o.v) ? '#e0a100' : o.rev ? '#cc5de8' : '#3ecf6e');
   }
   async function duplicate(tr) {
     const btn = tr.querySelector('.copy-row-button');
@@ -1004,8 +1035,16 @@
       let m = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*(?:\|\s*([^|]*?))?\s*$/i);
       if (m) { setName = m[1]; langCode = m[2].toLowerCase(); lang = LANG[langCode] || 5; setId = (m[3] || '').trim(); return; }
       // formato 2: 006 | x1 | N | Combee | Comune
-      m = l.match(/^([A-Z]*\d+)\s*\|\s*x\s*(\d+)\s*\|\s*([NR])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|]*?))?\s*$/i);
-      if (m) { items.push({ num: m[1], qty: +m[2], rev: m[3].toUpperCase() === 'R', name: m[4] || '', rarity: m[5] || '' }); return; }
+      m = l.match(/^([A-Z]*\d+[a-z]?)\s*\|\s*x\s*(\d+)\s*\|\s*([NRS])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|#]*?))?\s*(?:\|\s*#([\w-]+))?\s*$/i);
+      if (m) {
+        const L = m[3].toUpperCase(), it = { num: m[1], qty: +m[2], rev: L === 'R', name: m[4] || '', rarity: m[5] || '' };
+        if (isVx(L)) {
+          it.v = L; if (m[6]) it.p = m[6];
+          const J = jobGet(), ji = J && (J.items || []).find(x => isVx(x.v) && String(x.p) === String(it.p));
+          if (ji) { it.vl = ji.vl; it.vb = ji.vb; }
+        }
+        items.push(it); return;
+      }
       // formato 1: 006R x1
       m = l.match(/^([A-Z]*\d+)(R?)\s*x\s*(\d+)/i);
       if (m) items.push({ num: m[1], rev: m[2].toUpperCase() === 'R', qty: +m[3], name: '', rarity: '' });
@@ -1043,6 +1082,14 @@
     });
     return cards;
   }
+  /** variante speciale di una riga compilata: dalla compilazione o dall'elenco del gestionale (per prodotto) */
+  function vxOfRow(tr, pid) {
+    // riga compilata come variante speciale, o prodotto che l'elenco del gestionale indica come speciale
+    const j = jobGet(), it = j && j.items && j.items.find(x => isVx(x.v) && String(x.p) === String(pid));
+    if (!isVx(tr.dataset.csV) && !it) return {};
+    const a = tr.querySelector('.col-product a');
+    return { v: 'S', x: 1, vl: it ? it.vl || '' : '', vb: it ? it.vb || '' : '', sl: a ? slugOf(a.getAttribute('href')) : '' };
+  }
   function snapshot() {
     const rows = [];
     form.querySelectorAll('tbody tr').forEach(tr => {
@@ -1053,7 +1100,7 @@
       const lab = ((tr.querySelector('.col-product a') || {}).textContent || '').trim().match(/\(([A-Z0-9-]+)\s+([A-Z]*\d+[a-z]?)\)\s*$/i);
       rows.push({ p: pid.value, u: lab ? lab[2] : '', rev: !!(field(tr, 'isReverseHolo') || {}).checked, q: amt, price: isNaN(p) ? null : p,
         lang: LANG_CODE[(field(tr, 'idLanguage') || {}).value] || 'it', cond: +((field(tr, 'idCondition') || {}).value || 2),
-        com: (field(tr, 'comments') || {}).value || '',
+        com: (field(tr, 'comments') || {}).value || '', ...vxOfRow(tr, pid.value),
         // regola e valore di mercato al caricamento; se hai cambiato il prezzo a mano la regola resta ma vale il tuo prezzo
         b: tr.dataset.csB || null, o: tr.dataset.csO != null ? +tr.dataset.csO : null, ref: tr.dataset.csRef ? +tr.dataset.csRef : null,
         man: tr.dataset.csM === '1' || (tr.dataset.csP != null && !isNaN(p) && tr.dataset.csP !== p.toFixed(2)) ? 1 : 0 });
@@ -1067,14 +1114,20 @@
   // ogni elenco del gestionale ha un nome unico (es. DLR-Dominio_Delta_20261115-030612) scritto nella lista:
   // un elenco nuovo è sempre una lista nuova, con l'avanzamento da zero
   const listId = () => hashStr($('csInput').value.replace(/\s+/g, ' ').trim());
-  const vkey = (num, rev) => norm(num) + '|' + (rev ? 'R' : 'N');
+  const vkey = (num, rev, v, p) => isVx(v) ? 'P' + p : norm(num) + '|' + (rev ? 'R' : 'N');
+  const vTagH = it => isVx(it.v) ? ` <span class="rv" style="background:#d99a00" title="${esc(it.vl || 'Variante speciale')}">${esc(it.vb || 'SP')}</span>` : it.rev ? ' <span class="rv">R</span>' : '';
+  const vTagT = it => isVx(it.v) ? ' ' + (it.vb || 'SP') : it.rev ? ' R' : '';
+  /** la riga di questa carta è in questa pagina? le speciali si cercano per prodotto */
+  // nella pagina dei Supplementi i numeri sono quelli delle carte speciali (xASC 001): le normali e le Reverse del set sono altrove
+  const onSupPage = () => { const S = supOf(jobGet()); return !!(S && S.id === expansion().id); };
+  const rowHere = (here, it) => isVx(it.v) ? (it.p ? here.byP.has(String(it.p)) : false) : !onSupPage() && here.has(norm(it.num));
   const doneGet = () => { try { return JSON.parse(store.get('done_' + listId(), '{}')); } catch (e) { return {}; } };
   const doneSet = o => store.set('done_' + listId(), JSON.stringify(o));
   function wanted() {
     const w = new Map();
     parseInput($('csInput').value).items.forEach(it => {
-      const k = vkey(it.num, it.rev);
-      const x = w.get(k) || { num: it.num, rev: it.rev, qty: 0 };
+      const k = vkey(it.num, it.rev, it.v, it.p);
+      const x = w.get(k) || { num: it.num, rev: it.rev, v: it.v, p: it.p, vb: it.vb, vl: it.vl, qty: 0 };
       x.qty += it.qty; w.set(k, x);
     });
     return w;
@@ -1085,20 +1138,20 @@
     const list = parseInput($('csInput').value).items;
     if (!list.length) { lastCounts = { tot: 0, sent: 0, hereLeft: 0, otherLeft: 0 }; box.classList.add('hide'); steps(); return; }
     const done = Object.assign({}, doneGet()), here = pageRows();
-    let tot = 0, sent = 0, hereLeft = 0, otherLeft = 0;
+    let tot = 0, sent = 0, hereLeft = 0, otherLeft = 0, leftVx = 0, leftMain = 0;
     const rowsHtml = list.map(it => {
-      const k = vkey(it.num, it.rev);
+      const k = vkey(it.num, it.rev, it.v, it.p);
       const d = Math.min(done[k] || 0, it.qty);
       done[k] = (done[k] || 0) - d;
       tot += it.qty; sent += d;
       const left = it.qty - d;
-      const isHere = here.has(norm(it.num));
-      if (left) { if (isHere) hereLeft += left; else otherLeft += left; }
+      const isHere = rowHere(here, it);
+      if (left) { if (isHere) hereLeft += left; else otherLeft += left; if (isVx(it.v)) leftVx += left; else leftMain += left; }
       const st = !left ? '<span class="pill ok">inviata</span>'
         : isHere ? '<span class="pill todo">da compilare qui</span>' : '<span class="pill oth">altra pagina</span>';
-      return `<div class="li" style="${left ? '' : 'opacity:.55'}"><span class="c">${esc(it.num)}${it.rev ? ' <span class="rv">R</span>' : ''}</span><span class="n">${esc(it.name || '')}</span><span class="p">×${left || it.qty} ${st}</span></div>`;
+      return `<div class="li" style="${left ? '' : 'opacity:.55'}"><span class="c">${esc(it.num)}${vTagH(it)}</span><span class="n">${esc(it.name || '')}</span><span class="p">×${left || it.qty} ${st}</span></div>`;
     }).join('');
-    lastCounts = { tot, sent, hereLeft, otherLeft };
+    lastCounts = { tot, sent, hereLeft, otherLeft, leftVx, leftMain };
     box.classList.remove('hide');
     box.innerHTML = `<div class="stat"><span>Inviate al gestionale <b>${sent}</b> di ${tot} copie</span><span class="mut">${hereLeft} da compilare qui · ${otherLeft} in altre pagine</span></div>
       <div class="bar"><i style="width:${tot ? Math.round(sent / tot * 100) : 0}%"></i></div>
@@ -1144,8 +1197,10 @@
           let lang = 'it';
           row.querySelectorAll('.product-attributes [aria-label], .product-attributes [data-bs-original-title]').forEach(e => { const l = OFF_LANGS[e.getAttribute('aria-label') || e.getAttribute('data-bs-original-title')]; if (l) lang = l; });
           const qt = row.querySelector('.amount-container .item-count') || row.querySelector('.item-count');
-          const k = `${norm(nm[2])}|${rev === 'Y' ? 'R' : 'N'}|${lang}`;
-          map[k] = (map[k] || 0) + (qt ? +qt.textContent.trim() || 0 : 0);
+          const k = `${norm(nm[2])}|${rev === 'Y' ? 'R' : 'N'}|${lang}`, n = qt ? +qt.textContent.trim() || 0 : 0;
+          map[k] = (map[k] || 0) + n;
+          const sa = row.querySelector('.col-seller a'), sl = sa ? slugOf(sa.getAttribute('href')) : '';
+          if (sl) { const ks = `${sl}|${rev === 'Y' ? 'R' : 'N'}|${lang}`; map[ks] = (map[ks] || 0) + n; }
         });
         const tx = doc.body.textContent, pm = tx.match(/Pagina\s+\d+\s+di\s+(\d+)\s*(\+?)/i);
         if (pm) { pages = +pm[1]; if (pm[2]) capped = true; }
@@ -1177,7 +1232,7 @@
     e.preventDefault(); e.stopImmediatePropagation();
     log(`⏳ Un attimo: sto ancora leggendo le carte del set già in vendita${before.prog ? ' (' + before.prog + ')' : ''}. Ripremi "Mettere in vendita le carte" quando qui compare "Pronto".`, '#ff9f43');
   }, true);
-  const offKey = r => `${norm(r.u)}|${r.rev ? 'R' : 'N'}|${r.lang || 'it'}`;
+  const offKey = r => `${r.sl ? r.sl : norm(r.u)}|${r.rev ? 'R' : 'N'}|${r.lang || 'it'}`;
   let sending = false;
   // opt.auto (estensione, "Avanti da solo"): niente domande; 'retry' = non vedo ancora tutte le carte, 'stop' = non posso controllare
   async function sendCompiled(opt) {
@@ -1208,12 +1263,12 @@
             // o le hai messe in vendita mentre leggevo (o dopo un nuovo "Compila"). Decidi tu.
             const there = miss.filter(r => (A.map[offKey(r)] || 0) >= r.q);
             if (there.length) {
-              const tq = there.reduce((a, r) => a + r.q, 0), tt = there.slice(0, 12).map(r => `${r.u}${r.rev ? ' R' : ''} ×${r.q}`).join(', ') + (there.length > 12 ? '…' : '');
+              const tq = there.reduce((a, r) => a + r.q, 0), tt = there.slice(0, 12).map(r => `${r.u}${vTagT(r)} ×${r.q}`).join(', ') + (there.length > 12 ? '…' : '');
               if (confirm(`Queste carte ora sono in vendita su Cardmarket, ma c'erano già quando ho controllato dopo "Compila": ${tt} (${tq} copie).\n\nSuccede se le hai messe in vendita mentre leggevo o se hai premuto di nuovo "Compila" dopo averle messe in vendita.\n\nLe hai messe in vendita adesso tu? OK = le invio al gestionale. Annulla = no, erano già in vendita da prima.`)) {
                 there.forEach(r => { ok.push(r); miss.splice(miss.indexOf(r), 1); });
               }
             }
-            const mq = miss.reduce((a, r) => a + r.q, 0), txt = miss.slice(0, 12).map(r => `${r.u}${r.rev ? ' R' : ''} ×${r.q}`).join(', ') + (miss.length > 12 ? '…' : '');
+            const mq = miss.reduce((a, r) => a + r.q, 0), txt = miss.slice(0, 12).map(r => `${r.u}${vTagT(r)} ×${r.q}`).join(', ') + (miss.length > 12 ? '…' : '');
             if (!miss.length) { /* tutte confermate */ }
             else if (!ok.length) {
               log(`⚠ Su Cardmarket non risulta in vendita nessuna delle ${tot} copie compilate: non ho inviato nulla. Premi "Mettere in vendita le carte" (o controlla gli errori di Cardmarket) e poi di nuovo il pulsante verde.`, '#ff6b6b');
@@ -1232,7 +1287,7 @@
     const entry = { exp: exp.id, name: exp.name, at: new Date().toISOString(), rows, cards: catalog() };
     // segno nella lista le carte inviate
     const w = wanted(), done = doneGet();
-    rows.forEach(r => { const k = vkey(r.u, r.rev); if (w.has(k)) done[k] = (done[k] || 0) + r.q; });
+    rows.forEach(r => { const k = vkey(r.u, r.rev, r.v, r.p); if (w.has(k)) done[k] = (done[k] || 0) + r.q; });
     doneSet(done);
     sendToGest([entry]);
     showProgress();
@@ -1261,7 +1316,7 @@
   // ---------- elenco dal gestionale ----------
   function jobText(j) {
     return ['CARDSCANNER 2', '# ELENCO ' + (j.name || j.at), `SET ${j.set} | ${j.lang || 'it'}${j.sid ? ' | ' + j.sid : ''}`, j.com ? 'COMMENTO ' + j.com : '',
-      ...j.items.map(it => `${it.u} | x${it.q} | ${it.rev ? 'R' : 'N'} | ${it.n || ''} | ${it.r || ''}`)].filter(Boolean).join('\n');
+      ...j.items.map(it => `${it.u} | x${it.q} | ${isVx(it.v) ? it.v : it.rev ? 'R' : 'N'} | ${String(it.n || '').replace(/[|#]/g, ' ')} | ${String(it.r || '').replace(/[|#]/g, ' ')}${isVx(it.v) && it.p ? ' | #' + it.p : ''}`)].filter(Boolean).join('\n');
   }
   const simpN = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const sameSet = (a, b) => { a = simpN(a); b = simpN(b); return !!a && !!b && (a === b || a.includes(b) || b.includes(a)); };
@@ -1288,13 +1343,15 @@
     const rule = `${BASE_NAME[j.base] || j.base}${j.plus ? ` ${j.plus > 0 ? '+' : '−'} ${eurS(j.plus)}` : ''}`;
     box.style.display = 'block';
     const exp = expansion();
-    if (!sameSet(j.set, exp.name)) {
+    supOf(j);
+    if (!sameSet(j.set, exp.name) && !(j.cmx && String(j.cmx) === exp.id)) {
       const sel = document.querySelector('select[name="idExpansion"]');
       const opt = sel && [...sel.options].find(o => sameSet(o.textContent, j.set));
-      const id = j.cm || (opt ? opt.value : '');
+      const toSup = !!(j.cmx && j.items.every(it => isVx(it.v)));
+      const id = (toSup ? j.cmx : '') || j.cm || (opt ? opt.value : '');
       box.className = 'card warn';
       box.innerHTML = `<div class="nm">${esc(j.name || j.set)}</div><div>Il gestionale ha preparato <b>${esc(j.set)}</b> (${copies} copie), ma questa pagina è <b>${esc(exp.name || '?')}</b>.</div>` +
-        (id ? `<button class="big navy" id="csJobGo" style="margin-top:10px">Vai a ${esc(j.set)}</button><div class="mut" style="margin-top:6px">Quando la pagina si apre, ${AGAIN}.</div>` : '<div class="mut">Scegli il set giusto in "Edizione" e premi di nuovo il pulsante.</div>');
+        (id ? `<button class="big navy" id="csJobGo" style="margin-top:10px">Vai a ${esc(toSup ? j.setx || j.set + ': Supplementi' : j.set)}</button><div class="mut" style="margin-top:6px">Quando la pagina si apre, ${AGAIN}.</div>` : '<div class="mut">Scegli il set giusto in "Edizione" e premi di nuovo il pulsante.</div>');
       if (id) $('csJobGo').onclick = e => { e.preventDefault(); location.href = location.pathname + '?idExpansion=' + encodeURIComponent(id); };
       $('csGo').classList.add('hide'); $('csSteps').innerHTML = stepsHtml(['Elenco dal gestionale', 'Compila la pagina', 'Metti in vendita e invia'], 0, 0);
       return;
@@ -1309,7 +1366,8 @@
     $('csPrice').checked = true;
     const nM = j.items.filter(it => it.mp != null).length, nMiss = j.items.filter(it => it.mp == null && it.lo == null && it.t == null).length;
     box.innerHTML = `<div class="nm">${esc(j.name || 'Elenco dal gestionale')}</div>
-      <div>${esc(j.set)} · ${copies} copie (${j.items.length} righe) · prezzo <b>${rule}</b></div>
+      <div>${esc(j.set)} · ${copies} copie (${j.items.length} righe) · prezzo <b>${rule}</b></div>` +
+      (j.items.some(it => isVx(it.v)) ? `<div class="mut">${j.items.filter(it => isVx(it.v)).reduce((a, it) => a + it.q, 0)} copie sono varianti speciali (${[...new Set(j.items.filter(it => isVx(it.v)).map(it => it.vl).filter(Boolean))].map(esc).join(', ')}): si mettono in vendita nella pagina <b>${esc(j.setx || j.set + ': Supplementi')}</b>${String(j.cmx) === exp.id ? ' (questa)' : j.cmx ? ` · <a href="${esc(location.pathname + '?idExpansion=' + encodeURIComponent(j.cmx))}">vai alla pagina dei Supplementi</a>` : ' · non la trovo nel menu "Edizione"'}${String(j.cmx) === exp.id && j.items.some(it => !isVx(it.v)) && j.cm ? ` · <a href="${esc(location.pathname + '?idExpansion=' + encodeURIComponent(j.cm))}">torna a ${esc(j.set)}</a>` : ''}.</div>` : '') + `
       <div class="mut">Prezzi calcolati dal gestionale, Normali e Reverse separate${nM ? ` · ${nM} con il prezzo fissato nel gestionale (scritto da te o già in vendita)` : ''}.</div>` +
       (nMiss ? `<div style="color:#b42318;font-size:12.5px;margin-top:4px">${nMiss} carte senza prezzo di mercato: dopo la compilazione hanno il bordo rosso, scrivi tu il prezzo.</div>` : '');
     steps();
@@ -1337,9 +1395,19 @@
     const c = lastCounts;
     if (!c.otherLeft || c.hereLeft) return;
     const { cur, tot } = pageNo();
-    if (cur >= tot) { log(`⚠ Restano ${c.otherLeft} copie della lista che non trovo da questa pagina in poi: controlla le pagine prima di questa o il set su Cardmarket.`, '#ff9f43'); return; }
-    const u = new URL(location.href); u.searchParams.set('site', String(cur + 1));
-    log(`➡ Tra 3 secondi vado alla pagina ${cur + 1} di ${tot}…`, '#3ecf6e');
+    const j = activeJob(); supOf(j);
+    const eid = expansion().id, onSup = !!(j && j.cmx && String(j.cmx) === String(eid));
+    // in questo set restano carte? (nel principale le normali/Reverse, nei Supplementi le speciali)
+    const mine = onSup ? c.leftVx : c.leftMain, other = onSup ? c.leftMain : c.leftVx;
+    let u = null, what = '';
+    if (mine && cur < tot) { u = new URL(location.href); u.searchParams.set('site', String(cur + 1)); what = `alla pagina ${cur + 1} di ${tot}`; }
+    else {
+      if (mine) log(`⚠ Restano ${mine} copie della lista che non trovo da questa pagina in poi: controlla le pagine prima di questa o il set su Cardmarket.`, '#ff9f43');
+      const to = !j ? '' : onSup ? j.cm : j.cmx;
+      if (other && to) { u = new URL(location.origin + location.pathname); u.searchParams.set('idExpansion', String(to)); what = onSup ? `al set ${j.set}` : `a ${j.setx || 'Supplementi'} (varianti speciali)`; }
+    }
+    if (!u) { if (!mine) log(`⚠ Restano ${c.otherLeft} copie della lista che non trovo da questa pagina in poi: controlla le pagine prima di questa o il set su Cardmarket.`, '#ff9f43'); return; }
+    log(`➡ Tra 3 secondi vado ${what}…`, '#3ecf6e');
     const b = document.createElement('button'); b.className = 'big'; b.textContent = 'Resta qui'; b.style.marginTop = '6px';
     b.onclick = () => { stayHere = true; b.remove(); log('Resto su questa pagina.'); };
     $('csMsg').appendChild(b);
@@ -1416,16 +1484,26 @@
     const missing = [];
     const done = Object.assign({}, doneGet());
     let skipped = 0;
+    const supHere = onSupPage();
     for (const it0 of items) {
       // tolgo le copie già inviate a Cardmarket in precedenza (anche da un'altra pagina)
-      const k0 = vkey(it0.num, it0.rev);
+      const k0 = vkey(it0.num, it0.rev, it0.v, it0.p);
       const already = Math.min(done[k0] || 0, it0.qty);
       done[k0] = (done[k0] || 0) - already;
       skipped += already;
       if (it0.qty - already <= 0) continue;
       const it = Object.assign({}, it0, { qty: it0.qty - already });
+      if (isVx(it.v)) {
+        // variante speciale (Supplementi): riga del suo prodotto Cardmarket, mai Reverse
+        const row = it.p && rows.byP.get(String(it.p));
+        if (!row) { missing.push(it.num + vTagT(it)); continue; }
+        const gk = 'p' + it.p;
+        const g = byNum.get(gk) || { row, normal: 0, rev: 0, vx: it.v, vl: it.vl, vb: it.vb, pid: String(it.p), name: it.name, rarity: it.rarity };
+        g.normal += it.qty; byNum.set(gk, g);
+        continue;
+      }
       const k = norm(it.num);
-      if (!rows.has(k)) { missing.push(it.num + (it.rev ? 'R' : '')); continue; }
+      if (!rows.has(k) || supHere) { missing.push(it.num + (it.rev ? 'R' : '')); continue; }
       const g = byNum.get(k) || { row: rows.get(k), normal: 0, rev: 0, name: it.name, rarity: it.rarity };
       if (it.rev) g.rev += it.qty; else g.normal += it.qty;
       byNum.set(k, g);
@@ -1437,7 +1515,7 @@
 
     let total = 0, warnings = 0, noPrice = 0;
     const job = activeJob();
-    const jobMap = job ? new Map(job.items.map(it => [norm(it.u) + '|' + (it.rev ? 'R' : 'N'), it])) : null;
+    const jobMap = job ? new Map(job.items.map(it => [isVx(it.v) ? 'p' + it.p + '|N' : norm(it.u) + '|' + (it.rev ? 'R' : 'N'), it])) : null;
     if (job) log(`Prezzi dall'elenco del gestionale (${job.items.length} righe, calcolati per Normali e Reverse).`, '#9aa3ad');
     // la Price Guide serve solo per le Reverse che l'elenco del gestionale non copre
     const revNoJob = [...byNum.entries()].some(([gk, g]) => g.rev && !(jobMap && (() => { const ji = jobMap.get(gk + '|R'); return ji && (ji.mp != null || ji.lo != null || ji.t != null); })()));
@@ -1453,7 +1531,7 @@
       if (warn) warnings++;
 
       const variants = [];
-      if (g.normal) variants.push({ rev: false, qty: g.normal });
+      if (g.normal) variants.push({ rev: false, qty: g.normal, v: g.vx, vl: g.vl, vb: g.vb });
       if (g.rev) variants.push({ rev: true, qty: g.rev });
       let first = true;
       for (const v of variants) {
@@ -1483,17 +1561,17 @@
           if (!tr) { log(`${g.row.label}: non riesco a duplicare la riga per la Reverse, inseriscila a mano.`, '#ff6b6b'); continue; }
         }
         first = false;
-        fillRow(tr, { lang, rev: v.rev, qty: v.qty, price, comment, rule, err: wantPrice && price == null, warn: warn || (wantPrice && (price == null || pwarn)) });
-        filled.push({ num: g.row.num.replace(/^0+(?=\d)/, ''), rev: v.rev, qty: v.qty, price, name: g.name || g.row.name, rarity: g.rarity || '' });
+        fillRow(tr, { lang, rev: v.rev, v: v.v, qty: v.qty, price, comment, rule, err: wantPrice && price == null, warn: warn || (wantPrice && (price == null || pwarn)) });
+        filled.push({ num: g.row.num.replace(/^0+(?=\d)/, ''), rev: v.rev, v: v.v, qty: v.qty, price, name: g.name || g.row.name, rarity: g.rarity || '' });
         total += v.qty;
         if (!warn && wantPrice && (price == null || pwarn)) warnings++;
-        log(`${g.row.label} [${v.rev ? 'REVERSE' : 'normale'}] · ${g.row.rarity || '?'} ×${v.qty} → ${price != null ? price.toFixed(2) + ' €' : 'prezzo vuoto'}` +
+        log(`${g.row.label} [${isVx(v.v) ? String(v.vl || 'variante speciale').toUpperCase() : v.rev ? 'REVERSE' : 'normale'}] · ${g.row.rarity || '?'} ×${v.qty} → ${price != null ? price.toFixed(2) + ' €' : 'prezzo vuoto'}` +
             (src ? `  (${src})` : ''), wantPrice && (price == null || pwarn) ? '#ff9f43' : null);
       }
       checks.forEach(c => log('   ⚠ ' + c, '#ff9f43'));
     }
     if (noPrice) log(`\n⚠ ${noPrice} righe SENZA PREZZO (bordo rosso): scrivi tu il prezzo prima di metterle in vendita.`, '#ff3b3b');
-    log(`\nCompilate ${total} copie. Verde = normali, viola = Reverse, arancione = da controllare (${warnings}).`, '#3ecf6e');
+    log(`\nCompilate ${total} copie. Verde = normali, viola = Reverse${filled.some(f => isVx(f.v)) ? ', oro = varianti speciali' : ''}, arancione = da controllare (${warnings}).`, '#3ecf6e');
     showGest();
     if (filled.length) log(autoOn() ? 'Controlla la pagina e premi tu "Mettere in vendita le carte" (quando qui compare "Pronto"): poi la invio io al gestionale e passo alla pagina dopo.' : 'Controlla la pagina e metti in vendita su Cardmarket (lo fai tu). Poi premi il pulsante verde "Invia al gestionale".', '#3ecf6e');
   }

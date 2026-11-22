@@ -1,9 +1,9 @@
 {
- "quando": "2026-11-22 17:20:44 UTC",
+ "quando": "2026-11-22 17:30:40 UTC",
  "price_guide": {
   "stato": 200,
   "byte": 15904415,
-  "secondi": 0.2,
+  "secondi": 0.1,
   "last_modified": "Sun, 22 Nov 2026 01:44:09 GMT",
   "tipo": "application/json",
   "chiavi": [
@@ -539,6 +539,1952 @@
   "holo +fossil-museum": {
    "White Flare: Additionals": 1
   }
+ },
+ "per_prodotto": {
+  "871308": [
+   "me01",
+   "001",
+   "reverse/league +30th-pokeday",
+   6290,
+   "Bulbasaur [Bind Down]",
+   "Mega Evolution: Additionals"
+  ],
+  "851261": [
+   "me01",
+   "010",
+   "normal",
+   6290,
+   "Meganium [Wild Growth | Solar Beam]",
+   "Mega Evolution: Additionals"
+  ],
+  "867789": [
+   "me01",
+   "034",
+   "holo/cosmos",
+   6290,
+   "Kyogre [Riptide | Swirling Waves]",
+   "Mega Evolution: Additionals"
+  ],
+  "867790": [
+   "me01",
+   "048",
+   "holo/cosmos",
+   6290,
+   "Raikou [Electro Fall]",
+   "Mega Evolution: Additionals"
+  ],
+  "862193": [
+   "me01",
+   "058",
+   "holo/cosmos",
+   6290,
+   "Ralts [Collect | Headbutt]",
+   "Mega Evolution: Additionals"
+  ],
+  "862194": [
+   "me01",
+   "059",
+   "holo/cosmos",
+   6290,
+   "Kirlia [Call Sign | Psyshot]",
+   "Mega Evolution: Additionals"
+  ],
+  "851263": [
+   "me01",
+   "064",
+   "normal",
+   6290,
+   "Xerneas [Geo Gate | Bright Horns]",
+   "Mega Evolution: Additionals"
+  ],
+  "851264": [
+   "me01",
+   "064",
+   "normal +set-logo",
+   6290,
+   "Xerneas [Geo Gate | Bright Horns]",
+   "Mega Evolution: Additionals"
+  ],
+  "851262": [
+   "me01",
+   "073",
+   "normal",
+   6290,
+   "Hariyama [Heave-Ho Catcher | Wild Press]",
+   "Mega Evolution: Additionals"
+  ],
+  "862195": [
+   "me01",
+   "076",
+   "holo/cosmos",
+   6290,
+   "Riolu [Accelerating Stab]",
+   "Mega Evolution: Additionals"
+  ],
+  "850911": [
+   "me01",
+   "087",
+   "normal +trick-or-trade",
+   6290,
+   "Spiritomb [Spiteful Swirl | Mountain Breaker]",
+   "Mega Evolution: Additionals"
+  ],
+  "851265": [
+   "me01",
+   "088",
+   "holo +gamestop",
+   6290,
+   "Yveltal [Clutch | Dark Feather]",
+   "Mega Evolution: Additionals"
+  ],
+  "851266": [
+   "me01",
+   "088",
+   "holo +eb-games",
+   6290,
+   "Yveltal [Clutch | Dark Feather]",
+   "Mega Evolution: Additionals"
+  ],
+  "854291": [
+   "me01",
+   "088",
+   "holo +set-logo",
+   6290,
+   "Yveltal [Clutch | Dark Feather]",
+   "Mega Evolution: Additionals"
+  ],
+  "851067": [
+   "me01",
+   "133",
+   "holo +set-logo",
+   6290,
+   "Bulbasaur [Bind Down]",
+   "Mega Evolution: Additionals"
+  ],
+  "836667": [
+   "sv10.5b",
+   "001",
+   "holo/tinsel",
+   6197,
+   "Snivy [Tackle | Vine Whip | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836259": [
+   "sv10.5b",
+   "001",
+   "reverse/pokeball",
+   6197,
+   "Snivy [Tackle | Vine Whip | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836269": [
+   "sv10.5b",
+   "001",
+   "reverse/masterball",
+   6197,
+   "Snivy [Tackle | Vine Whip | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836260": [
+   "sv10.5b",
+   "002",
+   "reverse/pokeball",
+   6197,
+   "Servine [Wrap | Vine Whip]",
+   "Black Bolt: Additionals"
+  ],
+  "836270": [
+   "sv10.5b",
+   "002",
+   "reverse/masterball",
+   6197,
+   "Servine [Wrap | Vine Whip]",
+   "Black Bolt: Additionals"
+  ],
+  "836261": [
+   "sv10.5b",
+   "004",
+   "reverse/pokeball",
+   6197,
+   "Pansage [Collect | Scratch | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836271": [
+   "sv10.5b",
+   "004",
+   "reverse/masterball",
+   6197,
+   "Pansage [Collect | Scratch | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836262": [
+   "sv10.5b",
+   "005",
+   "reverse/pokeball",
+   6197,
+   "Simisage [Gentle Slap]",
+   "Black Bolt: Additionals"
+  ],
+  "836272": [
+   "sv10.5b",
+   "005",
+   "reverse/masterball",
+   6197,
+   "Simisage [Gentle Slap]",
+   "Black Bolt: Additionals"
+  ],
+  "836263": [
+   "sv10.5b",
+   "006",
+   "reverse/pokeball",
+   6197,
+   "Petilil [Hide | Leafage]",
+   "Black Bolt: Additionals"
+  ],
+  "836273": [
+   "sv10.5b",
+   "006",
+   "reverse/masterball",
+   6197,
+   "Petilil [Hide | Leafage]",
+   "Black Bolt: Additionals"
+  ],
+  "836264": [
+   "sv10.5b",
+   "007",
+   "reverse/pokeball",
+   6197,
+   "Lilligant [Bemusing Aroma | Cut]",
+   "Black Bolt: Additionals"
+  ],
+  "836274": [
+   "sv10.5b",
+   "007",
+   "reverse/masterball",
+   6197,
+   "Lilligant [Bemusing Aroma | Cut]",
+   "Black Bolt: Additionals"
+  ],
+  "836265": [
+   "sv10.5b",
+   "008",
+   "reverse/pokeball",
+   6197,
+   "Maractus [Lively Needles | Pierce]",
+   "Black Bolt: Additionals"
+  ],
+  "836275": [
+   "sv10.5b",
+   "008",
+   "reverse/masterball",
+   6197,
+   "Maractus [Lively Needles | Pierce]",
+   "Black Bolt: Additionals"
+  ],
+  "836266": [
+   "sv10.5b",
+   "009",
+   "reverse/pokeball",
+   6197,
+   "Karrablast [Stimulated Evolution | Horn Attack]",
+   "Black Bolt: Additionals"
+  ],
+  "836276": [
+   "sv10.5b",
+   "009",
+   "reverse/masterball",
+   6197,
+   "Karrablast [Stimulated Evolution | Horn Attack]",
+   "Black Bolt: Additionals"
+  ],
+  "836267": [
+   "sv10.5b",
+   "010",
+   "reverse/pokeball",
+   6197,
+   "Foongus [Toxic Spore]",
+   "Black Bolt: Additionals"
+  ],
+  "836268": [
+   "sv10.5b",
+   "010",
+   "reverse/masterball",
+   6197,
+   "Foongus [Toxic Spore]",
+   "Black Bolt: Additionals"
+  ],
+  "836278": [
+   "sv10.5b",
+   "011",
+   "reverse/pokeball",
+   6197,
+   "Amoonguss [Dangerous Reaction | Seed Bomb]",
+   "Black Bolt: Additionals"
+  ],
+  "836280": [
+   "sv10.5b",
+   "011",
+   "reverse/masterball",
+   6197,
+   "Amoonguss [Dangerous Reaction | Seed Bomb]",
+   "Black Bolt: Additionals"
+  ],
+  "836281": [
+   "sv10.5b",
+   "012",
+   "reverse/pokeball",
+   6197,
+   "Victini [V-Force]",
+   "Black Bolt: Additionals"
+  ],
+  "836282": [
+   "sv10.5b",
+   "012",
+   "reverse/masterball",
+   6197,
+   "Victini [V-Force]",
+   "Black Bolt: Additionals"
+  ],
+  "865205": [
+   "sv10.5b",
+   "012",
+   "holo/cosmos +set-logo",
+   6197,
+   "Victini [V-Force]",
+   "Black Bolt: Additionals"
+  ],
+  "836283": [
+   "sv10.5b",
+   "013",
+   "reverse/pokeball",
+   6197,
+   "Darumaka [Will-O-Wisp]",
+   "Black Bolt: Additionals"
+  ],
+  "836284": [
+   "sv10.5b",
+   "013",
+   "reverse/masterball",
+   6197,
+   "Darumaka [Will-O-Wisp]",
+   "Black Bolt: Additionals"
+  ],
+  "836285": [
+   "sv10.5b",
+   "014",
+   "reverse/pokeball",
+   6197,
+   "Darmanitan [Searing Flame | Smashing Headbutt]",
+   "Black Bolt: Additionals"
+  ],
+  "836286": [
+   "sv10.5b",
+   "014",
+   "reverse/masterball",
+   6197,
+   "Darmanitan [Searing Flame | Smashing Headbutt]",
+   "Black Bolt: Additionals"
+  ],
+  "836287": [
+   "sv10.5b",
+   "015",
+   "reverse/pokeball",
+   6197,
+   "Larvesta [Peck Off]",
+   "Black Bolt: Additionals"
+  ],
+  "836288": [
+   "sv10.5b",
+   "015",
+   "reverse/masterball",
+   6197,
+   "Larvesta [Peck Off]",
+   "Black Bolt: Additionals"
+  ],
+  "836289": [
+   "sv10.5b",
+   "016",
+   "reverse/pokeball",
+   6197,
+   "Volcarona [Torrid Scales | Fire Wing]",
+   "Black Bolt: Additionals"
+  ],
+  "836290": [
+   "sv10.5b",
+   "016",
+   "reverse/masterball",
+   6197,
+   "Volcarona [Torrid Scales | Fire Wing]",
+   "Black Bolt: Additionals"
+  ],
+  "836291": [
+   "sv10.5b",
+   "017",
+   "reverse/pokeball",
+   6197,
+   "Panpour [Collect | Scratch | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836292": [
+   "sv10.5b",
+   "017",
+   "reverse/masterball",
+   6197,
+   "Panpour [Collect | Scratch | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836294": [
+   "sv10.5b",
+   "018",
+   "reverse/pokeball",
+   6197,
+   "Simipour [Gentle Slap]",
+   "Black Bolt: Additionals"
+  ],
+  "836295": [
+   "sv10.5b",
+   "018",
+   "reverse/masterball",
+   6197,
+   "Simipour [Gentle Slap]",
+   "Black Bolt: Additionals"
+  ],
+  "836299": [
+   "sv10.5b",
+   "019",
+   "reverse/pokeball",
+   6197,
+   "Tympole [Round]",
+   "Black Bolt: Additionals"
+  ],
+  "836297": [
+   "sv10.5b",
+   "019",
+   "reverse/masterball",
+   6197,
+   "Tympole [Round]",
+   "Black Bolt: Additionals"
+  ],
+  "836300": [
+   "sv10.5b",
+   "020",
+   "reverse/pokeball",
+   6197,
+   "Palpitoad [Round | Wave Splash]",
+   "Black Bolt: Additionals"
+  ],
+  "836302": [
+   "sv10.5b",
+   "020",
+   "reverse/masterball",
+   6197,
+   "Palpitoad [Round | Wave Splash]",
+   "Black Bolt: Additionals"
+  ],
+  "836306": [
+   "sv10.5b",
+   "021",
+   "reverse/pokeball",
+   6197,
+   "Seismitoad [Round | Hyper Voice | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836305": [
+   "sv10.5b",
+   "021",
+   "reverse/masterball",
+   6197,
+   "Seismitoad [Round | Hyper Voice | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836308": [
+   "sv10.5b",
+   "022",
+   "reverse/pokeball",
+   6197,
+   "Tirtouga [Ancient Seaweed | Surf]",
+   "Black Bolt: Additionals"
+  ],
+  "836309": [
+   "sv10.5b",
+   "022",
+   "reverse/masterball",
+   6197,
+   "Tirtouga [Ancient Seaweed | Surf]",
+   "Black Bolt: Additionals"
+  ],
+  "836312": [
+   "sv10.5b",
+   "023",
+   "reverse/pokeball",
+   6197,
+   "Carracosta [Mighty Shell | Big Bite]",
+   "Black Bolt: Additionals"
+  ],
+  "836310": [
+   "sv10.5b",
+   "023",
+   "reverse/masterball",
+   6197,
+   "Carracosta [Mighty Shell | Big Bite]",
+   "Black Bolt: Additionals"
+  ],
+  "836314": [
+   "sv10.5b",
+   "024",
+   "reverse/pokeball",
+   6197,
+   "Alomomola [Gentle Fin | Waterfall]",
+   "Black Bolt: Additionals"
+  ],
+  "836315": [
+   "sv10.5b",
+   "024",
+   "reverse/masterball",
+   6197,
+   "Alomomola [Gentle Fin | Waterfall]",
+   "Black Bolt: Additionals"
+  ],
+  "836318": [
+   "sv10.5b",
+   "025",
+   "reverse/pokeball",
+   6197,
+   "Cubchoo [Snotted Up]",
+   "Black Bolt: Additionals"
+  ],
+  "836317": [
+   "sv10.5b",
+   "025",
+   "reverse/masterball",
+   6197,
+   "Cubchoo [Snotted Up]",
+   "Black Bolt: Additionals"
+  ],
+  "836321": [
+   "sv10.5b",
+   "026",
+   "reverse/pokeball",
+   6197,
+   "Beartic [Continuous Headbutt | Sheer Cold]",
+   "Black Bolt: Additionals"
+  ],
+  "836322": [
+   "sv10.5b",
+   "026",
+   "reverse/masterball",
+   6197,
+   "Beartic [Continuous Headbutt | Sheer Cold]",
+   "Black Bolt: Additionals"
+  ],
+  "836326": [
+   "sv10.5b",
+   "027",
+   "reverse/pokeball",
+   6197,
+   "Cryogonal [Drag Off | Icicle]",
+   "Black Bolt: Additionals"
+  ],
+  "836324": [
+   "sv10.5b",
+   "027",
+   "reverse/masterball",
+   6197,
+   "Cryogonal [Drag Off | Icicle]",
+   "Black Bolt: Additionals"
+  ],
+  "864375": [
+   "sv10.5b",
+   "028",
+   "holo +player-rewards-program",
+   6425,
+   "Kyurem ex [Slash | Blizzard Burst]",
+   "Play! Pokémon Prize Pack Series Eight"
+  ],
+  "867785": [
+   "sv10.5b",
+   "028",
+   "holo/jumbo",
+   6197,
+   "Kyurem ex [Slash | Blizzard Burst]",
+   "Black Bolt: Additionals"
+  ],
+  "836327": [
+   "sv10.5b",
+   "029",
+   "reverse/pokeball",
+   6197,
+   "Emolga [Call for Family | Static Shock | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836329": [
+   "sv10.5b",
+   "029",
+   "reverse/masterball",
+   6197,
+   "Emolga [Call for Family | Static Shock | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836334": [
+   "sv10.5b",
+   "030",
+   "reverse/pokeball",
+   6197,
+   "Tynamo [Hold Still]",
+   "Black Bolt: Additionals"
+  ],
+  "836333": [
+   "sv10.5b",
+   "030",
+   "reverse/masterball",
+   6197,
+   "Tynamo [Hold Still]",
+   "Black Bolt: Additionals"
+  ],
+  "894191": [
+   "sv10.5b",
+   "030",
+   "holo/cosmos +player-rewards-program",
+   6616,
+   "Tynamo [Hold Still]",
+   null
+  ],
+  "836335": [
+   "sv10.5b",
+   "031",
+   "reverse/pokeball",
+   6197,
+   "Eelektrik [Dynamotor | Electric Ball]",
+   "Black Bolt: Additionals"
+  ],
+  "836336": [
+   "sv10.5b",
+   "031",
+   "reverse/masterball",
+   6197,
+   "Eelektrik [Dynamotor | Electric Ball]",
+   "Black Bolt: Additionals"
+  ],
+  "864358": [
+   "sv10.5b",
+   "031",
+   "holo/cosmos +player-rewards-program",
+   6425,
+   "Eelektrik [Dynamotor | Electric Ball]",
+   "Play! Pokémon Prize Pack Series Eight"
+  ],
+  "836338": [
+   "sv10.5b",
+   "032",
+   "reverse/pokeball",
+   6197,
+   "Eelektross [Thunder Fang | Buzz Flip]",
+   "Black Bolt: Additionals"
+  ],
+  "836337": [
+   "sv10.5b",
+   "032",
+   "reverse/masterball",
+   6197,
+   "Eelektross [Thunder Fang | Buzz Flip]",
+   "Black Bolt: Additionals"
+  ],
+  "836339": [
+   "sv10.5b",
+   "033",
+   "reverse/pokeball",
+   6197,
+   "Thundurus [Charge | Disaster Volt | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836340": [
+   "sv10.5b",
+   "033",
+   "reverse/masterball",
+   6197,
+   "Thundurus [Charge | Disaster Volt | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "867786": [
+   "sv10.5b",
+   "034",
+   "holo +set-logo",
+   6197,
+   "Zekrom ex [Slash | Voltage Burst]",
+   "Black Bolt: Additionals"
+  ],
+  "864406": [
+   "sv10.5b",
+   "034",
+   "holo +player-rewards-program",
+   6425,
+   "Zekrom ex [Slash | Voltage Burst]",
+   "Play! Pokémon Prize Pack Series Eight"
+  ],
+  "894193": [
+   "sv10.5b",
+   "034",
+   "holo +player-rewards-program",
+   6616,
+   "Zekrom ex [Slash | Voltage Burst]",
+   null
+  ],
+  "855692": [
+   "sv10.5b",
+   "034",
+   "holo +ultra-ball-league",
+   5834,
+   "Zekrom ex [Slash | Voltage Burst]",
+   "Southeast Asia Promos"
+  ],
+  "836343": [
+   "sv10.5b",
+   "035",
+   "reverse/pokeball",
+   6197,
+   "Munna [Rest | Mumble]",
+   "Black Bolt: Additionals"
+  ],
+  "836342": [
+   "sv10.5b",
+   "035",
+   "reverse/masterball",
+   6197,
+   "Munna [Rest | Mumble]",
+   "Black Bolt: Additionals"
+  ],
+  "836344": [
+   "sv10.5b",
+   "036",
+   "reverse/pokeball",
+   6197,
+   "Musharna [Dream Calling | Sleep Pulse]",
+   "Black Bolt: Additionals"
+  ],
+  "836345": [
+   "sv10.5b",
+   "036",
+   "reverse/masterball",
+   6197,
+   "Musharna [Dream Calling | Sleep Pulse]",
+   "Black Bolt: Additionals"
+  ],
+  "836348": [
+   "sv10.5b",
+   "037",
+   "reverse/pokeball",
+   6197,
+   "Solosis [Rollout]",
+   "Black Bolt: Additionals"
+  ],
+  "836347": [
+   "sv10.5b",
+   "037",
+   "reverse/masterball",
+   6197,
+   "Solosis [Rollout]",
+   "Black Bolt: Additionals"
+  ],
+  "836350": [
+   "sv10.5b",
+   "038",
+   "reverse/pokeball",
+   6197,
+   "Duosion [Cellular Evolution | Spray Fluid]",
+   "Black Bolt: Additionals"
+  ],
+  "836351": [
+   "sv10.5b",
+   "038",
+   "reverse/masterball",
+   6197,
+   "Duosion [Cellular Evolution | Spray Fluid]",
+   "Black Bolt: Additionals"
+  ],
+  "836355": [
+   "sv10.5b",
+   "039",
+   "reverse/pokeball",
+   6197,
+   "Reuniclus [Cellular Ascension | Evo-Lariat]",
+   "Black Bolt: Additionals"
+  ],
+  "836353": [
+   "sv10.5b",
+   "039",
+   "reverse/masterball",
+   6197,
+   "Reuniclus [Cellular Ascension | Evo-Lariat]",
+   "Black Bolt: Additionals"
+  ],
+  "836357": [
+   "sv10.5b",
+   "040",
+   "reverse/pokeball",
+   6197,
+   "Elgyem [Slight Shift | Beam]",
+   "Black Bolt: Additionals"
+  ],
+  "836359": [
+   "sv10.5b",
+   "040",
+   "reverse/masterball",
+   6197,
+   "Elgyem [Slight Shift | Beam]",
+   "Black Bolt: Additionals"
+  ],
+  "836362": [
+   "sv10.5b",
+   "041",
+   "reverse/pokeball",
+   6197,
+   "Beheeyem [Calm Mind | Psychic]",
+   "Black Bolt: Additionals"
+  ],
+  "836364": [
+   "sv10.5b",
+   "041",
+   "reverse/masterball",
+   6197,
+   "Beheeyem [Calm Mind | Psychic]",
+   "Black Bolt: Additionals"
+  ],
+  "836366": [
+   "sv10.5b",
+   "042",
+   "reverse/pokeball",
+   6197,
+   "Golett [Best Punch]",
+   "Black Bolt: Additionals"
+  ],
+  "836365": [
+   "sv10.5b",
+   "042",
+   "reverse/masterball",
+   6197,
+   "Golett [Best Punch]",
+   "Black Bolt: Additionals"
+  ],
+  "836367": [
+   "sv10.5b",
+   "043",
+   "reverse/pokeball",
+   6197,
+   "Golurk [Double Smash | Golurk Hammer]",
+   "Black Bolt: Additionals"
+  ],
+  "836368": [
+   "sv10.5b",
+   "043",
+   "reverse/masterball",
+   6197,
+   "Golurk [Double Smash | Golurk Hammer]",
+   "Black Bolt: Additionals"
+  ],
+  "836370": [
+   "sv10.5b",
+   "045",
+   "reverse/pokeball",
+   6197,
+   "Drilbur [Mud-Slap | Corkscrew Punch]",
+   "Black Bolt: Additionals"
+  ],
+  "836369": [
+   "sv10.5b",
+   "045",
+   "reverse/masterball",
+   6197,
+   "Drilbur [Mud-Slap | Corkscrew Punch]",
+   "Black Bolt: Additionals"
+  ],
+  "836371": [
+   "sv10.5b",
+   "047",
+   "reverse/pokeball",
+   6197,
+   "Timburr [Low Kick | Strength]",
+   "Black Bolt: Additionals"
+  ],
+  "836372": [
+   "sv10.5b",
+   "047",
+   "reverse/masterball",
+   6197,
+   "Timburr [Low Kick | Strength]",
+   "Black Bolt: Additionals"
+  ],
+  "836374": [
+   "sv10.5b",
+   "048",
+   "reverse/pokeball",
+   6197,
+   "Gurdurr [Low Kick | Hammer Arm]",
+   "Black Bolt: Additionals"
+  ],
+  "836373": [
+   "sv10.5b",
+   "048",
+   "reverse/masterball",
+   6197,
+   "Gurdurr [Low Kick | Hammer Arm]",
+   "Black Bolt: Additionals"
+  ],
+  "836375": [
+   "sv10.5b",
+   "049",
+   "reverse/pokeball",
+   6197,
+   "Conkeldurr [Craftsmanship | Swing Around]",
+   "Black Bolt: Additionals"
+  ],
+  "836376": [
+   "sv10.5b",
+   "049",
+   "reverse/masterball",
+   6197,
+   "Conkeldurr [Craftsmanship | Swing Around]",
+   "Black Bolt: Additionals"
+  ],
+  "864353": [
+   "sv10.5b",
+   "049",
+   "normal +player-rewards-program",
+   6425,
+   "Conkeldurr [Craftsmanship | Swing Around]",
+   "Play! Pokémon Prize Pack Series Eight"
+  ],
+  "836379": [
+   "sv10.5b",
+   "050",
+   "reverse/pokeball",
+   6197,
+   "Throh [Shoulder Throw]",
+   "Black Bolt: Additionals"
+  ],
+  "836377": [
+   "sv10.5b",
+   "050",
+   "reverse/masterball",
+   6197,
+   "Throh [Shoulder Throw]",
+   "Black Bolt: Additionals"
+  ],
+  "836380": [
+   "sv10.5b",
+   "051",
+   "reverse/pokeball",
+   6197,
+   "Dwebble [Flail | Dig Claws]",
+   "Black Bolt: Additionals"
+  ],
+  "836382": [
+   "sv10.5b",
+   "051",
+   "reverse/masterball",
+   6197,
+   "Dwebble [Flail | Dig Claws]",
+   "Black Bolt: Additionals"
+  ],
+  "836385": [
+   "sv10.5b",
+   "052",
+   "reverse/pokeball",
+   6197,
+   "Crustle [Sturdy | Stone Edge | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836384": [
+   "sv10.5b",
+   "052",
+   "reverse/masterball",
+   6197,
+   "Crustle [Sturdy | Stone Edge | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836387": [
+   "sv10.5b",
+   "053",
+   "reverse/pokeball",
+   6197,
+   "Landorus [Abundant Harvest | Earthquake]",
+   "Black Bolt: Additionals"
+  ],
+  "836388": [
+   "sv10.5b",
+   "053",
+   "reverse/masterball",
+   6197,
+   "Landorus [Abundant Harvest | Earthquake]",
+   "Black Bolt: Additionals"
+  ],
+  "836392": [
+   "sv10.5b",
+   "054",
+   "reverse/pokeball",
+   6197,
+   "Venipede [Poison Spray]",
+   "Black Bolt: Additionals"
+  ],
+  "836391": [
+   "sv10.5b",
+   "054",
+   "reverse/masterball",
+   6197,
+   "Venipede [Poison Spray]",
+   "Black Bolt: Additionals"
+  ],
+  "836395": [
+   "sv10.5b",
+   "055",
+   "reverse/pokeball",
+   6197,
+   "Whirlipede [Venoshock]",
+   "Black Bolt: Additionals"
+  ],
+  "836396": [
+   "sv10.5b",
+   "055",
+   "reverse/masterball",
+   6197,
+   "Whirlipede [Venoshock]",
+   "Black Bolt: Additionals"
+  ],
+  "836400": [
+   "sv10.5b",
+   "056",
+   "reverse/pokeball",
+   6197,
+   "Scolipede [Poison Point | Venoshock | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836399": [
+   "sv10.5b",
+   "056",
+   "reverse/masterball",
+   6197,
+   "Scolipede [Poison Point | Venoshock | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836403": [
+   "sv10.5b",
+   "057",
+   "reverse/pokeball",
+   6197,
+   "Sandile [Tighten Up]",
+   "Black Bolt: Additionals"
+  ],
+  "836404": [
+   "sv10.5b",
+   "057",
+   "reverse/masterball",
+   6197,
+   "Sandile [Tighten Up]",
+   "Black Bolt: Additionals"
+  ],
+  "836408": [
+   "sv10.5b",
+   "058",
+   "reverse/pokeball",
+   6197,
+   "Krokorok [Tighten Up]",
+   "Black Bolt: Additionals"
+  ],
+  "836406": [
+   "sv10.5b",
+   "058",
+   "reverse/masterball",
+   6197,
+   "Krokorok [Tighten Up]",
+   "Black Bolt: Additionals"
+  ],
+  "836410": [
+   "sv10.5b",
+   "059",
+   "reverse/pokeball",
+   6197,
+   "Krookodile [Tighten Up | Cursed Slug]",
+   "Black Bolt: Additionals"
+  ],
+  "836412": [
+   "sv10.5b",
+   "059",
+   "reverse/masterball",
+   6197,
+   "Krookodile [Tighten Up | Cursed Slug]",
+   "Black Bolt: Additionals"
+  ],
+  "836416": [
+   "sv10.5b",
+   "060",
+   "reverse/pokeball",
+   6197,
+   "Escavalier [Wild Lance]",
+   "Black Bolt: Additionals"
+  ],
+  "836414": [
+   "sv10.5b",
+   "060",
+   "reverse/masterball",
+   6197,
+   "Escavalier [Wild Lance]",
+   "Black Bolt: Additionals"
+  ],
+  "836431": [
+   "sv10.5b",
+   "061",
+   "reverse/pokeball",
+   6197,
+   "Klink [Hard Gears]",
+   "Black Bolt: Additionals"
+  ],
+  "836432": [
+   "sv10.5b",
+   "061",
+   "reverse/masterball",
+   6197,
+   "Klink [Hard Gears]",
+   "Black Bolt: Additionals"
+  ],
+  "836434": [
+   "sv10.5b",
+   "062",
+   "reverse/pokeball",
+   6197,
+   "Klang [Hard Gears]",
+   "Black Bolt: Additionals"
+  ],
+  "836433": [
+   "sv10.5b",
+   "062",
+   "reverse/masterball",
+   6197,
+   "Klang [Hard Gears]",
+   "Black Bolt: Additionals"
+  ],
+  "836436": [
+   "sv10.5b",
+   "063",
+   "reverse/pokeball",
+   6197,
+   "Klinklang [Gear Coating | Hammer In]",
+   "Black Bolt: Additionals"
+  ],
+  "836438": [
+   "sv10.5b",
+   "063",
+   "reverse/masterball",
+   6197,
+   "Klinklang [Gear Coating | Hammer In]",
+   "Black Bolt: Additionals"
+  ],
+  "836442": [
+   "sv10.5b",
+   "064",
+   "reverse/pokeball",
+   6197,
+   "Pawniard [Corner]",
+   "Black Bolt: Additionals"
+  ],
+  "836440": [
+   "sv10.5b",
+   "064",
+   "reverse/masterball",
+   6197,
+   "Pawniard [Corner]",
+   "Black Bolt: Additionals"
+  ],
+  "836444": [
+   "sv10.5b",
+   "065",
+   "reverse/pokeball",
+   6197,
+   "Bisharp [Cut Up | Finishing Blow]",
+   "Black Bolt: Additionals"
+  ],
+  "836445": [
+   "sv10.5b",
+   "065",
+   "reverse/masterball",
+   6197,
+   "Bisharp [Cut Up | Finishing Blow]",
+   "Black Bolt: Additionals"
+  ],
+  "836447": [
+   "sv10.5b",
+   "066",
+   "reverse/pokeball",
+   6197,
+   "Cobalion [Righteous Edge | Metal Arms]",
+   "Black Bolt: Additionals"
+  ],
+  "836446": [
+   "sv10.5b",
+   "066",
+   "reverse/masterball",
+   6197,
+   "Cobalion [Righteous Edge | Metal Arms]",
+   "Black Bolt: Additionals"
+  ],
+  "864365": [
+   "sv10.5b",
+   "067",
+   "holo +player-rewards-program",
+   6425,
+   "Genesect ex [Metallic Signal | Protect Charge]",
+   "Play! Pokémon Prize Pack Series Eight"
+  ],
+  "884294": [
+   "sv10.5b",
+   "067",
+   "normal +liao-fu-guan",
+   6454,
+   "Genesect ex [Metallic Signal | Protect Charge]",
+   null
+  ],
+  "836448": [
+   "sv10.5b",
+   "068",
+   "reverse/pokeball",
+   6197,
+   "Axew [Gather Strength]",
+   "Black Bolt: Additionals"
+  ],
+  "836449": [
+   "sv10.5b",
+   "068",
+   "reverse/masterball",
+   6197,
+   "Axew [Gather Strength]",
+   "Black Bolt: Additionals"
+  ],
+  "836451": [
+   "sv10.5b",
+   "069",
+   "reverse/pokeball",
+   6197,
+   "Fraxure [Bite | Boundless Power]",
+   "Black Bolt: Additionals"
+  ],
+  "836450": [
+   "sv10.5b",
+   "069",
+   "reverse/masterball",
+   6197,
+   "Fraxure [Bite | Boundless Power]",
+   "Black Bolt: Additionals"
+  ],
+  "836452": [
+   "sv10.5b",
+   "070",
+   "reverse/pokeball",
+   6197,
+   "Haxorus [Cross-Cut | Axe Blast]",
+   "Black Bolt: Additionals"
+  ],
+  "836453": [
+   "sv10.5b",
+   "070",
+   "reverse/masterball",
+   6197,
+   "Haxorus [Cross-Cut | Axe Blast]",
+   "Black Bolt: Additionals"
+  ],
+  "836455": [
+   "sv10.5b",
+   "071",
+   "reverse/pokeball",
+   6197,
+   "Pidove [Scout | Stampede]",
+   "Black Bolt: Additionals"
+  ],
+  "836454": [
+   "sv10.5b",
+   "071",
+   "reverse/masterball",
+   6197,
+   "Pidove [Scout | Stampede]",
+   "Black Bolt: Additionals"
+  ],
+  "836456": [
+   "sv10.5b",
+   "072",
+   "reverse/pokeball",
+   6197,
+   "Tranquill [Fly | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836457": [
+   "sv10.5b",
+   "072",
+   "reverse/masterball",
+   6197,
+   "Tranquill [Fly | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836459": [
+   "sv10.5b",
+   "073",
+   "reverse/pokeball",
+   6197,
+   "Unfezant [Add On | Swift Flight]",
+   "Black Bolt: Additionals"
+  ],
+  "836458": [
+   "sv10.5b",
+   "073",
+   "reverse/masterball",
+   6197,
+   "Unfezant [Add On | Swift Flight]",
+   "Black Bolt: Additionals"
+  ],
+  "836460": [
+   "sv10.5b",
+   "074",
+   "reverse/pokeball",
+   6197,
+   "Audino [Return]",
+   "Black Bolt: Additionals"
+  ],
+  "836461": [
+   "sv10.5b",
+   "074",
+   "reverse/masterball",
+   6197,
+   "Audino [Return]",
+   "Black Bolt: Additionals"
+  ],
+  "836463": [
+   "sv10.5b",
+   "075",
+   "reverse/pokeball",
+   6197,
+   "Minccino [Tail Slap | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836462": [
+   "sv10.5b",
+   "075",
+   "reverse/masterball",
+   6197,
+   "Minccino [Tail Slap | SV]",
+   "Black Bolt: Additionals"
+  ],
+  "836464": [
+   "sv10.5b",
+   "076",
+   "reverse/pokeball",
+   6197,
+   "Cinccino [Do the Wave]",
+   "Black Bolt: Additionals"
+  ],
+  "836465": [
+   "sv10.5b",
+   "076",
+   "reverse/masterball",
+   6197,
+   "Cinccino [Do the Wave]",
+   "Black Bolt: Additionals"
+  ],
+  "836467": [
+   "sv10.5b",
+   "077",
+   "reverse/pokeball",
+   6197,
+   "Rufflet [Peck | Glide]",
+   "Black Bolt: Additionals"
+  ],
+  "836466": [
+   "sv10.5b",
+   "077",
+   "reverse/masterball",
+   6197,
+   "Rufflet [Peck | Glide]",
+   "Black Bolt: Additionals"
+  ],
+  "836468": [
+   "sv10.5b",
+   "078",
+   "reverse/pokeball",
+   6197,
+   "Braviary [Aerial Ace | Speed Wing]",
+   "Black Bolt: Additionals"
+  ],
+  "836469": [
+   "sv10.5b",
+   "078",
+   "reverse/masterball",
+   6197,
+   "Braviary [Aerial Ace | Speed Wing]",
+   "Black Bolt: Additionals"
+  ],
+  "836470": [
+   "sv10.5b",
+   "079",
+   "reverse/pokeball",
+   6197,
+   "Air Balloon",
+   "Black Bolt: Additionals"
+  ],
+  "864407": [
+   "sv10.5b",
+   "079",
+   "holo/cosmos +player-rewards-program",
+   6425,
+   "Air Balloon",
+   "Play! Pokémon Prize Pack Series Eight"
+  ],
+  "855028": [
+   "sv10.5b",
+   "079",
+   "holo/cosmos +great-ball-league",
+   5834,
+   "Air Balloon",
+   "Southeast Asia Promos"
+  ],
+  "884311": [
+   "sv10.5b",
+   "079",
+   "normal +liao-fu-guan",
+   6454,
+   "Air Balloon",
+   null
+  ],
+  "884410": [
+   "sv10.5b",
+   "079",
+   "normal +jose-cruz-galindo-resendiz",
+   6454,
+   "Air Balloon",
+   null
+  ],
+  "836471": [
+   "sv10.5b",
+   "080",
+   "reverse/pokeball",
+   6197,
+   "Antique Cover Fossil",
+   "Black Bolt: Additionals"
+  ],
+  "836472": [
+   "sv10.5b",
+   "081",
+   "reverse/pokeball",
+   6197,
+   "Energy Coin",
+   "Black Bolt: Additionals"
+  ],
+  "836473": [
+   "sv10.5b",
+   "082",
+   "reverse/pokeball",
+   6197,
+   "Fennel",
+   "Black Bolt: Additionals"
+  ],
+  "836474": [
+   "sv10.5b",
+   "083",
+   "reverse/pokeball",
+   6197,
+   "N's Plan",
+   "Black Bolt: Additionals"
+  ],
+  "836475": [
+   "sv10.5b",
+   "084",
+   "reverse/pokeball",
+   6197,
+   "Pokégear 3.0",
+   "Black Bolt: Additionals"
+  ],
+  "884309": [
+   "sv10.5b",
+   "084",
+   "normal +liao-fu-guan",
+   6454,
+   "Pokégear 3.0",
+   null
+  ],
+  "836476": [
+   "sv10.5b",
+   "085",
+   "reverse/pokeball",
+   6197,
+   "Professor's Research - Professor Juniper",
+   "Black Bolt: Additionals"
+  ],
+  "878014": [
+   "sv10.5b",
+   "085",
+   "reverse/pokeball +professor-program",
+   3108,
+   "Professor's Research - Professor Juniper",
+   "Professor Program"
+  ],
+  "836477": [
+   "sv10.5b",
+   "086",
+   "reverse/pokeball",
+   6197,
+   "Prism Energy",
+   "Black Bolt: Additionals"
+  ],
+  "865202": [
+   "sv05",
+   "012",
+   "holo +set-logo",
+   5589,
+   "Torterra ex [Forest March | Jungle Hammer]",
+   "principale"
+  ],
+  "864136": [
+   "sv05",
+   "034",
+   "holo/jumbo",
+   5589,
+   "Incineroar ex [Hustle Play | Blaze Blast]",
+   "principale"
+  ],
+  "865201": [
+   "sv05",
+   "034",
+   "holo +set-logo",
+   5589,
+   "Incineroar ex [Hustle Play | Blaze Blast]",
+   "principale"
+  ],
+  "865203": [
+   "sv05",
+   "034",
+   "holo/jumbo +set-logo",
+   5589,
+   "Incineroar ex [Hustle Play | Blaze Blast]",
+   "principale"
+  ],
+  "761970": [
+   "sv05",
+   "041",
+   "normal",
+   5589,
+   "Feraligatr [Torrential Heart | Giant Wave]",
+   "principale"
+  ],
+  "800144": [
+   "sv05",
+   "051",
+   "holo/cosmos",
+   5589,
+   "Pikachu [Random Spark]",
+   "principale"
+  ],
+  "870424": [
+   "sv05",
+   "051",
+   "holo +pokemon-day",
+   5589,
+   "Pikachu [Random Spark]",
+   "principale"
+  ],
+  "761971": [
+   "sv05",
+   "062",
+   "normal",
+   5589,
+   "Iron Thorns [Destructo-Press | Megaton Lariat]",
+   "principale"
+  ],
+  "821592": [
+   "sv05",
+   "062",
+   "holo/cosmos",
+   5589,
+   "Iron Thorns [Destructo-Press | Megaton Lariat]",
+   "principale"
+  ],
+  "766664": [
+   "sv05",
+   "077",
+   "holo/cosmos",
+   5589,
+   "Scream Tail [Supportive Singing | Hyper Voice]",
+   "principale"
+  ],
+  "761972": [
+   "sv05",
+   "078",
+   "holo/cosmos",
+   5589,
+   "Flutter Mane [Midnight Fluttering | Hex Hurl]",
+   "principale"
+  ],
+  "766665": [
+   "sv05",
+   "079",
+   "holo/cosmos",
+   5589,
+   "Iron Valiant [Gemini Laser | Zen Blade]",
+   "principale"
+  ],
+  "762530": [
+   "sv05",
+   "081",
+   "holo/jumbo +set-logo",
+   5589,
+   "Iron Crown ex [Cobalt Command | Twin Shotels]",
+   "principale"
+  ],
+  "855027": [
+   "sv05",
+   "081",
+   "holo/jumbo",
+   5589,
+   "Iron Crown ex [Cobalt Command | Twin Shotels]",
+   "principale"
+  ],
+  "761973": [
+   "sv05",
+   "084",
+   "normal",
+   5589,
+   "Relicanth [Memory Dive | Razor Fin]",
+   "principale"
+  ],
+  "866039": [
+   "sv05",
+   "096",
+   "normal +set-logo",
+   5589,
+   "Great Tusk [Lunge Out | Wrathful Charge]",
+   "principale"
+  ],
+  "858723": [
+   "sv05",
+   "109",
+   "holo/cosmos",
+   5589,
+   "Roaring Moon [Vengeance Fletching | Speed Wing]",
+   "principale"
+  ],
+  "866038": [
+   "sv05",
+   "118",
+   "normal +set-logo",
+   5589,
+   "Iron Treads [Dual Core | Wheel Pass]",
+   "principale"
+  ],
+  "761962": [
+   "sv05",
+   "119",
+   "reverse/galaxy +gamestop",
+   5589,
+   "Koraidon [Primordial Beatdown | Shred]",
+   "principale"
+  ],
+  "761974": [
+   "sv05",
+   "119",
+   "normal",
+   5589,
+   "Koraidon [Primordial Beatdown | Shred]",
+   "principale"
+  ],
+  "762531": [
+   "sv05",
+   "119",
+   "holo/galaxy +set-logo",
+   5589,
+   "Koraidon [Primordial Beatdown | Shred]",
+   "principale"
+  ],
+  "762532": [
+   "sv05",
+   "119",
+   "normal +eb-games",
+   5589,
+   "Koraidon [Primordial Beatdown | Shred]",
+   "principale"
+  ],
+  "804337": [
+   "sv05",
+   "119",
+   "holo/cosmos",
+   5589,
+   "Koraidon [Primordial Beatdown | Shred]",
+   "principale"
+  ],
+  "761963": [
+   "sv05",
+   "121",
+   "holo/galaxy",
+   5589,
+   "Miraidon [Peak Acceleration | Sparking Strike]",
+   "principale"
+  ],
+  "761975": [
+   "sv05",
+   "121",
+   "normal",
+   5589,
+   "Miraidon [Peak Acceleration | Sparking Strike]",
+   "principale"
+  ],
+  "804338": [
+   "sv05",
+   "121",
+   "holo/cosmos",
+   5589,
+   "Miraidon [Peak Acceleration | Sparking Strike]",
+   "principale"
+  ],
+  "764114": [
+   "sv05",
+   "123",
+   "holo/jumbo +set-logo",
+   5589,
+   "Raging Bolt ex [Burst Roar | Bellowing Thunder]",
+   "principale"
+  ],
+  "786646": [
+   "sv05",
+   "123",
+   "holo/jumbo",
+   5589,
+   "Raging Bolt ex [Burst Roar | Bellowing Thunder]",
+   "principale"
+  ],
+  "800145": [
+   "sv05",
+   "126",
+   "holo/cosmos",
+   5589,
+   "Hoothoot [Silent Wing]",
+   "principale"
+  ],
+  "800146": [
+   "sv05",
+   "127",
+   "holo/cosmos",
+   5589,
+   "Noctowl [Talon Hunt]",
+   "principale"
+  ],
+  "883689": [
+   "sv05",
+   "129",
+   "normal/league",
+   5589,
+   "Dudunsparce [Run-Away Draw | Land Crush]",
+   "principale"
+  ],
+  "800147": [
+   "sv06",
+   "018",
+   "holo/cosmos",
+   5691,
+   "Dipplin [Festival Lead | Do the Wave]",
+   "principale"
+  ],
+  "771355": [
+   "sv06",
+   "022",
+   "holo/galaxy",
+   5691,
+   "Sinistcha [Cursed Drop | Spill the Tea]",
+   "principale"
+  ],
+  "858724": [
+   "sv06",
+   "022",
+   "holo/cosmos",
+   5691,
+   "Sinistcha [Cursed Drop | Spill the Tea]",
+   "principale"
+  ],
+  "771356": [
+   "sv06",
+   "024",
+   "holo +gamestop",
+   5691,
+   "Teal Mask Ogerpon [Mountain Stroll | Ogre Comeback]",
+   "principale"
+  ],
+  "771357": [
+   "sv06",
+   "024",
+   "holo +eb-games",
+   5691,
+   "Teal Mask Ogerpon [Mountain Stroll | Ogre Comeback]",
+   "principale"
+  ],
+  "786105": [
+   "sv06",
+   "024",
+   "holo/cosmos +set-logo",
+   5691,
+   "Teal Mask Ogerpon [Mountain Stroll | Ogre Comeback]",
+   "principale"
+  ],
+  "800148": [
+   "sv06",
+   "024",
+   "holo/cosmos",
+   5691,
+   "Teal Mask Ogerpon [Mountain Stroll | Ogre Comeback]",
+   "principale"
+  ],
+  "776161": [
+   "sv06",
+   "033",
+   "normal",
+   5691,
+   "Infernape [Pyro Dance | Scorching Fire]",
+   "principale"
+  ],
+  "821715": [
+   "sv06",
+   "038",
+   "holo/cosmos",
+   5691,
+   "Chandelure [Alluring Light | Mind Ruler]",
+   "principale"
+  ],
+  "830112": [
+   "sv06",
+   "040",
+   "holo +set-logo",
+   5691,
+   "Hearthflame Mask Ogerpon ex [Wrathful Hearth | Dynamic Blaze]",
+   "principale"
+  ],
+  "830113": [
+   "sv06",
+   "040",
+   "holo/jumbo +set-logo",
+   5691,
+   "Hearthflame Mask Ogerpon ex [Wrathful Hearth | Dynamic Blaze]",
+   "principale"
+  ],
+  "776162": [
+   "sv06",
+   "053",
+   "normal",
+   5691,
+   "Froslass [Freezing Shroud | Frost Smash]",
+   "principale"
+  ],
+  "775950": [
+   "sv06",
+   "059",
+   "holo",
+   5691,
+   "Finizen [Aqua Slash]",
+   "principale"
+  ],
+  "775951": [
+   "sv06",
+   "060",
+   "holo",
+   5691,
+   "Palafin [Zero to Hero | Wave Splash]",
+   "principale"
+  ],
+  "785467": [
+   "sv06",
+   "062",
+   "holo/cosmos +snowflake",
+   5691,
+   "Iron Bundle [Interjet]",
+   "principale"
+  ],
+  "830114": [
+   "sv06",
+   "064",
+   "holo +set-logo",
+   5691,
+   "Wellspring Mask Ogerpon ex [Sob | Torrential Pump]",
+   "principale"
+  ],
+  "812590": [
+   "sv06",
+   "082",
+   "holo/cosmos",
+   5691,
+   "Alakazam [Strange Hacking | Psychic]",
+   "principale"
+  ],
+  "776163": [
+   "sv06",
+   "095",
+   "normal",
+   5691,
+   "Munkidori [Adrena-Brain | Mind Bend]",
+   "principale"
+  ],
+  "776164": [
+   "sv06",
+   "096",
+   "normal",
+   5691,
+   "Fezandipiti [Adrena-Pheromone | Energy Feather]",
+   "principale"
+  ],
+  "858725": [
+   "sv06",
+   "100",
+   "holo/cosmos",
+   5691,
+   "Hisuian Arcanine [Proud Fangs | Searing Flame]",
+   "principale"
+  ],
+  "883809": [
+   "sv06",
+   "100",
+   "normal",
+   5691,
+   "Hisuian Arcanine [Proud Fangs | Searing Flame]",
+   "principale"
+  ],
+  "804205": [
+   "sv06",
+   "106",
+   "metal",
+   5691,
+   "Greninja ex [Shinobi Blade | Mirage Barrage]",
+   "principale"
+  ],
+  "776165": [
+   "sv06",
+   "111",
+   "normal",
+   5691,
+   "Okidogi [Adrena-Power | Good Punch]",
+   "principale"
+  ],
+  "853514": [
+   "sv06",
+   "130",
+   "holo/jumbo",
+   5691,
+   "Dragapult ex [Jet Headbutt | Phantom Dive]",
+   "principale"
+  ],
+  "841259": [
+   "sv06",
+   "134",
+   "holo +set-logo",
+   5691,
+   "Blissey ex [Happy Switch | Return]",
+   "principale"
+  ],
+  "800149": [
+   "sv06",
+   "159",
+   "holo/cosmos",
+   5691,
+   "Ogre's Mask",
+   "principale"
+  ]
  },
  "varianti_esempi": {
   "reverse/pokeball": [

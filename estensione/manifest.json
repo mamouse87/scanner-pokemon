@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Card Scanner → Cardmarket",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Collega il gestionale delle carte a Cardmarket: messa in vendita, cambio prezzi e controllo del magazzino.",
   "permissions": ["storage"],
   "host_permissions": ["https://www.cardmarket.com/*", "https://mamouse87.github.io/scanner-pokemon/*"],

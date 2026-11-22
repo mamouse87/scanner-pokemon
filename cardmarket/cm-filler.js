@@ -83,7 +83,7 @@
   /** riga sotto il titolo: a che ora è arrivata dal gestionale l'operazione che lo script sta usando */
   function inAgo() {
     const e = t => String(t ?? '').replace(/[^0-9a-z.]/gi, '');
-    const up = EXT && EXT.upd ? `<div class="ag old">↑ C'è la versione nuova dell'estensione (${e(EXT.upd)}; tu hai la ${e(EXT.ver || '?')}). <a href="https://mamouse87.github.io/scanner-pokemon/cardmarket/" target="_blank" rel="noopener" style="color:inherit;font-weight:700">Scaricala e aggiornala</a></div>` : '';
+    const up = EXT && EXT.upd ? `<div class="ag old" data-up="1">↑ C'è la versione nuova dell'estensione (${e(EXT.upd)}; tu hai la ${e(EXT.ver || '?')}). <a href="https://mamouse87.github.io/scanner-pokemon/cardmarket/" target="_blank" rel="noopener" style="color:inherit;font-weight:700">Scaricala e aggiornala</a></div>` : '';
     return up + inAgo0();
   }
   function inAgo0() {
@@ -233,7 +233,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 e</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 f</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -312,7 +312,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 e</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 f</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -1302,8 +1302,13 @@
   function showJob() {
     const j = jobGet(), box = $('csJob');
     box.className = 'card info';
-    // pagina dei Supplementi senza elenco: c'è solo il riquadro delle carte speciali
-    if (!j && isSupExp()) { box.className = 'hide'; $('csGo').classList.add('hide'); steps(); return; }
+    // pagina dei Supplementi senza un elenco da fare qui (nessuno, o uno già completato): solo il riquadro delle carte speciali.
+    // Un elenco non finito di un altro set resta visibile (con "Vai a …").
+    const supOnly = isSupExp() && (!j || j.done);
+    [...$('csBody').children].forEach(x => { if (x.id !== 'csSup') x.style.display = supOnly ? 'none' : ''; });
+    $('csSteps').style.display = supOnly ? 'none' : '';
+    PR.querySelectorAll('.ag:not([data-up])').forEach(x => { x.style.display = supOnly ? 'none' : ''; });
+    if (supOnly) { steps(); return; }
     if (!j) {
       box.className = 'card warn';
       box.innerHTML = '<b>Nessun elenco dal gestionale.</b><br>Nel gestionale apri il set, premi <b>Metti in vendita su Cardmarket</b> e scegli il prezzo: poi torna qui e premi di nuovo questo pulsante.';

@@ -1,0 +1,24 @@
+# Prova: GitHub riesce a scaricare i file pubblici di Cardmarket? Scrive solo un riepilogo (risultato.json) in questo ramo.
+name: Prova file Cardmarket
+on:
+  push:
+    branches: [prova-cardmarket]
+    paths-ignore: ['risultato.json']
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scarica i file e fai il riepilogo
+        run: python3 prova.py
+      - name: Salva il riepilogo nel ramo
+        run: |
+          git config user.name "prova-cardmarket"
+          git config user.email "prova-cardmarket@users.noreply.github.com"
+          git add risultato.json
+          git commit -m "Risultato della prova" || echo "niente da salvare"
+          git push

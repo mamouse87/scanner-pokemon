@@ -220,7 +220,7 @@ function varBadge(v, bt) {
   if (t === 'holo') return 'HO';
   return unacc(v.type).slice(0, 2).toUpperCase() || 'SP';
 }
-const VAR_VER = 3;   // cambia quando cambiano i nomi delle varianti: le varianti salvate si rileggono
+const VAR_VER = 4;   // cambia quando cambiano i nomi delle varianti: le varianti salvate si rileggono
 let varSaveT = null;
 function varStore(cardId, d) {
   const det = Array.isArray(d && d.variants_detailed) ? d.variants_detailed : [];
@@ -230,7 +230,9 @@ function varStore(cardId, d) {
   const baseV = det.find(v => plain(v) && !isRev(v) && cmId(v));
   const base = String((d && d.pricing && d.pricing.cardmarket && d.pricing.cardmarket.idProduct) || cmId(baseV) || '');
   const bt = vtype(det.find(v => plain(v) && !isRev(v) && cmId(v) === base) || baseV || {});
-  const o = { at: Date.now(), vv: VAR_VER, base, rev: !det.length || det.some(v => isRev(v) && plain(v)), det: det.length > 0, x: [] };
+  // "senza Reverse semplice" solo se TCGdex elenca delle Reverse e sono tutte speciali (Ball, Energia…): se non elenca nessuna Reverse,
+  // i dati sono incompleti o vecchi (es. Dominio Delta sul servizio TCGdex) e non segnalo nulla
+  const o = { at: Date.now(), vv: VAR_VER, base, rev: !det.length || det.some(v => isRev(v) && plain(v)) || !det.some(isRev), det: det.length > 0, x: [] };
   const seen = new Set();
   det.forEach(v => { const p = cmId(v); if (!p || p === base || seen.has(p)) return; seen.add(p); o.x.push({ p, l: varLabel(v, bt), b: varBadge(v, bt) }); });
   try { localStorage.setItem(VKEY(cardId), JSON.stringify(o)); } catch (e) {}
@@ -641,7 +643,8 @@ async function renderSet() {
     var: new Set(vars.map(x => norm(x.l.u))).size, rev: new Set(mine.filter(([, l]) => l.rev && !l.vp).map(([, l]) => norm(l.u))).size,
     vx: new Set([...mine, ...sbList].filter(([, x]) => x.vp).map(([, x]) => norm(x.u))).size };
   // carte segnate Reverse che in questo set non hanno la Reverse semplice (es. i Pokémon di Ascesa Eroica: solo Energia o Ball)
-  const vcOfCard = c => c.id ? varCache(c.id) : null;
+  // varianti lette con le regole di adesso (quelle vecchie si rileggono in sottofondo)
+  const vcOfCard = c => { const V = c.id ? varCache(c.id) : null; return V && V.vv === VAR_VER ? V : null; };
   const wrong = cards.filter(c => { const n = norm(c.localId), V = vcOfCard(c); return V && V.det && !V.rev && [...(byNum[n] || []), ...(sbByNum[n] || [])].some(([, x]) => x.rev && !x.vp); });
   cntF.wr = wrong.length;
   const needV = cards.filter(c => c.id && !vcOfCard(c) && [...(byNum[norm(c.localId)] || []), ...(sbByNum[norm(c.localId)] || [])].some(([, x]) => x.rev && !x.vp));
@@ -2003,7 +2006,7 @@ $('main').addEventListener('click', e => {
   // link a Cardmarket: l'immagine apre la prima variante (in vendita, poi Standby, altrimenti Normale italiana)
   const cmLink = x => x.vp ? vxCmUrl(cm, x, c.id, c.name, x.lang || 'it') : cmCardUrl(cm, c.name, !!x.rev, x.lang || 'it');
   const vName = x => `${vLab(x)} · ${LANGN[x.lang || 'it'] || x.lang}`;
-  const VC = c.id ? varCache(c.id) : null, noRev = VC && VC.det && !VC.rev;
+  const VC = c.id ? varCache(c.id) : null, noRev = VC && VC.vv === VAR_VER && VC.det && !VC.rev;
   const v0 = ls[0]?.[1] || sb[0]?.[1] || { rev: false, lang: 'it' };
   // pagina esatta solo se nota (catalogo letto dallo script nella pagina bulk); altrimenti è una ricerca per nome, e lo dico
   const cmA = x => { const h = cmLink(x), q = /\/Products\/Search/.test(h);

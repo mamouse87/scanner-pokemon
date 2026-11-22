@@ -164,7 +164,8 @@ const SUPRX = /:\s*(supplementi|additionals?)\s*$/i;
 const isSupName = n => SUPRX.test(String(n || ''));
 const slugOf = u => { const t = String(u || '').split(/[?#]/)[0].replace(/\/+$/, ''); return t.slice(t.lastIndexOf('/') + 1); };
 /** indirizzo (slug) del prodotto di una carta speciale in vendita, dall'elenco della pagina bulk mandato dallo script */
-const slOfL = l => l && l.vp ? slugOf(state.cm[l.exp]?.cards?.[l.p]?.ur) || undefined : undefined;
+// indirizzo del prodotto: per le speciali, e per le carte che nella pagina del set hanno più versioni con lo stesso numero (…-V1-…, …-V2-…)
+const slOfL = l => { if (!l) return undefined; const sl = slugOf(state.cm[l.exp]?.cards?.[l.p]?.ur); return sl && (l.vp || /-V\d+-/.test(sl)) ? sl : undefined; };
 /** slug → numero prodotto, per le offerte lette dallo script (Supplementi: V1 e V2 hanno lo stesso numero di carta) */
 function pidBySlug() {
   const m = {};
@@ -1007,7 +1008,9 @@ function importCheckFromHash() {
 function chkDiffs() {
   if (!chk) return [];
   // varianti speciali: per numero prodotto (dall'indirizzo dell'offerta), senza guardare la casella Reverse
-  const bySl = pidBySlug(), ovp = o => o.sl ? (bySl[o.sl] || 'S:' + o.sl) : null;
+  // un indirizzo con -V1-/-V2- nella pagina del set può essere anche la carta base: è speciale solo se il prodotto è una variante speciale
+  const vxSet = new Set([...Object.values(state.listings), ...Object.values(state.standby || {})].filter(x => x.vp).map(x => String(x.vp)));
+  const bySl = pidBySlug(), ovp = o => { if (!o.sl) return null; const p = bySl[o.sl]; return p ? (vxSet.has(p) ? p : null) : isSupName(o.exp) ? 'S:' + o.sl : null; };
   const tailOf = (num, rev, lang, vp) => `|${norm(num)}|${vp ? 'X' + vp : rev ? 'R' : 'N'}|${lang || 'it'}`;
   const byCode = {}, byExp = {}, used = new Set();
   chk.list.forEach(o => {
@@ -1077,7 +1080,7 @@ function openQtyEdit(rows, why, scope) {
   const name = `QUANTITA-${scope ? SavedListsName(scope) : 'Tutti'}_${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
   const job = { v: 1, type: 'qty', at: today(), name,
     items: rows.map(r => { const l = r.l || state.listings[r.k];
-      return Object.assign({ k: r.k, code: setCode(l), exp: l.expName || state.cm[l.exp]?.name || '', u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q, qt: Math.max(0, r.qt), old: l.price, price: null }, l.vp ? { v: 'S', vl: l.vl, vb: l.vb, sl: slOfL(l) } : {}); }) };
+      return Object.assign({ k: r.k, code: setCode(l), exp: l.expName || state.cm[l.exp]?.name || '', u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q, qt: Math.max(0, r.qt), old: l.price, price: null }, l.vp ? { v: 'S', vl: l.vl, vb: l.vb, sl: slOfL(l) } : slOfL(l) ? { sl: slOfL(l) } : {}); }) };
   const enc = 'csedit=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
   try { navigator.clipboard.writeText(enc); } catch (e) {}
   const win = openCm(OFFERS_URL, enc);
@@ -1094,7 +1097,7 @@ function openPriceFix(ds, why) {
   const d = new Date(), z = n => String(n).padStart(2, '0');
   const name = `PREZZO-UNICO_${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
   const job = { v: 1, type: 'edit', at: today(), name, base: 'gest', plus: 0,
-    items: ds.map(({ k, l }) => ({ k, code: setCode(l), exp: setOf(l), u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q, ...(l.vp ? { v: 'S', vl: l.vl, vb: l.vb, sl: slOfL(l) } : {}),
+    items: ds.map(({ k, l }) => ({ k, code: setCode(l), exp: setOf(l), u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q, ...(l.vp ? { v: 'S', vl: l.vl, vb: l.vb, sl: slOfL(l) } : slOfL(l) ? { sl: slOfL(l) } : {}),
       old: null, price: r2(l.price), b: l.rb || 'low', o: l.ro ?? 0, ref: l.ref ?? null, m: 1 })) };
   const enc = 'csedit=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
   const win = openCm(OFFERS_URL, enc);
@@ -2758,8 +2761,21 @@ function consOf(M) {
   return R;
 }
 /** idProduct Cardmarket di una carta in standby (dall'elenco del set inviato dallo script, se c'è) */
+/** prodotto Cardmarket della carta base secondo TCGdex (se le varianti della carta sono già state lette) */
+function tcgBaseOf(setId, u) {
+  for (const p of ['/sets/' + encodeURIComponent(setId), '@en/sets/' + encodeURIComponent(setId)]) {
+    let S = mem[p];
+    if (!S) { try { S = (JSON.parse(localStorage.getItem('tcg:' + p)) || {}).d; } catch (e) {} }
+    const c = (S?.cards || []).find(x => norm(x.localId) === norm(u));
+    if (c) { const V = varCache(c.id); return V && V.base ? String(V.base) : null; }
+  }
+  return null;
+}
 function sbPid(S) {
   if (S.vp) return S.vp;
+  // nella pagina del set Cardmarket può avere più prodotti con lo stesso numero (Non Holo, timbrate…): vale quello base di TCGdex
+  const b = S.s && tcgBaseOf(S.s, S.u);
+  if (b) return b;
   const E = cmCatalogFor(S.sn || tcgSets.find(x => x.id === S.s)?.name || '');
   const c = E && Object.values(E.cards || {}).find(c => norm(c.u) === norm(S.u));
   return c ? c.p : null;
@@ -3025,7 +3041,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
     });
   };
   openDlg(`<h3>Metti in vendita su Cardmarket · ${esc(setName)}</h3>
-    ${xq ? `<p class="small" style="color:#7a4f00">Le <b>${xq} copie di varianti speciali</b> su Cardmarket stanno nella pagina <b>${esc(setName)}: Supplementi</b>: lo script, finite le altre, ti porta lì${list.length > list.filter(([, x]) => x.vp).length ? '' : ' (le apre subito)'}.</p>` : ''}
+    ${xq ? `<p class="small" style="color:#7a4f00">Le <b>${xq} copie di varianti speciali</b> su Cardmarket stanno di solito nella pagina <b>${esc(setName)}: Supplementi</b>, alcune nella pagina del set: lo script le riconosce dal numero del prodotto e, finite le altre, ti porta ai Supplementi${list.length > list.filter(([, x]) => x.vp).length ? '' : ' (li apre subito)'}.</p>` : ''}
     <p class="small">Scegli il prezzo: lo script Card Scanner lo userà così com'è, con i valori giusti per le <b>Normali</b> e per le <b>Reverse</b>.
     Se serve puoi cambiare il prezzo di una singola carta nella tabella.</p>
     ${Object.keys(saleOf).length ? `<p class="small">Le carte <b>già in vendita</b> (${Object.keys(saleOf).length}) usano il prezzo che hanno già: così su Cardmarket le copie nuove si aggiungono alla stessa offerta. Se è fuori mercato te lo segnala il gestionale come sempre.</p>` : ''}
@@ -3054,7 +3070,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
       const job = {
         v: 1, at: today(), name, set: cmCat?.name || setName, sid: setId, cm: cmCat?.id || '', lang, com: list.find(([, x]) => x.com)?.[1].com || '',
         base: b, plus: plusC,
-        items: list.map(([k, x]) => Object.assign({ u: x.u, rev: x.vp ? false : !!x.rev, q: x.q, n: x.n || '', r: x.r || '' }, x.vp ? { v: 'S', p: String(x.vp), vl: x.vl || '', vb: x.vb || '' } : {}, jobVals(k), over[k] != null ? { mp: over[k] } : saleOf[k] ? { mp: r2(saleOf[k].price) } : {}))
+        items: list.map(([k, x]) => Object.assign({ u: x.u, rev: x.vp ? false : !!x.rev, q: x.q, n: x.n || '', r: x.r || '' }, x.vp ? { v: 'S', p: String(x.vp), vl: x.vl || '', vb: x.vb || '' } : sbPid(x) ? { bp: String(sbPid(x)) } : {}, jobVals(k), over[k] != null ? { mp: over[k] } : saleOf[k] ? { mp: r2(saleOf[k].price) } : {}))
       };
       const enc = 'csjob=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
       try { navigator.clipboard.writeText(enc); } catch (e) {}
@@ -3153,7 +3169,7 @@ async function openPriceEdit(scopeSet, opt = {}) {
       const d = new Date(), z = n => String(n).padStart(2, '0');
       const name = `PREZZI-${scope ? SavedListsName(scope) : 'Tutti'}_${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
       const job = { v: 1, type: 'edit', at: today(), name, base: b, plus: plusC,
-        items: ch.map(({ k, l, c }) => ({ k, code: state.cm[l.exp]?.cards?.[l.p]?.c || '', exp: setOf(l), u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q, ...(l.vp ? { v: 'S', vl: l.vl, vb: l.vb, sl: slOfL(l) } : {}),
+        items: ch.map(({ k, l, c }) => ({ k, code: state.cm[l.exp]?.cards?.[l.p]?.c || '', exp: setOf(l), u: l.u, n: info(l).name, rev: !!l.rev, lang: l.lang || 'it', q: l.q, ...(l.vp ? { v: 'S', vl: l.vl, vb: l.vb, sl: slOfL(l) } : slOfL(l) ? { sl: slOfL(l) } : {}),
           old: l.price, price: c.p, b: c.m ? (l.rb || b) : c.used, o: c.m ? (l.ro ?? 0) : plusC, ref: c.ref ?? null, m: c.m ? 1 : 0 })) };
       const enc = 'csedit=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(job)))));
       try { navigator.clipboard.writeText(enc); } catch (e) {}

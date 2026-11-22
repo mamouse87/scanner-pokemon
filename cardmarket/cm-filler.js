@@ -322,7 +322,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 e</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 f</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -471,7 +471,7 @@
         const tail = `|${nrm(it.u)}|${it.rev ? 'R' : 'N'}|${it.lang || 'it'}`;
         let os = (it.code && byCode[it.code.toUpperCase() + tail]) || byExp[smp(it.exp) + tail] || [];
         // variante speciale: le offerte di quel prodotto (V1, V2…), Reverse Holo o no (Cardmarket può tenerle fisse su Reverse)
-        if (it.sl) os = offers.list.filter(o => o.sl === it.sl && (o.lang || 'it') === (it.lang || 'it'));
+        if (it.sl) os = offers.list.filter(o => o.sl === it.sl && (o.lang || 'it') === (it.lang || 'it') && (isVx(it.v) || !!o.rev === !!it.rev));
         if (!os.length) {
           // perché non c'è? cerco la stessa carta con un'altra variante o lingua
           const same = offers.list.filter(o => nrm(o.num) === nrm(it.u) && ((it.code && o.code === it.code.toUpperCase()) || smp(o.exp) === smp(it.exp)));
@@ -920,7 +920,12 @@
         tr, name: m[1].trim(), code: m[2], num: m[3], label: full.replace(/\s+/g, ' '), href: a.getAttribute('href'), pid,
         rarity: rar ? (rar.getAttribute('title') || rar.getAttribute('data-bs-original-title') || '') : ''
       };
-      if (!map.has(k)) map.set(k, row);
+      // più prodotti con lo stesso numero (es. la carta e la sua Non Holo o timbrata): tengo il prodotto più vecchio, di solito la carta base;
+      // se il gestionale manda il prodotto base (bp), vale quello
+      const old = map.get(k);
+      if (!old || (pid && old.pid && +pid < +old.pid)) map.set(k, row);
+      map.all = map.all || new Map();
+      map.all.set(k, [...(map.all.get(k) || []), row]);
       if (pid && !map.byP.has(pid)) map.byP.set(pid, row);
     });
     return map;
@@ -1090,6 +1095,11 @@
     const a = tr.querySelector('.col-product a');
     return { v: 'S', x: 1, vl: it ? it.vl || '' : '', vb: it ? it.vb || '' : '', sl: a ? slugOf(a.getAttribute('href')) : '' };
   }
+  // carta con più versioni nella pagina (…-V1-…, …-V2-…): la verifica della messa in vendita conta le copie per indirizzo, non per numero
+  function slOfRow(tr) {
+    const a = tr.querySelector('.col-product a'), sl = a ? slugOf(a.getAttribute('href')) : '';
+    return sl && /-V\d+-[A-Za-z]*\d+[a-z]?$/.test(sl) ? { sl } : {};
+  }
   function snapshot() {
     const rows = [];
     form.querySelectorAll('tbody tr').forEach(tr => {
@@ -1100,7 +1110,7 @@
       const lab = ((tr.querySelector('.col-product a') || {}).textContent || '').trim().match(/\(([A-Z0-9-]+)\s+([A-Z]*\d+[a-z]?)\)\s*$/i);
       rows.push({ p: pid.value, u: lab ? lab[2] : '', rev: !!(field(tr, 'isReverseHolo') || {}).checked, q: amt, price: isNaN(p) ? null : p,
         lang: LANG_CODE[(field(tr, 'idLanguage') || {}).value] || 'it', cond: +((field(tr, 'idCondition') || {}).value || 2),
-        com: (field(tr, 'comments') || {}).value || '', ...vxOfRow(tr, pid.value),
+        com: (field(tr, 'comments') || {}).value || '', ...slOfRow(tr), ...vxOfRow(tr, pid.value),
         // regola e valore di mercato al caricamento; se hai cambiato il prezzo a mano la regola resta ma vale il tuo prezzo
         b: tr.dataset.csB || null, o: tr.dataset.csO != null ? +tr.dataset.csO : null, ref: tr.dataset.csRef ? +tr.dataset.csRef : null,
         man: tr.dataset.csM === '1' || (tr.dataset.csP != null && !isNaN(p) && tr.dataset.csP !== p.toFixed(2)) ? 1 : 0 });
@@ -1481,7 +1491,8 @@
         (wantPrice ? ` · prezzo = ${BASE_NAME[base]}${fmtPlus}` : '') + (comment ? ` · commento "${comment}"` : ''));
 
     const byNum = new Map();
-    const missing = [], missVx = [];
+    const missing = [], missVx = [], dupNum = new Set();
+    const vxPids = new Set(items.filter(x => isVx(x.v) && x.p).map(x => String(x.p)));
     const done = Object.assign({}, doneGet());
     let skipped = 0;
     const supHere = onSupPage();
@@ -1502,15 +1513,26 @@
         g.normal += it.qty; byNum.set(gk, g);
         continue;
       }
-      const k = norm(it.num);
-      if (!rows.has(k) || supHere) { missing.push(it.num + (it.rev ? 'R' : '')); continue; }
-      const g = byNum.get(k) || { row: rows.get(k), normal: 0, rev: 0, name: it.name, rarity: it.rarity };
+      const k0n = norm(it.num);
+      const ji = (jobGet()?.items || []).find(x => !isVx(x.v) && norm(x.u) === k0n && x.bp);
+      let bRow = ji && rows.byP.get(String(ji.bp));
+      if (!bRow && rows.all && (rows.all.get(k0n) || []).length > 1) {
+        // più prodotti con questo numero: escludo quelli delle varianti speciali dell'elenco, poi tengo il più vecchio
+        const cand = rows.all.get(k0n).filter(r => !vxPids.has(String(r.pid))).sort((a, b) => (+a.pid || 0) - (+b.pid || 0));
+        if (cand.length > 1) dupNum.add(it.num);
+        bRow = cand[0] || null;
+        if (!bRow) { missing.push(it.num + (it.rev ? 'R' : '')); continue; }
+      }
+      if ((!rows.has(k0n) && !bRow) || supHere) { missing.push(it.num + (it.rev ? 'R' : '')); continue; }
+      const k = bRow ? 'p' + bRow.pid + '|b' : k0n;
+      const g = byNum.get(k) || { row: bRow || rows.get(k0n), jk: k0n, normal: 0, rev: 0, name: it.name, rarity: it.rarity };
       if (it.rev) g.rev += it.qty; else g.normal += it.qty;
       byNum.set(k, g);
     }
     if (skipped) log(`${skipped} copie della lista erano già state inviate al gestionale: non le compilo di nuovo.` +
       (!byNum.size ? ' Se non è vero, premi "azzera avanzamento" sotto la lista e poi di nuovo "Compila la pagina".' : ''), byNum.size ? '#9aa3ad' : '#ff9f43');
     if (missing.length) log('Non in questa pagina (altra pagina del set o set sbagliato): ' + missing.join(', '), '#ff9f43');
+    if (dupNum.size) log('Attenzione: in questa pagina ci sono più versioni con lo stesso numero (' + [...dupNum].join(', ') + '). Ho scelto la più vecchia, di solito la carta base: controlla la foto della riga prima di mettere in vendita.', '#ff9f43');
     // le varianti rare (Jumbo, timbrate, promo…) possono stare in un'Edizione diversa dai Supplementi: lo script le riconosce dal prodotto in qualunque pagina
     if (missVx.length) log('Varianti speciali non in questa pagina: ' + missVx.join(', ') + (supHere ? '. Non sono nemmeno nei Supplementi (o sono in un\'altra pagina dei Supplementi): cercale su Cardmarket, apri la loro Edizione in "Inserisci carte bulk" e premi di nuovo "Compila la pagina".' : '.'), '#ff9f43');
     if (byNum.size > 100) log('Attenzione: più di 100 carte diverse, Cardmarket potrebbe non inserirle tutte in un solo invio.', '#ff9f43');
@@ -1520,7 +1542,7 @@
     const jobMap = job ? new Map(job.items.map(it => [isVx(it.v) ? 'p' + it.p + '|N' : norm(it.u) + '|' + (it.rev ? 'R' : 'N'), it])) : null;
     if (job) log(`Prezzi dall'elenco del gestionale (${job.items.length} righe, calcolati per Normali e Reverse).`, '#9aa3ad');
     // la Price Guide serve solo per le Reverse che l'elenco del gestionale non copre
-    const revNoJob = [...byNum.entries()].some(([gk, g]) => g.rev && !(jobMap && (() => { const ji = jobMap.get(gk + '|R'); return ji && (ji.mp != null || ji.lo != null || ji.t != null); })()));
+    const revNoJob = [...byNum.entries()].some(([gk, g]) => g.rev && !(jobMap && (() => { const ji = jobMap.get((g.jk || gk) + '|R'); return ji && (ji.mp != null || ji.lo != null || ji.t != null); })()));
     if (wantPrice && revNoJob) {
       const pids = new Set([...byNum.values()].map(g => String((field(g.row.tr, 'idProduct') || {}).value)));
       await priceGuide(pids);
@@ -1544,7 +1566,7 @@
         }
         let price = null, src = '', pwarn = false, rule = null;
         if (wantPrice) {
-          const ji = jobMap && jobMap.get(gk + '|' + (v.rev ? 'R' : 'N'));
+          const ji = jobMap && jobMap.get((g.jk || gk) + '|' + (v.rev ? 'R' : 'N'));
           const b = (ji && jobValue(ji, v.rev, base)) || baseValue(g.row.tr, v.rev, base);
           src = b.src; pwarn = !!b.warn;
           if (b.fixed != null) {

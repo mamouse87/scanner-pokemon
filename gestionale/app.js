@@ -259,7 +259,10 @@ async function cardVariants(cardId, fresh) {
   }
   return c;
 }
-function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 4000); }
+// preferenze dell'interfaccia (nei dati: valgono su tutti i PC collegati al backup)
+const UI_DEF = { undoS: 15, toastS: 4 };
+function uiCfg() { let u = {}; try { u = (state && state.ui) || {}; } catch (e) {} return Object.assign({}, UI_DEF, u); }   // try: durante il caricamento state non esiste ancora
+function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), uiCfg().toastS * 1000); }
 
 // ---------- TCGdex: set e carte in italiano (con cache nel browser) ----------
 const mem = {};
@@ -853,6 +856,13 @@ function renderSettings() {
         <p class="small">Esempio: con 2 cent. e 10%, una carta da 0,05 € viene segnalata se va sotto 0,03 € o sopra 0,07 €; una da 1 € se si sposta di almeno 0,10 €.</p></div>
     </section>
     <section class="sc">
+      <h3>🎛 Interfaccia</h3>
+      <p class="small">Valgono su tutti i PC collegati allo stesso backup.</p>
+      <div class="rule"><b>Notifica "↶ Annulla" in basso</b><div class="row" style="align-items:center">resta per <select id="uiUndo">${[5, 10, 15, 30, 60].map(v => `<option value="${v}" ${uiCfg().undoS === v ? 'selected' : ''}>${v} secondi</option>`).join('')}</select></div>
+        <p class="small">Puoi chiuderla prima con ✕. Dopo, l'operazione si annulla sempre con ↶ in alto.</p></div>
+      <div class="rule"><b>Messaggi brevi</b> (per esempio "Soglia salvata")<div class="row" style="align-items:center">restano per <select id="uiToast">${[2, 3, 4, 6, 10].map(v => `<option value="${v}" ${uiCfg().toastS === v ? 'selected' : ''}>${v} secondi</option>`).join('')}</select></div></div>
+    </section>
+    <section class="sc">
       <h3>🧰 Strumenti</h3>
       <div class="rule" id="pwaBox"><b>Gestionale come app sul PC</b>
         ${pwaStandalone() ? '<p class="small">✔ Stai usando il gestionale installato come app.</p>'
@@ -884,6 +894,7 @@ function renderSettings() {
     ['bk', '💾', 'Backup nel PC', bkTxt[0], bkState === 'ok' ? 'ok' : bkOk() || bkState === 'nosupport' ? '' : 'bad'],
     ['mk', '📈', 'Prezzi di mercato', state.revAt ? 'Aggiornati ' + fmtDT(state.revAt) : 'Mai aggiornati', ''],
     ['rules', '⚖️', 'Regole di prezzo', `${BASEN[up.base]} · soglia ${thrCfg().c} cent. / ${thrCfg().pct}%`, ''],
+    ['ui', '🎛', 'Interfaccia', `Annulla ${uiCfg().undoS} s · messaggi ${uiCfg().toastS} s`, ''],
     ['tools', '🧰', 'Strumenti', 'Script, app, Cardmarket', ''],
     ['log', '📜', 'Registro', `${(state.log || []).length} operazioni`, ''],
     ['data', '🗂', 'Dati salvati', `${(size / 1024).toFixed(0)} KB usati`, ''],
@@ -948,6 +959,7 @@ function renderSettings() {
     cfg.base = $(id + 'B').value; cfg.plus = (+$(id + 'S').value || 1) * Math.abs(parseInt($(id + 'P').value || '0', 10) || 0); save(); toast('Regola salvata');
   });
   bindRule('rU', up); bindRule('rE', ed);
+  [['uiUndo', 'undoS'], ['uiToast', 'toastS']].forEach(([id, k]) => $(id).onchange = () => { state.ui = Object.assign(state.ui || {}, { [k]: +$(id).value }); save(); toast('Preferenza salvata'); renderSettings(); });
   ['thC', 'thP'].forEach(id => $(id).onchange = () => { const t = thrCfg(); t.c = Math.max(0, parseInt($('thC').value, 10) || 0); t.pct = Math.max(0, parseInt($('thP').value, 10) || 0); save(); renderTabs(); renderSets(); toast('Soglia salvata'); });
   $('sWipe').onclick = () => { if (confirm('Cancellare tutte le carte in vendita e le vendite? Fai prima un backup.')) { state = Object.assign({}, state, { listings: {}, sold: [], orders: {}, market: {} }); logOp('dati', '', 'Svuotate tutte le carte in vendita e le vendite'); save(); refresh(); } };
 }
@@ -1855,10 +1867,11 @@ function showUndo(msg) {
   document.querySelectorAll('.undobar').forEach(x => x.remove());
   const b = document.createElement('div');
   b.className = 'undobar';
-  b.innerHTML = `<span>${esc(msg)}</span><button>↶ Annulla</button>`;
+  b.innerHTML = `<span>${esc(msg)}</span><button>↶ Annulla</button><button class="ux" title="Chiudi (puoi sempre annullare con ↶ in alto)">✕</button>`;
   b.querySelector('button').onclick = () => { b.remove(); undoDo(1); };
+  b.querySelector('.ux').onclick = () => b.remove();
   document.body.appendChild(b);
-  setTimeout(() => b.remove(), 60000);
+  setTimeout(() => b.remove(), uiCfg().undoS * 1000);
 }
 function bulkAction(kind, sid, setName) {
   if (!sel.size) { alert('Seleziona prima le carte (tocca le carte, oppure "Seleziona tutte quelle visibili").'); return; }

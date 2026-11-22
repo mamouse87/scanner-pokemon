@@ -165,7 +165,7 @@ const isSupName = n => SUPRX.test(String(n || ''));
 const slugOf = u => { const t = String(u || '').split(/[?#]/)[0].replace(/\/+$/, ''); return t.slice(t.lastIndexOf('/') + 1); };
 /** indirizzo (slug) del prodotto di una carta speciale in vendita, dall'elenco della pagina bulk mandato dallo script */
 // indirizzo del prodotto: per le speciali, e per le carte che nella pagina del set hanno più versioni con lo stesso numero (…-V1-…, …-V2-…)
-const slOfL = l => { if (!l) return undefined; const sl = slugOf(state.cm[l.exp]?.cards?.[l.p]?.ur); return sl && (l.vp || /-V\d+-/.test(sl)) ? sl : undefined; };
+const slOfL = l => { if (!l) return undefined; const sl = slugOf(state.cm[l.exp]?.cards?.[l.p]?.ur); return sl && (l.vp || /-V\d+-[A-Za-z0-9]+$/.test(sl)) ? sl : undefined; };
 /** slug → numero prodotto, per le offerte lette dallo script (Supplementi: V1 e V2 hanno lo stesso numero di carta) */
 function pidBySlug() {
   const m = {};

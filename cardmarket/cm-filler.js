@@ -322,7 +322,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 f</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 g</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -355,7 +355,7 @@
         const qt = row.querySelector('.amount-container .item-count') || row.querySelector('.item-count');
         const sl = a ? slugOf(a.getAttribute('href')) : '';
         const o = { id, name: mm ? mm[1].trim() : name, code: mm ? mm[2].toUpperCase() : '', num: mm ? mm[3] : '', exp, lang: lang || 'it', rev, price, qty: qt ? +qt.textContent.trim() : null };
-        if (sl && (/-V\d+-[A-Za-z]*\d+[a-z]?$/.test(sl) || /supplementi|additionals?/i.test(exp))) o.sl = sl;
+        if (sl && (/-V\d+-[A-Za-z0-9]+$/.test(sl) || /supplementi|additionals?/i.test(exp))) o.sl = sl;
         return o;
       }).filter(x => x.id);
     }
@@ -471,12 +471,18 @@
         const tail = `|${nrm(it.u)}|${it.rev ? 'R' : 'N'}|${it.lang || 'it'}`;
         let os = (it.code && byCode[it.code.toUpperCase() + tail]) || byExp[smp(it.exp) + tail] || [];
         // variante speciale: le offerte di quel prodotto (V1, V2…), Reverse Holo o no (Cardmarket può tenerle fisse su Reverse)
-        if (it.sl) os = offers.list.filter(o => o.sl === it.sl && (o.lang || 'it') === (it.lang || 'it') && (isVx(it.v) || !!o.rev === !!it.rev));
+        if (it.sl) {
+          const bySl = offers.list.filter(o => o.sl === it.sl && (o.lang || 'it') === (it.lang || 'it') && (isVx(it.v) || !!o.rev === !!it.rev));
+          // carta normale: se per indirizzo non la trovo, resta l'abbinamento per sigla e numero (come prima)
+          if (bySl.length || isVx(it.v)) os = bySl;
+        }
         if (!os.length) {
           // perché non c'è? cerco la stessa carta con un'altra variante o lingua
           const same = offers.list.filter(o => nrm(o.num) === nrm(it.u) && ((it.code && o.code === it.code.toUpperCase()) || smp(o.exp) === smp(it.exp)));
           const LN = Object.fromEntries(Object.entries(LANGS).map(([k, v]) => [v, k]));
+          const twin = same.some(o => !!o.rev === !!it.rev && (o.lang || 'it') === (it.lang || 'it'));
           const why = !same.length ? 'Su Cardmarket non è in vendita (nel gestionale sì: controlla la quantità o toglila dal gestionale).'
+            : twin ? 'Su Cardmarket c\'è la stessa carta, ma come un\'altra versione del prodotto (V1/V2: per esempio Non Holo o timbrata). Controlla su Cardmarket quale versione hai in vendita.'
             : 'Su Cardmarket c\'è come ' + [...new Set(same.map(o => `${o.rev ? 'Reverse' : 'Normale'}${o.lang !== (it.lang || 'it') ? ' in ' + (LN[o.lang] || o.lang) : ''}`))].join(' e ') +
               `, nel gestionale come ${it.rev ? 'Reverse' : 'Normale'}${(it.lang || 'it') !== 'it' ? ' in ' + (LN[it.lang] || it.lang) : ''}.`;
           out.push({ it, o: null, st: '', why }); return;
@@ -1098,7 +1104,7 @@
   // carta con più versioni nella pagina (…-V1-…, …-V2-…): la verifica della messa in vendita conta le copie per indirizzo, non per numero
   function slOfRow(tr) {
     const a = tr.querySelector('.col-product a'), sl = a ? slugOf(a.getAttribute('href')) : '';
-    return sl && /-V\d+-[A-Za-z]*\d+[a-z]?$/.test(sl) ? { sl } : {};
+    return sl && /-V\d+-[A-Za-z0-9]+$/.test(sl) ? { sl } : {};
   }
   function snapshot() {
     const rows = [];

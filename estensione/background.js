@@ -33,23 +33,23 @@ async function normalWindow() {
   const ws = await chrome.windows.getAll({ windowTypes: ['normal'] });
   return ws.find(w => w.focused) || ws[0] || null;
 }
-async function focus(tab) {
+async function focusTab(tab) {
   await chrome.tabs.update(tab.id, { active: true });
   try { await chrome.windows.update(tab.windowId, { focused: true }); } catch (e) {}
 }
 /** riusa la scheda di Cardmarket se c'è (la più recente), altrimenti ne apre una in una finestra normale di Chrome */
 async function openCm(url) {
   const tabs = (await chrome.tabs.query({ url: CM + '*' })).sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
-  if (tabs[0]) { await chrome.tabs.update(tabs[0].id, { url }); await focus(tabs[0]); return; }
+  if (tabs[0]) { await chrome.tabs.update(tabs[0].id, { url }); await focusTab(tabs[0]); return; }
   const w = await normalWindow();
-  if (w) { const t = await chrome.tabs.create({ windowId: w.id, url }); await focus(t); }
+  if (w) { const t = await chrome.tabs.create({ windowId: w.id, url }); await focusTab(t); }
   else await chrome.windows.create({ url, focused: true });
 }
 /** risultato dello script → finestra del gestionale (anche l'app installata) */
 async function toGest(h) {
   const tabs = (await chrome.tabs.query({ url: GEST + '*' })).sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
   for (const t of tabs) {
-    try { await chrome.tabs.sendMessage(t.id, { t: 'res', h }); await focus(t); return; } catch (e) { /* ponte non presente: provo la prossima */ }
+    try { await chrome.tabs.sendMessage(t.id, { t: 'res', h }); await focusTab(t); return; } catch (e) { /* ponte non presente: provo la prossima */ }
   }
   const w = await normalWindow();
   if (w) await chrome.tabs.create({ windowId: w.id, url: GEST + h });

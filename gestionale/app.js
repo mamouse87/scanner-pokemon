@@ -38,20 +38,7 @@ function loadRaw() {
 }
 function load() {
   try { const s = JSON.parse(loadRaw()); if (s && s.listings) return Object.assign({ cm: {}, sold: [], standby: {} }, s); } catch (e) {}
-  const s = { cm: {}, listings: {}, sold: [], standby: {} };
-  // dalla versione precedente tengo gli elenchi Cardmarket, le carte in vendita e le vendite
-  try {
-    const o = JSON.parse(localStorage.getItem('gestionaleCarte_v2'));
-    if (o) {
-      s.cm = o.exps || {};
-      for (const [k, l] of Object.entries(o.listings || {})) {
-        const c = s.cm[l.exp]?.cards?.[l.p] || {};
-        s.listings[k] = Object.assign({ expName: s.cm[l.exp]?.name || '', u: c.u || '' }, l);
-      }
-      s.sold = o.sold || [];
-    }
-  } catch (e) {}
-  return s;
+  return { cm: {}, listings: {}, sold: [], standby: {} };
 }
 /** toglie dal browser le copie temporanee dei dati TCGdex (si riscaricano da sole): all = tutte, altrimenti solo quelle inutili o vecchie */
 function tcgPurge(all) {
@@ -1005,14 +992,7 @@ window.addEventListener('message', e => {
   if (!P || !P.p || Date.now() - P.at > 12 * 3600e3) return;          // niente in attesa (o troppo vecchio)
   try { e.source.postMessage({ cs: 'job', p: P.p }, 'https://www.cardmarket.com'); } catch (x) {}
 });
-const CHK_KEY = 'gestionaleCheck';
 Object.defineProperty(globalThis, 'chk', { configurable: true, get: () => state.chk || null, set: v => { state.chk = v || null; } });
-// vecchio controllo salvato solo in questo browser: lo sposto nei dati (se nei dati non ce n'è già uno)
-try {
-  const old = JSON.parse(localStorage.getItem(CHK_KEY) || 'null');
-  if (old && old.list && !state.chk) state.chk = old;               // va nei dati al prossimo salvataggio
-  else if (old) localStorage.removeItem(CHK_KEY);                       // già nei dati: la vecchia copia non serve più
-} catch (e) {}
 function importCheckFromHash() {
   const m = location.hash.match(/^#cmchk=(.+)$/);
   if (!m) return false;
@@ -1275,7 +1255,7 @@ function clBits(id, page) {
   return b;
 }
 function clUnbits(b) {
-  const v = b.reduce((a, x) => a * 2 + x, 0), id = (v >> 8) & 0xffff, page = (v >> 3) & 31, chk = v & 7;
+  const v = b.reduce((a, x) => a * 2 + x, 0), id = (v >> 8) & 0xffff, page = (v >> 3) & 31;
   return clBits(id, page).every((x, i) => x === b[i]) ? { id, page } : null;
 }
 const clHex = id => id.toString(16).toUpperCase().padStart(4, '0');
@@ -1600,25 +1580,6 @@ function renderOut() {
 const LOGT = { standby: '📥 Standby', vendita: '🛒 In vendita', venduta: '💶 Venduta', prezzo: '✏️ Prezzo', quantita: '🔢 Quantità', tolta: '🗑 Tolta', riportata: '↩ In Standby', mercato: '⚠ Mercato', dati: '💾 Dati' };
 /** 22/11: la prova delle varianti speciali (Supplementi) è stata tolta. Tolgo dai dati quello che aveva aggiunto:
  *  le copie speciali in Standby (questa versione le vedrebbe come normali), i riconoscimenti e l'elenco dei Supplementi. */
-function cleanVariants() {
-  const isSup = n => /:\s*(supplementi|additionals?)\s*$/i.test(String(n || ''));
-  let changed = false;
-  const gone = [];
-  Object.entries(state.standby || {}).forEach(([k, x]) => { if (x && x.vx) { gone.push(`${x.u} ${x.n || ''} ×${x.q}`.trim()); delete state.standby[k]; delete (state.sbMarket || {})[k]; changed = true; } });
-  Object.values(state.listings || {}).forEach(l => { if (l && 'vx' in l) { delete l.vx; changed = true; } });
-  (state.sold || []).forEach(x => { if (x && 'vx' in x) { delete x.vx; changed = true; } });
-  ['sup', 'cmx', 'pgTry'].forEach(f => { if (f in state) { delete state[f]; changed = true; } });
-  // elenco dei Supplementi mandato per le varianti: lo tolgo se nessuna carta in vendita o venduta lo usa
-  Object.entries(state.cm || {}).forEach(([id, E]) => {
-    if (!isSup(E && E.name)) return;
-    const used = Object.values(state.listings || {}).some(l => String(l.exp) === String(id)) || (state.sold || []).some(x => String(x.exp) === String(id));
-    if (!used) { delete state.cm[id]; changed = true; }
-  });
-  if (!changed) return;
-  logOp('dati', '', 'Tolta la prova delle varianti speciali (Supplementi)' + (gone.length ? `: tolte dallo Standby ${gone.join(', ')}` : ''), null);
-  save();
-  if (gone.length) setTimeout(() => toast(`Varianti speciali tolte: ${gone.length} ${gone.length === 1 ? 'carta speciale tolta' : 'carte speciali tolte'} dallo Standby (${gone.join(', ')})`), 600);
-}
 function logOp(t, set, txt, q) {
   const L = state.log || (state.log = []);
   L.push({ at: new Date().toISOString(), t, set: set || '', txt, q: q ?? null });
@@ -1752,27 +1713,27 @@ function gsIndex() {
   const sigOf = (sid, name) => sid in sg ? sg[sid] : (sg[sid] = siglaOf(sid, name) || '');
   const typOf = (sid, u) => { if (!sid || String(sid).startsWith('cm:')) return ''; const T = typ[sid] || (typ[sid] = typCache(sid)); return T[norm(u)] || ''; };
   const numW = u => { const n = String(u || ''); return /^\d+$/.test(n) ? [n, String(parseInt(n, 10))] : [n]; };
-  for (const [k, l] of Object.entries(state.listings)) {
+  for (const l of Object.values(state.listings)) {
     const sid = lSid(l) || ('cm:' + l.exp), I = info(l), code = String(setCode(l) || '');
     seen.add(sid + '|' + norm(l.u));
     out.push({ sec: 'v', sid, u: l.u, name: I.name, code, set: I.set, rev: l.rev, lang: l.lang,
       sub: [I.set, I.rar !== 'Non indicata' ? I.rar : '', LANGN[l.lang] && l.lang !== 'it' ? LANGN[l.lang] : ''].filter(Boolean).join(' · '),
       right: `${l.q} × ${eur(l.price) || '—'}`, st: ['v', 'In vendita'],
-      hay: [...numW(l.u), code, code + String(l.u || '').padStart(3, '0'), I.name, I.set, I.rar, l.rev ? 'reverse holo rev' : 'normale', LANGN[l.lang], 'in vendita', eur(l.price).replace(' €', ''), l.com, typOf(sid, l.u), state.cm[l.exp]?.cards?.[l.p]?.n].join(' ') });
+      hay: [...numW(l.u), code, code + String(l.u || '').padStart(3, '0'), I.name, I.set, I.rar, l.vp ? (l.vl || 'variante speciale') + ' speciale' : l.rev ? 'reverse holo rev' : 'normale', LANGN[l.lang], 'in vendita', eur(l.price).replace(' €', ''), l.com, typOf(sid, l.u), state.cm[l.exp]?.cards?.[l.p]?.n].join(' ') });
   }
-  for (const [k, x] of Object.entries(state.standby || {})) {
+  for (const x of Object.values(state.standby || {})) {
     const code = sigOf(x.s, x.sn);
     seen.add(x.s + '|' + norm(x.u));
     out.push({ sec: 's', sid: x.s, u: x.u, name: x.n, code, set: x.sn, rev: x.rev, lang: x.lang,
       sub: [x.sn, rarIt(x.r), x.file ? 'da ' + x.file : ''].filter(Boolean).join(' · '), right: `${x.q} ${x.q === 1 ? "copia" : "copie"}`, st: ['s', 'Standby'],
-      hay: [...numW(x.u), code, code + String(x.u || '').padStart(3, '0'), x.n, x.sn, rarIt(x.r), x.rev ? 'reverse holo rev' : 'normale', LANGN[x.lang], 'standby', x.com, x.file, typOf(x.s, x.u)].join(' ') });
+      hay: [...numW(x.u), code, code + String(x.u || '').padStart(3, '0'), x.n, x.sn, rarIt(x.r), x.vp ? (x.vl || 'variante speciale') + ' speciale' : x.rev ? 'reverse holo rev' : 'normale', LANGN[x.lang], 'standby', x.com, x.file, typOf(x.s, x.u)].join(' ') });
   }
   state.sold.forEach(x => {
     const sn = x.expName || state.cm[x.exp]?.name || '', sid = x.vs || tcgIdFor(sn) || (x.exp ? 'cm:' + x.exp : null);
     out.push({ sec: 'x', sid, u: x.num, name: x.name, code: '', set: sn, rev: x.rev, order: x.order,
       sub: [fmtD(x.date), sn, x.buyer || '', x.order ? '#' + x.order : '', x.source || ''].filter(Boolean).join(' · '),
       right: `${x.q} × ${eur(x.price) || '—'}`, st: ['x', 'Venduta'],
-      hay: [...numW(x.num), x.name, sn, x.rev ? 'reverse holo rev' : 'normale', LANGN[x.lang], 'venduta vendite venduto', x.buyer, x.order, x.source, fmtD(x.date), eur(x.price).replace(' €', ''), typOf(sid, x.num)].join(' ') });
+      hay: [...numW(x.num), x.name, sn, x.vp ? (x.vl || 'variante speciale') + ' speciale' : x.rev ? 'reverse holo rev' : 'normale', LANGN[x.lang], 'venduta vendite venduto', x.buyer, x.order, x.source, fmtD(x.date), eur(x.price).replace(' €', ''), typOf(sid, x.num)].join(' ') });
   });
   // altre carte dei set che conosco dal catalogo di Cardmarket (non le ho)
   Object.values(state.cm).forEach(E => {
@@ -2154,7 +2115,7 @@ function renderDash() {
   // copie per variante: Normali, Reverse, e ogni variante speciale con il suo nome
   const byV = arr => { const m = {}; arr.filter(x => x.vp).forEach(x => { m[x.vl || 'Variante speciale'] = (m[x.vl || 'Variante speciale'] || 0) + x.q; });
     return [['Normali', arr.filter(x => !x.vp && !x.rev).reduce((a, x) => a + x.q, 0)], ['Reverse Holo', arr.filter(x => !x.vp && x.rev).reduce((a, x) => a + x.q, 0)], ...Object.entries(m).sort((a, b) => b[1] - a[1])]; };
-  const sbAll = Object.values(state.standby || {}), xQ = ls.filter(l => l.vp).reduce((a, l) => a + l.q, 0);
+  const sbAll = Object.values(state.standby || {});
 
   // vendite ultimi 12 mesi
   const months = [];
@@ -2495,7 +2456,7 @@ function textOf(raw) {
 }
 // ---------- ordine / spedizione di Cardmarket ----------
 // riga tipo: "1 Mimikyu 037 IT NM PAF R Reverse Holo - Collezione Personale 0,02 EUR"
-const ORDER_LINE = /^(\d+)\s+(.+?)\s+([A-Z]{0,4}\d{1,3}[a-z]?)\s+(IT|EN|FR|DE|ES|PT|JP|JA|KO|ZH|RU|NL)\s+(MT|NM|EX|GD|LP|PL|PO)\s+([A-Z0-9-]{2,6})\s+(.*?)\s*(\d{1,4}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)\s*$/;
+const ORDER_LINE = /^(\d+)\s+(.+?)\s+([A-Z]{0,4}\d{1,3}[a-z]?)\s+(IT|EN|FR|DE|ES|PT|JP|JA|KO|ZH|RU|NL)\s+(MT|NM|EX|GD|LP|PL|PO)\s+(x?[A-Z0-9-]{2,6})\s+(.*?)\s*(\d{1,4}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)\s*$/;
 const LANG_CODE = { IT: 'it', EN: 'en', FR: 'fr', DE: 'de', ES: 'es', PT: 'pt', JP: 'ja', JA: 'ja' };
 function parseOrder(text) {
   const items = [];
@@ -2528,11 +2489,17 @@ const setCode = l => {
   return setCodeMemo[mk];
 };
 function orderCandidates(it) {
-  // stessa sigla del set e stesso numero; prima quelle con stessa variante e lingua
-  return Object.entries(state.listings)
+  // stessa sigla del set e stesso numero; prima quelle con stessa variante e lingua.
+  // Le speciali non guardano la Reverse: nei Supplementi Cardmarket le tiene sempre segnate Reverse.
+  const C = Object.entries(state.listings)
     .filter(([, l]) => setCode(l).toUpperCase() === it.code.toUpperCase() && norm(l.u) === norm(it.num))
-    .map(([k, l]) => ({ k, l, exact: l.rev === it.rev && l.lang === it.lang }))
-    .sort((a, b) => b.exact - a.exact);
+    .map(([k, l]) => ({ k, l, exact: (l.vp ? true : l.rev === !!it.rev) && (l.lang || 'it') === it.lang,
+      same: l.price != null && it.price != null && r2(l.price) === r2(it.price) }));
+  // più versioni con la stessa sigla e numero (normale e Non Holo, V1 e V2…): vale quella con lo stesso prezzo dell'ordine;
+  // se il prezzo non basta a deciderlo, nessuna è "esatta" e la riga non si spunta da sola
+  const ex = C.filter(c => c.exact);
+  if (ex.length > 1) { const sp = ex.filter(c => c.same); ex.forEach(c => { c.amb = true; c.exact = sp.length === 1 && c.same; }); }
+  return C.sort((a, b) => (b.exact - a.exact) || (b.same - a.same));
 }
 /** sigla del set (es. 30C, DLR) → espansione di Cardmarket conosciuta */
 function expByCode(code) {
@@ -2545,11 +2512,11 @@ function orderReview(o, file, pos) {
   const tot = o.items.reduce((a, it) => a + it.price * it.qty, 0);
   const n = o.items.reduce((a, it) => a + it.qty, 0);
   // se l'ordine era già stato caricato: le righe già registrate (stesso numero, variante e prezzo) non si ripetono
-  const done = o.id ? state.sold.filter(s => s.order === o.id).map(s => ({ num: norm(s.num), rev: !!s.rev, price: r2(s.price || 0), q: s.q })) : [];
+  const done = o.id ? state.sold.filter(s => s.order === o.id).map(s => ({ num: norm(s.num), rev: !!s.rev, vp: !!s.vp, price: r2(s.price || 0), q: s.q })) : [];
   const rows = o.items.map(it => {
     const r = Object.assign({ cands: orderCandidates(it) }, it);
     let need = it.qty;
-    done.forEach(d => { if (need && d.q > 0 && d.num === norm(it.num) && d.rev === !!it.rev && d.price === r2(it.price)) { const t = Math.min(need, d.q); d.q -= t; need -= t; } });
+    done.forEach(d => { if (need && d.q > 0 && d.num === norm(it.num) && (d.vp || d.rev === !!it.rev) && d.price === r2(it.price)) { const t = Math.min(need, d.q); d.q -= t; need -= t; } });
     r.left = need;
     return r;
   });
@@ -2576,7 +2543,7 @@ function orderReview(o, file, pos) {
     ${rows.map((r, i) => `<tr style="${r.left ? '' : 'opacity:.55'}">
       <td><input type="checkbox" data-i="${i}" ${r.left > 0 && (!r.cands.length || r.cands[0].exact || dup) ? 'checked' : ''}></td>
       <td>${esc(r.code)} ${esc(r.num)} <b>${esc(r.name)}</b>${r.rev ? ' <b style="color:var(--rev)">Reverse</b>' : ''} <span class="small">${esc(r.lang.toUpperCase())} ${esc(r.cond)}${r.com ? ' · ' + esc(r.com) : ''}</span>${r.left ? '' : '<div class="small">già registrata</div>'}</td>
-      <td>${r.cands.length ? `<select data-s="${i}">${r.cands.map((c, j) => `<option value="${j}">${esc(c.l.u)} ${esc(state.cm[c.l.exp]?.cards?.[c.l.p]?.n || '')} · ${esc(vLab(c.l))} · ${esc((c.l.lang || '').toUpperCase())} (${c.l.q} in vendita)${c.exact ? '' : ' ⚠ variante diversa'}</option>`).join('')}</select>` : ''}
+      <td>${r.cands.length ? `<select data-s="${i}">${r.cands.map((c, j) => `<option value="${j}">${esc(c.l.u)} ${esc(state.cm[c.l.exp]?.cards?.[c.l.p]?.n || '')} · ${esc(vLab(c.l))} · ${esc((c.l.lang || '').toUpperCase())} (${c.l.q} in vendita)${c.exact ? '' : c.amb ? ' ⚠ più versioni: scegli' : ' ⚠ variante diversa'}</option>`).join('')}</select>${r.cands[0].amb && !r.cands[0].exact ? '<div class="small" style="color:var(--var)">Ci sono più versioni di questa carta in vendita (per esempio normale e Non Holo): scegli quella venduta.</div>' : ''}` : ''}
         <div class="small" data-w="${i}" style="color:var(--var)"></div></td>
       <td><input type="number" min="1" value="${r.left || r.qty}" data-q="${i}" style="width:56px"></td><td>${eur(r.price)}</td></tr>`).join('')}</table></div>
     <p class="row" style="justify-content:space-between"><span class="small" id="oSum"></span><span><button id="dClose">${pos ? 'Salta questo ordine' : 'Annulla'}</button> <button class="pri" id="dApply">Registra la vendita</button></span></p>`, () => {
@@ -3911,7 +3878,6 @@ function otherTab() {
     if (gh.dirty && !ghConflict) { ghDirty = true; setTimeout(() => { if (ghDirty && !ghConflict) ghWrite(); }, 4000); }
   }
   await loadSets();
-  cleanVariants();
   const checked = importCheckFromHash();
   importEditFromHash();
   const arrived = importFromHash();

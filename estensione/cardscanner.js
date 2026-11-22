@@ -213,7 +213,6 @@ window.__csMain = async (csExt) => {
   function offersMode() {
     if (window.__csOffers) { window.__csOffers.style.display = ''; return; }
     const EKEY = 'cs_edit', DKEY = 'cs_edit_done', OKEY = 'cs_offers';
-    const GEST = 'https://mamouse87.github.io/scanner-pokemon/gestionale/';
     const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
     const escH = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -506,13 +505,6 @@ window.__csMain = async (csExt) => {
       return out;
     }
 
-    function setVal(el, v) {
-      const proto = Object.getPrototypeOf(el);
-      const d = Object.getOwnPropertyDescriptor(proto, 'value');
-      if (d && d.set) d.set.call(el, v); else el.value = v;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    }
     let stopHard = false;
     let lastErr = '';
     const fail = t => { lastErr = t.replace(/^⚠\s*/, ''); prog(t); return 'err'; };
@@ -800,7 +792,6 @@ window.__csMain = async (csExt) => {
     'rara segreta': 'secret rare', 'asso tattico rara': 'ace spec rare', 'rara ace spec': 'ace spec rare',
     'promo': 'promo', 'nessuna': ''
   };
-  const GEST_URL = 'https://mamouse87.github.io/scanner-pokemon/gestionale/';
   const MIN_PRICE = 0.02;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -1485,7 +1476,7 @@ window.__csMain = async (csExt) => {
   };
 
   async function run() {
-    const { lang, langCode, setName, setId, items } = parseInput($('csInput').value);
+    const { lang, setName, items } = parseInput($('csInput').value);
     const filled = [];
     if (!items.length) { log('Nessuna carta nella lista.', '#ff6b6b'); return; }
     const rows = pageRows();

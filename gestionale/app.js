@@ -179,6 +179,12 @@ function vxBySlug() {
 }
 const vHay = x => isVx(x.vx) ? `${VXN[x.vx]} ${VXS[x.vx]} ${VXB[x.vx]} speciale supplementi pokeball masterball cosmo cosmos timbrata stamped`.toLowerCase() : x.rev ? 'reverse holo rev' : 'normale';
 const isSupName = n => /:\s*(supplementi|additionals?)\s*$/i.test(String(n || ''));
+/** immagine del prodotto Cardmarket di una carta speciale (letta dalla pagina bulk dei Supplementi) */
+function vxImgOf(x, setId) {
+  if (!x || !isVx(x.vx) || !x.p) return '';
+  const E = (x.exp && state.cm[x.exp]) || (setId && supCatOf(setId)) || Object.values(state.cm).find(e => e.cards?.[x.p]);
+  return E?.cards?.[x.p]?.i || '';
+}
 const supBase = n => String(n || '').replace(/:\s*(supplementi|additionals?)\s*$/i, '').trim();
 const slugOf = u => { const t = String(u || '').split(/[?#]/)[0].replace(/\/+$/, ''); return t.slice(t.lastIndexOf('/') + 1); };
 const vNumOf = u => { const m = slugOf(u).match(/-V(\d+)-[A-Za-z]*\d+[a-z]?$/); return m ? +m[1] : 0; };
@@ -325,6 +331,7 @@ function mergeCatalog(exp) {
   const E = state.cm[exp.id] || (state.cm[exp.id] = { id: exp.id, name: exp.name || '', cards: {} });
   if (exp.name) E.name = exp.name;
   (exp.cards || []).forEach(c => { E.cards[c.p] = Object.assign(E.cards[c.p] || {}, c); });
+  if ((exp.cards || []).length) E.at = new Date().toISOString();   // data dei valori Da / Tendenza letti dalla pagina bulk
   // prezzo attuale su Cardmarket per le carte in vendita senza prezzo
   Object.values(state.listings).forEach(l => { if (l.exp === exp.id && l.price == null && E.cards[l.p]?.m != null) l.price = E.cards[l.p].m; });
 }
@@ -377,7 +384,7 @@ function importFromHash() {
   chkAfterListing(newly);
   if (n) logOp('vendita', last?.name, `Messe in vendita su Cardmarket (script Card Scanner)${fromSb ? `, ${fromSb} copie tolte dallo Standby` : ''}: ` + addedTxt.join(', '), n);
   save();
-  if (n) setTimeout(() => updatePrices(false), 1500);
+  if (n || isSupName(d.exp?.name)) setTimeout(() => updatePrices(false), 1500);
   setTimeout(() => toast(n ? `Aggiornato: ${n} carte in vendita su Cardmarket` + (fromSb ? ` (${fromSb} tolte dallo Standby)` : '') : `Dati del set "${last?.name || ''}" aggiornati (immagini e prezzi attuali)`), 300);
   return last ? last.name : null;
 }
@@ -572,6 +579,12 @@ async function renderSet() {
       ${sbQ ? `<div class="fig f-sb"><b>${sbQ}</b><span>in Standby · stima ${eur(sbEst('low'))}–${eur(sbEst('trend'))}</span></div>` : ''}
       ${vars.length ? `<button class="fig f-var figbtn" id="bVarBox" title="Mostra o nascondi il riquadro dei prezzi cambiati"><b>${vars.length}</b><span>prezzi di mercato cambiati · <u>${varOpen ? 'nascondi' : 'rivedi'}</u></span></button>` : ''}
     </div>
+    ${supOk ? (() => { const S = state.sup[setId], cnt = {}; let ign = 0;
+      Object.values(S.map || {}).forEach(v => { if (isVx(v)) cnt[v] = (cnt[v] || 0) + 1; else if (v === 'X') ign++; });
+      const qOf = (arr, v) => arr.filter(([, x]) => x.vx === v).reduce((a, [, x]) => a + x.q, 0);
+      const parts = VXO.split('').filter(v => cnt[v]).map(v => { const a = qOf(mine, v), b = qOf(sbList, v);
+        return `<span class="vxl vx${v}" title="${cnt[v]} prodotti su Cardmarket">${VXN[v]}</span> <span class="small">${a ? a + ' in vendita' : ''}${a && b ? ' · ' : ''}${b ? b + ' in Standby' : ''}${!a && !b ? 'nessuna copia' : ''}</span>`; });
+      return `<div class="vxsum"><b>🎨 Varianti speciali</b> ${parts.join('<i class="sep">·</i>')}${ign ? `<i class="sep">·</i><span class="small">${ign} ${ign === 1 ? 'prodotto non importato' : 'prodotti non importati'}</span>` : ''}<span class="small" style="margin-left:auto">Si aggiungono con <b>＋ Aggiungi carte</b></span></div>`; })() : ''}
     ${supCat && !supOk ? `<div class="notice"><span><b>Questo set ha anche carte nei Supplementi di Cardmarket</b> (${Object.keys(supCat.cards || {}).length} prodotti: Reverse Energia, Poké Ball, Master Ball…). Riconosci le varianti per poterle aggiungere e mettere in vendita.</span>
       <span class="row"><button class="pri" id="bVx2">🎨 Riconosci le varianti</button></span></div>` : ''}
     ${vars.length && varOpen ? `<div class="notice var"><span><b>${vars.length} ${vars.length === 1 ? 'carta ha' : 'carte hanno'} il prezzo di mercato cambiato</b> rispetto a quando l'hai messa in vendita.</span>
@@ -602,6 +615,12 @@ async function renderSet() {
     // varianti speciali (Supplementi di Cardmarket): sigla colorata con le copie
     const xs = arr => VXO.split('').map(v => { const q = qv(arr, v); return q ? ` <span class="vxl vx${v}" title="${VXN[v]}">${VXB[v]} ×${q}</span>` : ''; }).join('');
     const hasX = ls.some(([, l]) => isVx(l.vx)) || sb.some(([, x]) => isVx(x.vx));
+    // immagine della variante speciale: al posto di quella normale se la carta ha solo copie speciali,
+    // altrimenti piccola nell'angolo (grande con il filtro "Speciali", o "Standby" se lì ci sono solo speciali)
+    const xFirst = [...ls, ...sb].find(([, x]) => isVx(x.vx) && vxImgOf(x, setId));
+    const xImg = xFirst ? vxImgOf(xFirst[1], setId) : '';
+    const onlyX = hasX && ![...ls, ...sb].some(([, x]) => !isVx(x.vx));
+    const sbOnlyX = sb.length && sb.every(([, x]) => isVx(x.vx));
     const vv = ls.map(([k, l]) => varOf(k, l)).filter(Boolean);
     const prices = [...new Set(ls.map(([, l]) => l.price).filter(v => v != null))].sort((a, b) => a - b);
     const sbM = sb.map(([k]) => sbmOf(k)).find(M => M && (M.lo != null || M.t != null));
@@ -617,8 +636,8 @@ async function renderSet() {
     const band = [];
     if (ls.length) band.push(`<div class="band b-ok"><span class="bl"><span>In vendita</span><span>${n ? '×' + n : ''}${r ? ` <span class="r">R ×${r}</span>` : ''}${xs(ls)}</span></span></div>`);
     if (sq) band.push(`<div class="band b-sb"><span class="bl"><span>Standby</span><span>${sqN ? 'N ×' + sqN : ''}${sqR ? ` <span class="r">R ×${sqR}</span>` : ''}${xs(sb)}</span></span></div>`);
-    h += `<div class="card ${cls}${r ? ' r' : ''}${hasX ? ' x' : ''}${sq ? ' hassb' : ''}${vv.length ? ' vr' : ''}${selMode && sel.has(n0) ? ' sel' : ''}" data-n="${esc(n0)}" data-p="${pF}" data-q="${qAll}" data-v="${valF}" data-d="${d0 ? daysAgo(d0) : ''}" data-nm="${esc(c.name)}" data-s="${esc(`${c.name} ${c.localId} ${n0} ${rar} ${cm?.n || ''}`.toLowerCase())}">
-      <div class="im"><span>${esc(c.localId)}</span>${imgTag(imgSrcs(c.image, cm, c.localId), true)}</div>
+    h += `<div class="card ${cls}${r ? ' r' : ''}${hasX ? ' x' : ''}${sbOnlyX ? ' sbx' : ''}${sq ? ' hassb' : ''}${vv.length ? ' vr' : ''}${selMode && sel.has(n0) ? ' sel' : ''}" data-n="${esc(n0)}" data-p="${pF}" data-q="${qAll}" data-v="${valF}" data-d="${d0 ? daysAgo(d0) : ''}" data-nm="${esc(c.name)}" data-s="${esc(`${c.name} ${c.localId} ${n0} ${rar} ${cm?.n || ''}`.toLowerCase())}">
+      <div class="im"><span>${esc(c.localId)}</span>${onlyX && xImg ? imgTag([xImg, ...imgSrcs(c.image, cm, c.localId)], true) : imgTag(imgSrcs(c.image, cm, c.localId), true)}${xImg && !onlyX ? `<img class="vxim" loading="lazy" referrerpolicy="no-referrer" src="${esc(xImg)}" alt="" title="${esc(VXN[xFirst[1].vx])}">` : ''}</div>
       ${vv.length ? `<span class="vtag" title="Prezzo di mercato cambiato">${vv.map(v => (v.d > 0 ? '▲ ' : '▼ ') + eur(Math.abs(v.d))).join(' ')}</span>` : ''}
       ${band.join('')}
       <div class="info"><span class="nr">${esc(c.localId)}${official ? '/' + official : ''}${isExtra ? '<span class="fs">FS</span>' : ''}${rar ? ' · ' : ''}<span class="rar">${esc(rar)}</span></span>
@@ -1872,6 +1891,8 @@ function cfSort() {
 }
 function applyCardFilter() {
   const t = filterText.trim().toLowerCase();
+  const gr = document.querySelector('.grid');
+  if (gr) { gr.classList.toggle('fvx', filter === 'vx'); gr.classList.toggle('fsb', filter === 'sb'); }
   document.querySelectorAll('.card').forEach(el => {
     let ok = !t || el.dataset.s.includes(t);
     if (filter === 'yes') ok = ok && el.classList.contains('yes');
@@ -1916,7 +1937,7 @@ $('main').addEventListener('click', e => {
   const qLs = ls.reduce((a, [, l]) => a + l.q, 0), qSb = sb.reduce((a, [, x]) => a + x.q, 0);
   const since = ls.map(([, l]) => l.date).filter(Boolean).sort()[0];
   const lastSold = soldHere.map(s => s.date).sort().pop();
-  const src = M => M ? `${M.src === 'pg' ? 'Price Guide' : M.src === 'tcgdex' ? 'TCGdex' : 'nessun dato'}${M.upd ? ' · ' + fmtD(M.upd) : ''}${M.x ? ' · ⚠ abbinamento da verificare' : ''}` : '';
+  const src = M => M ? `${M.src === 'pg' ? 'Price Guide' : M.src === 'tcgdex' ? 'TCGdex' : M.src === 'cm' ? 'Cardmarket (pagina bulk)' : 'nessun dato'}${M.upd ? ' · ' + fmtD(M.upd) : ''}${M.x ? ' · ⚠ abbinamento da verificare' : ''}` : '';
   /** i 6 valori in una riga + barra con la posizione del tuo prezzo tra il più basso e il più alto */
   const market = (M, price, rev) => {
     if (!M) return '<p class="cd-none">Prezzi di mercato non ancora letti: premi ⚙ → Prezzi di mercato → Aggiorna adesso.</p>';
@@ -1946,7 +1967,7 @@ $('main').addEventListener('click', e => {
   // variante speciale: il suo prodotto dei Supplementi (senza filtro Reverse)
   const cmLink = x => isVx(x.vx) ? cmCardUrl(state.cm[x.exp]?.cards?.[x.p] || supProduct(selected, x.u || c.localId, x.vx), c.name, null, x.lang || 'it') : cmCardUrl(cm, c.name, !!x.rev, x.lang || 'it');
   const vName = x => `${vLab(x, true)} · ${LANGN[x.lang || 'it'] || x.lang}`;
-  const vHead = x => isVx(x.vx) ? `<span class="vxl vx${x.vx}">${VXN[x.vx]}</span>` : x.rev ? '<span class="rv">Reverse Holo</span>' : 'Normale';
+  const vHead = x => isVx(x.vx) ? `${vxImgOf(x) ? `<img class="vxmini" loading="lazy" referrerpolicy="no-referrer" src="${esc(vxImgOf(x))}" alt="">` : ''}<span class="vxl vx${x.vx}">${VXN[x.vx]}</span>` : x.rev ? '<span class="rv">Reverse Holo</span>' : 'Normale';
   const v0 = ls[0]?.[1] || sb[0]?.[1] || { rev: false, lang: 'it' };
   const cmA = x => `<a class="cd-cml" href="${esc(cmLink(x))}" target="cardscanner" referrerpolicy="no-referrer" title="Apri su Cardmarket con i filtri ${esc(vName(x))}">Cardmarket ↗</a>`;
   openDlg(`<div class="cdx">
@@ -2032,8 +2053,12 @@ function info(l) {
   return { c, name: c.n || '', set: l.expName || state.cm[l.exp]?.name || '', rar: rarIt(c.r) || 'Non indicata' };
 }
 function renderDash() {
-  const ls = Object.entries(state.listings).map(([k, l]) => Object.assign({ k }, l, info(l)));
+  const ls = Object.entries(state.listings).map(([k, l]) => { const I = info(l); return Object.assign({ k }, l, I, { set: supBase(I.set) }); });
   const sold = state.sold;
+  // copie per variante: Normali, Reverse e varianti speciali (Supplementi)
+  const byV = arr => [['Normali', arr.filter(x => vcOf(x) === 'N').reduce((a, x) => a + x.q, 0)], ['Reverse Holo', arr.filter(x => vcOf(x) === 'R').reduce((a, x) => a + x.q, 0)],
+    ...VXO.split('').map(v => [VXN[v], arr.filter(x => x.vx === v).reduce((a, x) => a + x.q, 0)]).filter(([, q]) => q)];
+  const sbAll = Object.values(state.standby || {});
   const copies = ls.reduce((a, l) => a + l.q, 0);
   const value = ls.reduce((a, l) => a + (l.price || 0) * l.q, 0);
   const priced = ls.filter(l => l.price != null);
@@ -2065,9 +2090,9 @@ function renderDash() {
   const qByAge = ages.map(([lb, a, b]) => [lb, ls.filter(l => { const d = daysAgo(l.date) ?? 0; return d >= a && d < b; }).reduce((s, l) => s + l.q, 0)]);
 
   // per set: in vendita, vendute, % vendute
-  const setNames = [...new Set([...ls.map(l => l.set), ...sold.map(s => s.expName || state.cm[s.exp]?.name || '')])].filter(Boolean);
+  const setNames = [...new Set([...ls.map(l => l.set), ...sold.map(s => supBase(s.expName || state.cm[s.exp]?.name || ''))])].filter(Boolean);
   const perSet = setNames.map(n => {
-    const inV = ls.filter(l => l.set === n), sd = sold.filter(s => (s.expName || state.cm[s.exp]?.name) === n);
+    const inV = ls.filter(l => l.set === n), sd = sold.filter(s => supBase(s.expName || state.cm[s.exp]?.name) === n);
     const q = inV.reduce((a, l) => a + l.q, 0), v = inV.reduce((a, l) => a + (l.price || 0) * l.q, 0);
     const sq = sd.reduce((a, s) => a + s.q, 0), sv = sd.reduce((a, s) => a + (s.price || 0) * s.q, 0);
     return { n, q, v, sq, sv, pct: q + sq ? Math.round(sq / (q + sq) * 100) : 0 };
@@ -2081,13 +2106,14 @@ function renderDash() {
   const old = ls.filter(l => (daysAgo(l.date) ?? 0) >= 60).sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 15);
   const noPrice = ls.filter(l => l.price == null);
   const topVal = ls.filter(l => l.price != null).sort((a, b) => b.price - a.price).slice(0, 10);
-  const topSoldCards = group(sold, s => `${s.num} ${s.name}${s.rev ? ' (R)' : ''} · ${s.expName || ''}`, s => s.q).slice(0, 10);
-  const row = l => `<tr><td>${esc(l.u)} ${esc(l.name)}${l.rev ? ' <b style="color:var(--rev)">R</b>' : ''}</td><td>${esc(l.set)}</td>`;
+  const topSoldCards = group(sold, s => `${s.num} ${s.name}${isVx(s.vx) ? ' (' + VXB[s.vx] + ')' : s.rev ? ' (R)' : ''} · ${supBase(s.expName || '')}`, s => s.q).slice(0, 10);
+  const row = l => `<tr><td>${esc(l.u)} ${esc(l.name)}${isVx(l.vx) ? ` <span class="vxl vx${l.vx}">${VXB[l.vx]}</span>` : l.rev ? ' <b style="color:var(--rev)">R</b>' : ''}</td><td>${esc(l.set)}</td>`;
+  const xQ = ls.filter(l => isVx(l.vx)).reduce((a, l) => a + l.q, 0);
 
   $('main').innerHTML = `<div class="sethead"><div><h2>📊 Statistiche</h2><div class="sub">Aggiornate al ${now.toLocaleDateString('it-IT')} · valori calcolati sui prezzi di listino</div></div>
     <div class="row"><button id="xInv">⬇ Magazzino (Excel)</button><button id="xSold">⬇ Vendite (Excel)</button></div></div>
   <div class="kpis">
-    <div class="kpi"><span>Copie in vendita</span><b>${copies}</b><span>${ls.length} righe · ${revQ} Reverse</span></div>
+    <div class="kpi"><span>Copie in vendita</span><b>${copies}</b><span>${ls.length} righe · ${revQ} Reverse${xQ ? ` · ${xQ} speciali` : ''}</span></div>
     <div class="kpi"><span>Valore a listino</span><b>${eur(value)}</b><span>prezzo medio ${eur(avg)}</span></div>
     <div class="kpi"><span>Set con carte in vendita</span><b>${new Set(ls.map(l => l.set)).size}</b><span>${noPrice.length} righe senza prezzo</span></div>
     <div class="kpi"><span>Vendute in totale</span><b>${soldQ}</b><span>${eur(soldV)}</span></div>
@@ -2100,7 +2126,8 @@ function renderDash() {
     <div class="panel"><h3>Valore in vendita per set</h3>${valBySet.length ? bars(valBySet, eur) : '<p class="small">Nessun dato.</p>'}</div>
     <div class="panel"><h3>Copie per rarità</h3>${qByRar.length ? bars(qByRar, v => v + ' copie', 'a') : '<p class="small">Nessun dato.</p>'}</div>
     <div class="panel"><h3>Copie per fascia di prezzo</h3>${bars(qByBand, v => v + ' copie')}
-      <h3 style="margin-top:14px">Normali e Reverse</h3>${bars([['Normali', copies - revQ], ['Reverse Holo', revQ]], v => v + ' copie', 'r')}</div>
+      <h3 style="margin-top:14px">Copie per variante (in vendita)</h3>${bars(byV(ls), v => v + ' copie', 'r')}
+      ${sbAll.some(x => isVx(x.vx)) ? `<h3 style="margin-top:14px">Copie per variante (in Standby)</h3>${bars(byV(sbAll), v => v + ' copie', 'r')}` : ''}</div>
     <div class="panel"><h3>Da quanto sono in vendita</h3>${bars(qByAge, v => v + ' copie', 'a')}
       ${old.length ? `<h3 style="margin-top:14px">Ferme da più di 60 giorni (da ribassare?)</h3><table><tr><th>Carta</th><th>Set</th><th>Prezzo</th><th>Giorni</th></tr>${old.map(l => row(l) + `<td>${eur(l.price)}</td><td>${daysAgo(l.date)}</td></tr>`).join('')}</table>` : ''}</div>
     <div class="panel"><h3>Per set</h3>${perSet.length ? `<table><tr><th>Set</th><th>In vendita</th><th>Valore</th><th>Vendute</th><th>Incasso</th><th>% vendute</th></tr>
@@ -2259,9 +2286,11 @@ function renderSales() {
 
   const group = (key, val) => { const m = {}; list.forEach(s => { const k = key(s); if (k) m[k] = (m[k] || 0) + val(s); }); return Object.entries(m).sort((x, y) => y[1] - x[1]); };
   const val = s => (s.price || 0) * s.q;
-  const byCh = group(chOf, val), bySet = group(setOf, val).slice(0, 10);
+  const byCh = group(chOf, val), bySet = group(s => supBase(setOf(s)), val).slice(0, 10);
   const byRar = group(s => rarIt(state.cm[s.exp]?.cards?.[s.p]?.r) || 'Non indicata', s => s.q);
-  const byCard = group(s => `${s.num} ${s.name}${s.rev ? ' (R)' : ''} · ${setOf(s)}`, s => s.q).slice(0, 10);
+  const byCard = group(s => `${s.num} ${s.name}${isVx(s.vx) ? ' (' + VXB[s.vx] + ')' : s.rev ? ' (R)' : ''} · ${supBase(setOf(s))}`, s => s.q).slice(0, 10);
+  const byVs = [['Normali', list.filter(s => vcOf(s) === 'N').reduce((x, s) => x + s.q, 0)], ['Reverse Holo', list.filter(s => vcOf(s) === 'R').reduce((x, s) => x + s.q, 0)],
+    ...VXO.split('').map(v => [VXN[v], list.filter(s => s.vx === v).reduce((x, s) => x + s.q, 0)]).filter(([, q]) => q)];
   const byBuyer = group(s => s.buyer, val).slice(0, 10);
   const revQ = list.filter(s => s.rev).reduce((x, s) => x + s.q, 0);
 
@@ -2301,7 +2330,7 @@ function renderSales() {
     <div class="panel wide"><h3>Andamento incasso (${daily ? 'per giorno' : 'per mese'})</h3>
       <div class="cols" style="height:180px">${buckets.map(k => `<div class="c" title="${k}: ${eur(bv[k] || 0)} · ${bq[k] || 0} copie"><b>${bv[k] ? eur(bv[k]).replace(' €', '') : ''}</b><i style="height:${(bv[k] || 0) / maxB * 100}%"></i>${lab(k)}</div>`).join('')}</div></div>
     <div class="panel"><h3>Per canale</h3>${bars(byCh, eur)}
-      <h3 style="margin-top:14px">Normali e Reverse</h3>${bars([['Normali', K.q - revQ], ['Reverse Holo', revQ]], v => v + ' copie', 'r')}</div>
+      <h3 style="margin-top:14px">Copie per variante</h3>${bars(byVs, v => v + ' copie', 'r')}</div>
     <div class="panel"><h3>Incasso per set</h3>${bars(bySet, eur)}</div>
     <div class="panel"><h3>Copie per rarità</h3>${bars(byRar, v => v + ' copie', 'a')}</div>
     <div class="panel"><h3>Carte più vendute</h3>${bars(byCard, v => v + ' copie')}</div>
@@ -2684,9 +2713,14 @@ async function readMarket(l, pid) {
   // variante speciale: prodotto a parte su Cardmarket, il prezzo c'è solo nella Price Guide (TCGdex non le distingue)
   if (isVx(l.vx)) {
     const v = pid && state.pg?.p?.[pid];
-    if (!v) return null;
-    const M = fromVals({ rev: false }, v);
-    return Object.assign({ v: 2, src: 'pg', upd: state.pg.at }, M.lo == null && M.t == null ? fromVals({ rev: true }, v) : M, { vx: 1 });
+    const E = pid && Object.values(state.cm).find(e => e.cards?.[pid]), c = E?.cards?.[pid];
+    const fromCm = c && (c.l != null || c.t != null) ? { v: 2, src: 'cm', upd: E.at || null, lo: c.l ?? null, t: c.t ?? null, a: null, a1: null, a7: null, a30: c.a30 ?? null, rn: 0, vx: 1 } : null;
+    // la più recente tra Price Guide e valori della pagina bulk
+    if (v && !(fromCm && fromCm.upd && state.pg.at && new Date(fromCm.upd) > new Date(state.pg.at))) {
+      const M = fromVals({ rev: false }, v);
+      return Object.assign({ v: 2, src: 'pg', upd: state.pg.at }, M.lo == null && M.t == null ? fromVals({ rev: true }, v) : M, { vx: 1 });
+    }
+    return fromCm;
   }
   const pgFresh = state.pg && state.pg.v === 2 && Date.now() - new Date(state.pg.at) < 3 * 86400e3;
   const pg = pid && pgFresh && state.pg.p[pid];
@@ -2721,7 +2755,7 @@ async function updatePrices(force) {
         const { k, l, sb } = jobs[i++];
         const store = sb ? state.sbMarket : state.market;
         const old = store[k];
-        if (!force && old && old.v === 2 && Date.now() - new Date(old.at) < AUTO_H * 3600e3) { prog.done++; continue; }
+        if (!force && old && old.v === 2 && Date.now() - new Date(old.at) < AUTO_H * 3600e3 && !(isVx(l.vx) && old.lo == null && old.t == null)) { prog.done++; continue; }
         const M = await readMarket(l, sb ? sbPid(l) : l.p);
         fetched++;
         const st2 = sb ? state.sbMarket : state.market;   // (lo stato può essere stato sostituito da un Annulla nel frattempo)

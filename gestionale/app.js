@@ -457,16 +457,17 @@ function renderSets() {
   const sbBy = {}; Object.values(state.standby || {}).forEach(x => { sbBy[x.s] = (sbBy[x.s] || 0) + x.q; });
   const vBy = {}; Object.entries(bySet).forEach(([id, ls]) => { vBy[id] = ls.filter(([k, l]) => varOf(k, l)).length; });
   const cnt = id => cnt0(id) + (sbBy[id] || 0);
-  // pallini a sinistra dei tuoi set: verde = Normali, viola = Reverse (pieno = in vendita, vuoto = solo in Standby)
+  // linee sotto il nome dei tuoi set: verde = Normali, viola = Reverse, arancio = Speciali (piena = in vendita, tratteggiata = solo in Standby)
   const kind = {};
   const mark = (id, x, how) => { const o = kind[id] || (kind[id] = {}), k = x.vp ? 'x' : x.rev ? 'r' : 'n'; if (o[k] !== 'v') o[k] = how; };
   Object.entries(bySet).forEach(([id, ls]) => ls.forEach(([, l]) => { if (l.q > 0) mark(id, l, 'v'); }));
   Object.values(state.standby || {}).forEach(x => { if (x.q > 0) mark(x.s, x, 's'); });
-  const dot = (o, k) => {
+  // solo i tipi presenti, sempre nell'ordine verde, viola, arancio
+  const bar = (o, k) => {
     const what = k === 'n' ? 'Normali' : k === 'r' ? 'Reverse' : 'Varianti speciali';
-    return o[k] ? `<i class="dt d${k}${o[k] === 's' ? ' ds' : ''}" title="${what} ${o[k] === 'v' ? 'in vendita' : 'solo in Standby'}"></i>` : '<i class="dt"></i>';
+    return o[k] ? `<i class="ln ln-${k}${o[k] === 's' ? ' ln-s' : ''}" title="${what} ${o[k] === 'v' ? 'in vendita' : 'solo in Standby'}"></i>` : '';
   };
-  const dots = id => kind[id] ? `<span class="dts">${dot(kind[id], 'n')}${dot(kind[id], 'r')}${kind[id].x ? dot(kind[id], 'x') : ''}</span>` : '';
+  const bars = id => kind[id] ? `<span class="lns">${bar(kind[id], 'n')}${bar(kind[id], 'r')}${bar(kind[id], 'x')}</span>` : '';
   const anyX = Object.values(kind).some(o => o.x);
   const q = simp($('qSet').value), only = $('onlyMine').checked;
   const all = tcgSets.map(s => ({ id: s.id, name: s.name, symbol: s.symbol }));
@@ -474,9 +475,9 @@ function renderSets() {
   Object.keys(bySet).filter(id => id.startsWith('cm:')).forEach(id => all.push({ id, name: state.cm[id.slice(3)]?.name || bySet[id][0][1].expName || id }));
   const items = all.filter(s => (!q || simp(s.name).includes(q)) && (!only || cnt(s.id)));
   const mine = items.filter(s => cnt(s.id)), rest = items.filter(s => !cnt(s.id));
-  const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}">${dots(s.id)}<span class="nm">${esc(s.name)}</span>${vBy[s.id] ? `<span class="n v" title="${vBy[s.id]} carte con variazione di prezzo">⚠ ${vBy[s.id]}</span>` : ''}${sbBy[s.id] ? `<span class="n sb" title="copie in Standby (non ancora su Cardmarket)">SB ${sbBy[s.id]}</span>` : ''}${cnt0(s.id) ? `<span class="n" title="copie in vendita">${cnt0(s.id)}</span>` : ''}</a>`;
+  const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}"><span class="nmw"><span class="nm">${esc(s.name)}</span>${bars(s.id)}</span>${vBy[s.id] ? `<span class="n v" title="${vBy[s.id]} carte con variazione di prezzo">⚠ ${vBy[s.id]}</span>` : ''}${sbBy[s.id] ? `<span class="n sb" title="copie in Standby (non ancora su Cardmarket)">SB ${sbBy[s.id]}</span>` : ''}${cnt0(s.id) ? `<span class="n" title="copie in vendita">${cnt0(s.id)}</span>` : ''}</a>`;
   renderTabs();
-  $('sets').innerHTML = ((mine.length ? `<div class="grp">I tuoi set (in vendita / Standby)<span class="dleg"><i class="dt dn"></i>Normali <i class="dt dr"></i>Reverse${anyX ? ' <i class="dt dx"></i>Speciali' : ''}</span></div>${mine.map(link).join('')}` : '') +
+  $('sets').innerHTML = ((mine.length ? `<div class="grp">I tuoi set (in vendita / Standby)<span class="dleg"><span><i class="ln ln-n"></i>Normali</span><span><i class="ln ln-r"></i>Reverse</span>${anyX ? '<span><i class="ln ln-x"></i>Speciali</span>' : ''}<span><i class="ln ln-s"></i>solo Standby</span></span></div>${mine.map(link).join('')}` : '') +
     (rest.length ? `<div class="grp">${mine.length ? 'Tutti gli altri set' : 'Tutti i set'} · dal più recente (${rest.length})</div>${rest.map(link).join('')}` : '')) ||
     '<p class="small" style="padding:12px">Nessun set trovato.</p>';
 }

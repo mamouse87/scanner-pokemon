@@ -181,35 +181,75 @@ function vxInfoOf(setId, u, p) {
 /** varianti di una carta già lette da TCGdex: { base, rev (esiste la Reverse semplice), det (TCGdex ha l'elenco), x: [{p, l, b}] } */
 function varCache(cardId) { if (!cardId) return null; try { return JSON.parse(localStorage.getItem(VKEY(cardId))); } catch (e) { return null; } }
 const unacc = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-function varLabel(v) {
-  const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
-  const st = (Array.isArray(v.stamp) ? v.stamp : v.stamp ? [v.stamp] : []).map(s => typeof s === 'string' ? s : s && (s.name || s.id)).filter(Boolean);
-  return [cap(v.type), v.foil && cap(v.foil)].filter(Boolean).join(' ') + (st.length ? ' · timbro ' + st.join(', ') : '');
+// nomi dei timbri e degli effetti che TCGdex non traduce in italiano
+const STAMP_IT = { 'snowflake': 'Fiocco di neve', 'player-rewards-program': 'Play! Pokémon', 'trick-or-trade': 'Trick or Trade', 'regional-championships': 'Campionati Regionali',
+  'national-championships': 'Campionati Nazionali', 'state-championships': 'Campionati Statali', 'city-championships': 'Campionati Cittadini', '30th-pokeday': 'Pokémon Day 30°',
+  'pokemon-day': 'Pokémon Day', '30th-anniversary': '30° anniversario', '25th-celebration': '25° anniversario', 'asia-promo': 'Promo Asia', 'fossil-museum': 'Museo dei fossili',
+  'set-logo': 'Logo set', 'pre-release': 'Pre-release', 'pokemon-center': 'Pokémon Center', 'staff': 'Staff', 'gamestop': 'GameStop', 'eb-games': 'EB Games', 'winner': 'Vincitore',
+  'professor-program': 'Programma Professore', 'gym-challenge': 'Sfida Palestra', 'game-on': 'Pokémon Game On!', 'ace-trainer': 'Ace Trainer', '1st-edition': '1a Edizione' };
+const FOIL_IT = { 'cracked-ice': 'Cracked Ice', 'tinsel': 'Tinsel', 'league': 'Lega', 'mirror': 'Mirror', 'player-reward': 'Play! Pokémon', 'lenticular': 'Lenticolare',
+  'cosmos': 'Cosmo', 'galaxy': 'Galassia', 'gold': 'Oro', 'rainbow': 'Rainbow', 'starlight': 'Luce Stellare', 'glitter': 'Luccichio', 'metal': 'Metallo', 'energy': 'Energia',
+  'pokeball': 'Poké Ball', 'masterball': 'Master Ball', 'loveball': 'Love Ball', 'duskball': 'Scuro Ball', 'friendball': 'Friend Ball', 'quickball': 'Velox Ball', 'team-rocket': 'Team Rocket' };
+const capW = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+const itName = (t, M) => { const k = String(t || '').trim().toLowerCase(); return M[k] || (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(k) ? k.split('-').map(capW).join(' ') : capW(String(t || '').trim())); };
+const vtype = v => { const t = unacc(v && v.type).toLowerCase(); return /^rev/.test(t) ? 'reverse' : /^(holo|olograf)/.test(t) ? 'holo' : /^normal/.test(t) ? 'normal' : t; };
+const vstamps = v => (Array.isArray(v.stamp) ? v.stamp : v.stamp ? [v.stamp] : []).map(s => typeof s === 'string' ? s : s && (s.name || s.id)).filter(Boolean);
+const vjumbo = v => /jumbo/i.test(String(v && v.size || ''));
+/** nome della variante come su Cardmarket: "Reverse Poké Ball", "Cosmo Holo", "Non Holo", "Holo Jumbo", "Holo · timbro Logo set"
+ *  bt = tipo della carta base (holo / normal): una "normale" con prodotto a parte di una carta holo è la Non Holo */
+function varLabel(v, bt) {
+  const t = vtype(v), foil = v.foil ? itName(v.foil, FOIL_IT) : '';
+  let l;
+  if (t === 'reverse') l = 'Reverse' + (foil ? ' ' + foil : '');
+  else if (t === 'holo') l = foil ? foil + ' Holo' : 'Holo';
+  else if (t === 'normal') l = foil ? foil : bt && bt !== 'normal' ? 'Non Holo' : 'Normale';
+  else l = [itName(v.type, FOIL_IT), foil].filter(Boolean).join(' ');
+  if (vjumbo(v)) l += ' Jumbo';
+  const st = vstamps(v).map(x => itName(x, STAMP_IT));
+  return l + (st.length ? ' · timbro ' + st.join(', ') : '');
 }
-function varBadge(v) {
-  const w = unacc(v.foil).split(/[\s-]+/).filter(Boolean);
+function varBadge(v, bt) {
+  const t = vtype(v);
+  if (vjumbo(v)) return 'JB';
+  const w = unacc(v.foil ? itName(v.foil, FOIL_IT) : '').split(/[\s-]+/).filter(Boolean);
   if (w.length > 1) return w.map(x => x[0]).join('').toUpperCase().slice(0, 3);
   if (w.length) return w[0].slice(0, 2).toUpperCase();
-  if (v.stamp && (!Array.isArray(v.stamp) || v.stamp.length)) return 'TIM';
+  if (vstamps(v).length) return 'TIM';
+  if (t === 'normal') return bt && bt !== 'normal' ? 'NH' : 'NO';
+  if (t === 'holo') return 'HO';
   return unacc(v.type).slice(0, 2).toUpperCase() || 'SP';
 }
+const VAR_VER = 2;   // cambia quando cambiano i nomi delle varianti: le varianti salvate si rileggono
+let varSaveT = null;
 function varStore(cardId, d) {
   const det = Array.isArray(d && d.variants_detailed) ? d.variants_detailed : [];
   const cmId = v => v && v.thirdParty && v.thirdParty.cardmarket ? String(v.thirdParty.cardmarket) : '';
-  const plain = v => !v.foil && !(Array.isArray(v.stamp) ? v.stamp.length : v.stamp);
-  const isRev = v => /^rev/i.test(String(v.type || ''));
+  const plain = v => !v.foil && !vstamps(v).length && !vjumbo(v);
+  const isRev = v => vtype(v) === 'reverse';
   const baseV = det.find(v => plain(v) && !isRev(v) && cmId(v));
   const base = String((d && d.pricing && d.pricing.cardmarket && d.pricing.cardmarket.idProduct) || cmId(baseV) || '');
-  const o = { at: Date.now(), base, rev: !det.length || det.some(v => isRev(v) && plain(v)), det: det.length > 0, x: [] };
+  const bt = vtype(det.find(v => plain(v) && !isRev(v) && cmId(v) === base) || baseV || {});
+  const o = { at: Date.now(), vv: VAR_VER, base, rev: !det.length || det.some(v => isRev(v) && plain(v)), det: det.length > 0, x: [] };
   const seen = new Set();
-  det.forEach(v => { const p = cmId(v); if (!p || p === base || seen.has(p)) return; seen.add(p); o.x.push({ p, l: varLabel(v), b: varBadge(v) }); });
+  det.forEach(v => { const p = cmId(v); if (!p || p === base || seen.has(p)) return; seen.add(p); o.x.push({ p, l: varLabel(v, bt), b: varBadge(v, bt) }); });
   try { localStorage.setItem(VKEY(cardId), JSON.stringify(o)); } catch (e) {}
+  return varSync(o);
+}
+/** copie già salvate con il nome vecchio della variante: aggiorno nome e sigla */
+function varSync(o) {
+  if (o && o.vv === VAR_VER && typeof state === 'object' && state) {
+    const by = new Map(o.x.map(x => [x.p, x]));
+    let ch = false;
+    [state.standby || {}, state.listings || {}].forEach(M => Object.values(M).forEach(x => { const X = x && x.vp && by.get(String(x.vp)); if (X && (x.vl !== X.l || x.vb !== X.b)) { x.vl = X.l; x.vb = X.b; ch = true; } }));
+    (state.sold || []).forEach(x => { const X = x && x.vp && by.get(String(x.vp)); if (X && x.vl !== X.l) { x.vl = X.l; ch = true; } });
+    if (ch) { clearTimeout(varSaveT); varSaveT = setTimeout(() => save(), 800); }
+  }
   return o;
 }
 /** varianti di una carta: dalla cache, altrimenti dal dettaglio TCGdex (italiano, poi inglese) */
 async function cardVariants(cardId, fresh) {
   const c = varCache(cardId);
-  if (c && !fresh && Date.now() - c.at < 14 * 86400e3) return c;
+  if (c && !fresh && c.vv === VAR_VER && Date.now() - c.at < 14 * 86400e3) return varSync(c);
   for (const base of [API, API_EN]) {
     const d = await tcgJson(base + '/cards/' + encodeURIComponent(cardId));
     if (d) return varStore(cardId, d);
@@ -357,7 +397,9 @@ function importFromHash() {
     const sid0 = tcgIdFor(sub.name);
     for (const r of sub.rows) {
       // variante speciale (pagina dei Supplementi): prodotto a parte; la casella Reverse fissa di Cardmarket non conta
-      const sbX = Object.values(state.standby || {}).find(x => x.vp && x.vp === String(r.p));
+      const sbXk = Object.keys(state.standby || {}).find(k => { const x = state.standby[k]; return x.vp && x.vp === String(r.p) && (x.lang || 'it') === (r.lang || 'it'); })
+        || Object.keys(state.standby || {}).find(k => state.standby[k].vp && state.standby[k].vp === String(r.p));
+      const sbX = sbXk && state.standby[sbXk];
       const vx = r.x || r.v === 'S' || sbX || isSupName(sub.name);
       const VI = vx ? (r.vl ? { vl: r.vl, vb: r.vb } : sbX ? { vl: sbX.vl, vb: sbX.vb } : vxInfoOf(sid0, r.u, r.p) || { vl: 'Variante speciale', vb: 'SP' }) : null;
       const rv = vx ? false : !!r.rev;
@@ -370,6 +412,8 @@ function importFromHash() {
       if (r.price != null) L.price = r.price;
       L.date = sub.at; L.com = r.com || L.com; L.expName = sub.name || L.expName;
       if (!L.u) L.u = r.u || c.u || '';
+      // variante rara: set e numero della carta (anche se Cardmarket la tiene in un'altra Edizione, es. promo o Jumbo)
+      if (vx && sbX && sbX.s) { L.vs = sbX.s; L.u = sbX.u || L.u; }
       // regola del prezzo scelta nello script e valore di mercato al caricamento: da qui parte il controllo giornaliero
       if (!keep) {
         if (r.b) { L.rb = r.b; L.ro = r.o || 0; }
@@ -383,7 +427,7 @@ function importFromHash() {
       // le copie caricate su Cardmarket escono dallo Standby
       // (all'avvio l'elenco dei set TCGdex può non essere ancora caricato: abbino anche per nome del set)
       const sid = tcgIdFor(sub.name), un = norm(r.u || c.u || '');
-      const sk = Object.keys(state.standby || {}).find(k => { const x = state.standby[k];
+      const sk = vx && sbXk && (state.standby[sbXk].lang || 'it') === (r.lang || 'it') ? sbXk : Object.keys(state.standby || {}).find(k => { const x = state.standby[k];
         return (x.s === sid || simp(x.sn) === simp(String(sub.name).replace(SUPRX, ''))) && norm(x.u) === un && vcOf(x) === vcOf(L) && (x.lang || 'it') === (r.lang || 'it'); });
       const X = sk && state.standby[sk];
       if (X) { const m = Math.min(X.q, r.q); X.q -= m; fromSb += m; if (X.q <= 0) { delete state.standby[sk]; delete (state.sbMarket || {})[sk]; } }
@@ -398,10 +442,12 @@ function importFromHash() {
 }
 
 // ---------- abbinamento carte in vendita ↔ set TCGdex ----------
+/** set TCGdex di una carta in vendita: per le varianti rare messe in vendita da un'altra Edizione di Cardmarket vale il set della carta (vs) */
+const lSid = l => (l && l.vs) || tcgIdFor(l.expName || state.cm[l.exp]?.name);
 function listingsBySet() {
   const m = {};
   for (const [k, l] of Object.entries(state.listings)) {
-    const sid = tcgIdFor(l.expName || state.cm[l.exp]?.name) || ('cm:' + l.exp);
+    const sid = lSid(l) || ('cm:' + l.exp);
     (m[sid] = m[sid] || []).push([k, l]);
   }
   return m;
@@ -1202,7 +1248,7 @@ function clRowsOfSet() {
   const rc = rarCache(selected), rows = [];
   for (const c of current.cards) {
     const n = norm(c.localId), g = {};
-    (current.byNum[n] || []).forEach(([k, l]) => { const x = g[vcOf(l) + (l.lang || 'it')] = g[vcOf(l) + (l.lang || 'it')] || Object.assign({ u: l.u || c.localId, n: info(l).name || c.name, rev: !!l.rev, lang: l.lang || 'it', avail: 0, lk: '', sk: '' }, l.vp ? { vp: l.vp, vl: l.vl } : {}); x.avail += l.q; x.lk = k; });
+    (current.byNum[n] || []).forEach(([k, l]) => { const x = g[vcOf(l) + (l.lang || 'it')] = g[vcOf(l) + (l.lang || 'it')] || Object.assign({ u: l.u || c.localId, n: info(l).name || c.name, rev: !!l.rev, lang: l.lang || 'it', avail: 0, lk: '', sk: '' }, l.vp ? { vp: l.vp, vl: l.vl, vs: l.vs } : {}); x.avail += l.q; x.lk = k; });
     (current.sbByNum[n] || []).forEach(([k, s]) => { const x = g[vcOf(s) + (s.lang || 'it')] = g[vcOf(s) + (s.lang || 'it')] || Object.assign({ u: s.u || c.localId, n: c.name || s.n || '', rev: !!s.rev, lang: s.lang || 'it', avail: 0, lk: '', sk: '' }, s.vp ? { vp: s.vp, vl: s.vl } : {}); x.avail += s.q; x.sk = k; });
     Object.values(g).filter(x => x.avail > 0).sort((a, b) => !!a.vp - !!b.vp || a.rev - b.rev || a.lang.localeCompare(b.lang))
       .forEach(x => rows.push(Object.assign(x, { rar: rc[n] || c.rarity || '' })));
@@ -1449,7 +1495,7 @@ function clRegister(L, sel, tot, who, lowerCm) {
     if (left > 0 && Lst) { snap = Object.assign({}, Lst); took = Math.min(left, Lst.q); Lst.q -= took; left -= took; cm.push({ k: r.lk, l: snap, qt: Lst.q }); if (Lst.q <= 0) delete state.listings[r.lk]; }
     const base = Lst || snap;
     state.sold.push({ date, listed: base?.date || null, p: base?.p || null, exp: base?.exp || '', expName: base?.expName || L.setName, name: r.n, num: r.u, rev: r.rev, lang: r.lang, q,
-      price, source: ch, file: L.name, order: oid, buyer: who, took, sbTook, sbk: sbTook ? r.sk : '', sbx, nolist: base ? 0 : 1, ...(r.vp ? { vp: r.vp, vl: r.vl } : {}) });
+      price, source: ch, file: L.name, order: oid, buyer: who, took, sbTook, sbk: sbTook ? r.sk : '', sbx, nolist: base ? 0 : 1, ...(r.vp ? { vp: r.vp, vl: r.vl, vs: r.vs } : {}) });
     txt.push(`${r.u}${r.rev ? ' R' : ''} ${r.n} ×${q}`);
   });
   state.orders = state.orders || {};
@@ -1467,7 +1513,7 @@ function clRegister(L, sel, tot, who, lowerCm) {
 // ---------- carte fuori mercato: il tuo prezzo è lontano dal Consigliato ----------
 /** link ai dati della carta su TCGdex (italiano e inglese), per vedere cosa manca */
 function tcgLinks(l) {
-  const sid = tcgIdFor(l.expName || state.cm[l.exp]?.name);
+  const sid = lSid(l);
   const c = sid && ((tcgCached('/sets/' + sid)?.cards || []).find(x => norm(x.localId) === norm(l.u)) || (tcgCached('@en/sets/' + sid)?.cards || []).find(x => norm(x.localId) === norm(l.u)));
   if (!c) return '';
   return ` · <a href="${API}/cards/${encodeURIComponent(c.id)}" target="_blank" rel="noreferrer">dati TCGdex ↗</a> <a href="${API_EN}/cards/${encodeURIComponent(c.id)}" target="_blank" rel="noreferrer">(en ↗)</a>`;
@@ -1670,7 +1716,7 @@ function gsIndex() {
   const typOf = (sid, u) => { if (!sid || String(sid).startsWith('cm:')) return ''; const T = typ[sid] || (typ[sid] = typCache(sid)); return T[norm(u)] || ''; };
   const numW = u => { const n = String(u || ''); return /^\d+$/.test(n) ? [n, String(parseInt(n, 10))] : [n]; };
   for (const [k, l] of Object.entries(state.listings)) {
-    const sid = tcgIdFor(l.expName || state.cm[l.exp]?.name) || ('cm:' + l.exp), I = info(l), code = String(setCode(l) || '');
+    const sid = lSid(l) || ('cm:' + l.exp), I = info(l), code = String(setCode(l) || '');
     seen.add(sid + '|' + norm(l.u));
     out.push({ sec: 'v', sid, u: l.u, name: I.name, code, set: I.set, rev: l.rev, lang: l.lang,
       sub: [I.set, I.rar !== 'Non indicata' ? I.rar : '', LANGN[l.lang] && l.lang !== 'it' ? LANGN[l.lang] : ''].filter(Boolean).join(' · '),
@@ -1685,7 +1731,7 @@ function gsIndex() {
       hay: [...numW(x.u), code, code + String(x.u || '').padStart(3, '0'), x.n, x.sn, rarIt(x.r), x.rev ? 'reverse holo rev' : 'normale', LANGN[x.lang], 'standby', x.com, x.file, typOf(x.s, x.u)].join(' ') });
   }
   state.sold.forEach(x => {
-    const sn = x.expName || state.cm[x.exp]?.name || '', sid = tcgIdFor(sn) || (x.exp ? 'cm:' + x.exp : null);
+    const sn = x.expName || state.cm[x.exp]?.name || '', sid = x.vs || tcgIdFor(sn) || (x.exp ? 'cm:' + x.exp : null);
     out.push({ sec: 'x', sid, u: x.num, name: x.name, code: '', set: sn, rev: x.rev, order: x.order,
       sub: [fmtD(x.date), sn, x.buyer || '', x.order ? '#' + x.order : '', x.source || ''].filter(Boolean).join(' · '),
       right: `${x.q} × ${eur(x.price) || '—'}`, st: ['x', 'Venduta'],
@@ -1915,7 +1961,7 @@ $('main').addEventListener('click', e => {
   const srcs = imgSrcs(c.image, cm, c.localId);
   const vs = ls.map(([k, l]) => ({ k, l, v: varOf(k, l) })).filter(x => x.v);
   // vendite di questa carta (stesso set e numero)
-  const soldHere = state.sold.filter(s => { const sn = s.expName || state.cm[s.exp]?.name || ''; return norm(s.num) === n0 && (simp(sn) === simp(current.setName) || (!selected.startsWith('cm:') && tcgIdFor(sn) === selected)); });
+  const soldHere = state.sold.filter(s => { const sn = s.expName || state.cm[s.exp]?.name || ''; return norm(s.num) === n0 && (simp(sn) === simp(current.setName) || (!selected.startsWith('cm:') && (s.vs || tcgIdFor(sn)) === selected)); });
   const qSold = soldHere.reduce((a, s) => a + s.q, 0), inc = soldHere.reduce((a, s) => a + (s.price || 0) * s.q, 0);
   const qLs = ls.reduce((a, [, l]) => a + l.q, 0), qSb = sb.reduce((a, [, x]) => a + x.q, 0);
   const since = ls.map(([, l]) => l.date).filter(Boolean).sort()[0];
@@ -2361,7 +2407,7 @@ function renderSales() {
     if (!confirm(`Annullare la vendita di ${s.q} × ${s.name}?${back ? ` ${back === 1 ? '1 copia torna' : back + ' copie tornano'} tra quelle in vendita.` : ''}${sbB ? ` ${sbB === 1 ? '1 copia torna' : sbB + ' copie tornano'} in Standby.` : ''}${!back && !sbB ? ' Viene tolta solo dalle vendite (la carta non era nel magazzino del gestionale).' : ''}`)) return;
     if (back) {
       const k = lkey(s.p, s.rev, s.lang);
-      const L = state.listings[k] || (state.listings[k] = Object.assign({ p: s.p, exp: s.exp, expName: s.expName, u: s.num, rev: s.rev, lang: s.lang, q: 0, price: s.price, date: s.listed || s.date, com: '' }, s.vp ? { vp: s.vp, vl: s.vl, vb: (vxInfoOf(tcgIdFor(s.expName), s.num, s.vp) || {}).vb || 'SP' } : {}));
+      const L = state.listings[k] || (state.listings[k] = Object.assign({ p: s.p, exp: s.exp, expName: s.expName, u: s.num, rev: s.rev, lang: s.lang, q: 0, price: s.price, date: s.listed || s.date, com: '' }, s.vp ? { vp: s.vp, vl: s.vl, vs: s.vs, vb: (vxInfoOf(s.vs || tcgIdFor(s.expName), s.num, s.vp) || {}).vb || 'SP' } : {}));
       L.q += back;
     }
     if (s.sbTook && s.sbk) {
@@ -2518,7 +2564,7 @@ function orderReview(o, file, pos) {
           // carta venduta che il gestionale non ha (o non ha più): registro solo la vendita, così l'incasso torna con Cardmarket
           const E = c ? state.cm[c.l.exp] : expByCode(r.code);
           state.sold.push({ date: o.date, listed: c?.l.date || null, p: c?.l.p || null, exp: E?.id || c?.l.exp || '', expName: E?.name || c?.l.expName || r.code, name: r.name, num: r.num,
-            rev: r.rev, lang: r.lang, q: n0, price: r.price, source: 'Cardmarket', file: ref, order: o.id || '', buyer: o.buyer || '', nolist: 1, ...(c?.l?.vp ? { vp: c.l.vp, vl: c.l.vl } : {}) });
+            rev: r.rev, lang: r.lang, q: n0, price: r.price, source: 'Cardmarket', file: ref, order: o.id || '', buyer: o.buyer || '', nolist: 1, ...(c?.l?.vp ? { vp: c.l.vp, vl: c.l.vl, vs: c.l.vs } : {}) });
         }
         q += n0; soldTxt.push(`${r.num}${r.rev ? ' R' : ''} ${r.name} ×${n0} a ${eur(r.price)}`);
       });
@@ -2558,7 +2604,7 @@ function sell(k, q, source, file, price, date, meta) {
   L.q -= n;
   if (meta?.force) n0 = q; else n0 = n;
   state.sold.push({ date: date || today(), listed: L.date, p: L.p, exp: L.exp, expName: L.expName, name: c.n || '', num: L.u || c.u || '', rev: L.rev, lang: L.lang, q: n0,
-    price: price != null ? price : L.price, source, file: file || '', order: meta?.order || '', buyer: meta?.buyer || '', took: n, ...(L.vp ? { vp: L.vp, vl: L.vl } : {}) });
+    price: price != null ? price : L.price, source, file: file || '', order: meta?.order || '', buyer: meta?.buyer || '', took: n, ...(L.vp ? { vp: L.vp, vl: L.vl, vs: L.vs } : {}) });
   if (L.q <= 0) delete state.listings[k];
 }
 
@@ -2652,7 +2698,7 @@ async function tcgJson(url) {
   try { const r = await fetch(url); if (!r.ok) return null; return await r.json(); } catch (e) { return null; }
 }
 async function tcgCardId(l) {
-  const setId = l.s || tcgIdFor(l.expName || state.cm[l.exp]?.name);
+  const setId = l.s || lSid(l);
   if (!setId) return null;
   const n0 = norm(l.u);
   for (const p of ['/sets/' + encodeURIComponent(setId), '@en/sets/' + encodeURIComponent(setId)]) {
@@ -2948,7 +2994,7 @@ async function openOnCardmarket(setId, setName, cmCat) {
   const saleOf = {};
   list.forEach(([k, x]) => {
     const p = sbPid(x), lang = x.lang || 'it';
-    const L = (p && state.listings[lkey(p, x.vp ? false : x.rev, lang)]) || Object.values(state.listings).find(l => norm(l.u) === norm(x.u) && vcOf(l) === vcOf(x) && (l.lang || 'it') === lang && tcgIdFor(setOf(l)) === setId);
+    const L = (p && state.listings[lkey(p, x.vp ? false : x.rev, lang)]) || Object.values(state.listings).find(l => norm(l.u) === norm(x.u) && vcOf(l) === vcOf(x) && (l.lang || 'it') === lang && (l.vs || tcgIdFor(setOf(l))) === setId);
     if (L && L.q > 0 && L.price != null) saleOf[k] = L;
   });
   const priceOf = (k, b, plus) => {
@@ -3163,7 +3209,7 @@ function importEditFromHash() {
 
 // ---------- storico prezzi (per il grafico degli ultimi 10 giorni) ----------
 // state.hist["setTcgdex|numero|N/R|lingua"] = [[AAAA-MM-GG, Da, Tendenza], …] un valore al giorno, ultimi 30 giorni
-const histKey = l => l.s ? sbKey(l.s, l.u, l.rev, l.lang, l.vp) : sbKey(tcgIdFor(l.expName || state.cm[l.exp]?.name) || ('cm:' + l.exp), l.u, l.rev, l.lang, l.vp);
+const histKey = l => l.s ? sbKey(l.s, l.u, l.rev, l.lang, l.vp) : sbKey(lSid(l) || ('cm:' + l.exp), l.u, l.rev, l.lang, l.vp);
 function histAdd(l, M) {
   if (!M || (M.lo == null && M.t == null)) return;
   const day = String(M.upd || today()).slice(0, 10);
@@ -3221,19 +3267,22 @@ function parseCatalog(text) {
   return sets.filter(s => s.items.length);
 }
 /** variante speciale scritta nella lista ("Poké Ball", "Reverse Energia", "PB", "870135") tra quelle vere della carta */
-function matchVar(V, q) {
-  const all = (V && V.x) || [], s0 = simp(q);
+function matchVar(V, q0) {
+  const all = (V && V.x) || [], s0 = simp(q0);
   if (!all.length) return { err: 'la carta non ha varianti speciali su TCGdex' };
   if (/^\d+$/.test(s0)) { const v = all.find(o => o.p === s0); return v ? { v } : { err: `${s0} non è una variante di questa carta (${all.map(o => o.l).join(', ')})` }; }
-  // nomi italiani di TCGdex → inglesi, così vanno bene tutti e due ("Dusk Ball" = "Scuro Ball")
-  const EN = [['SCUROBALL', 'DUSKBALL'], ['VELOXBALL', 'QUICKBALL'], ['ENERGIA', 'ENERGY'], ['COSMO', 'COSMOS'], ['COSMOSS', 'COSMOS'], ['GALASSIA', 'GALAXY'], ['LUCESTELLARE', 'STARLIGHT'], ['LUCCICHIO', 'GLITTER'], ['ORO', 'GOLD'], ['OLOGRAFICA', 'HOLO'], ['METALLO', 'METAL']];
-  const cn = x => EN.reduce((t, [i, e]) => t.split(i).join(e), x), s = cn(s0);
-  const L = o => cn(simp(String(o.l).replace(/·.*$/, '')));
-  let h = all.filter(o => cn(simp(o.l)) === s || L(o) === s || L(o) === 'REVERSE' + s || simp(o.b) === s0);
-  if (!h.length) h = all.filter(o => L(o).endsWith(s));
-  if (!h.length) h = all.filter(o => cn(simp(o.l)).includes(s));
+  // confronto a parole, con i nomi italiani di TCGdex portati in inglese ("Dusk Ball" = "Scuro Ball"); "Non Holo" è una parola sola
+  const WM = { scuro: 'dusk', velox: 'quick', energia: 'energy', cosmo: 'cosmos', galassia: 'galaxy', olografica: 'holo', metallo: 'metal', luccichio: 'glitter', oro: 'gold', timbro: '' };
+  const W = x => (' ' + unacc(x).toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ').replace(/ non holo /g, ' nonholo ').split(' ').map(w => w in WM ? WM[w] : w).filter(Boolean).join(' ');
+  const q = W(q0), qn = q.replace(/ /g, '');
+  const F = o => W(o.l), L = o => W(String(o.l).replace(/·.*$/, ''));
+  // prima il nome intero (timbro compreso), poi senza timbro, poi le parole scritte dentro il nome
+  const same = x => { const n = x.replace(/ /g, ''); return n === qn || n === 'reverse' + qn; };   // "Energia" = "Reverse Energia"
+  let h = all.filter(o => same(F(o)) || simp(o.b) === s0);
+  if (!h.length) h = all.filter(o => same(L(o)));
+  if (!h.length && q) h = all.filter(o => (' ' + F(o) + ' ').includes(' ' + q + ' '));
   if (h.length === 1) return { v: h[0] };
-  return { err: h.length ? `"${q}" va bene per più varianti (${h.map(o => o.l).join(', ')}): scrivi il nome intero` : `"${q}" non c'è tra le varianti della carta (${all.map(o => o.l).join(', ')})` };
+  return { err: h.length ? `"${q0}" va bene per più varianti (${h.map(o => o.l).join(', ')}): scrivi il nome intero` : `"${q0}" non c'è tra le varianti della carta (${all.map(o => o.l).join(', ')})` };
 }
 /** righe "X …" di una lista: trova la variante su TCGdex; le righe che non si risolvono vengono saltate (it.skip) */
 async function resolveListVariants(sid, S) {
@@ -3255,7 +3304,7 @@ async function resolveListVariants(sid, S) {
 /** copie già in vendita della stessa carta (stesso set, numero, variante, lingua) */
 function listedQty(setId, u, rev, lang, vp) {
   return Object.values(state.listings).filter(l => (vp ? String(l.vp) === String(vp) : !l.vp && l.rev === rev) && (l.lang || 'it') === lang && norm(l.u) === norm(u) &&
-    tcgIdFor(l.expName || state.cm[l.exp]?.name) === setId).reduce((a, l) => a + l.q, 0);
+    lSid(l) === setId).reduce((a, l) => a + l.q, 0);
 }
 /** "＋ Aggiungi carte": dalle liste dell'app oppure a mano, una carta alla volta (vanno in Standby) */
 async function openAddCards() {

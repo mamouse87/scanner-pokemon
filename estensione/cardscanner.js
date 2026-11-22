@@ -323,7 +323,7 @@ window.__csMain = async (csExt) => {
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 d</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 e</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -1482,7 +1482,7 @@ window.__csMain = async (csExt) => {
         (wantPrice ? ` · prezzo = ${BASE_NAME[base]}${fmtPlus}` : '') + (comment ? ` · commento "${comment}"` : ''));
 
     const byNum = new Map();
-    const missing = [];
+    const missing = [], missVx = [];
     const done = Object.assign({}, doneGet());
     let skipped = 0;
     const supHere = onSupPage();
@@ -1497,7 +1497,7 @@ window.__csMain = async (csExt) => {
       if (isVx(it.v)) {
         // variante speciale (Supplementi): riga del suo prodotto Cardmarket, mai Reverse
         const row = it.p && rows.byP.get(String(it.p));
-        if (!row) { missing.push(it.num + vTagT(it)); continue; }
+        if (!row) { missVx.push(it.num + ' ' + (it.vl || 'variante speciale')); continue; }
         const gk = 'p' + it.p;
         const g = byNum.get(gk) || { row, normal: 0, rev: 0, vx: it.v, vl: it.vl, vb: it.vb, pid: String(it.p), name: it.name, rarity: it.rarity };
         g.normal += it.qty; byNum.set(gk, g);
@@ -1512,6 +1512,8 @@ window.__csMain = async (csExt) => {
     if (skipped) log(`${skipped} copie della lista erano già state inviate al gestionale: non le compilo di nuovo.` +
       (!byNum.size ? ' Se non è vero, premi "azzera avanzamento" sotto la lista e poi di nuovo "Compila la pagina".' : ''), byNum.size ? '#9aa3ad' : '#ff9f43');
     if (missing.length) log('Non in questa pagina (altra pagina del set o set sbagliato): ' + missing.join(', '), '#ff9f43');
+    // le varianti rare (Jumbo, timbrate, promo…) possono stare in un'Edizione diversa dai Supplementi: lo script le riconosce dal prodotto in qualunque pagina
+    if (missVx.length) log('Varianti speciali non in questa pagina: ' + missVx.join(', ') + (supHere ? '. Non sono nemmeno nei Supplementi (o sono in un\'altra pagina dei Supplementi): cercale su Cardmarket, apri la loro Edizione in "Inserisci carte bulk" e premi di nuovo "Compila la pagina".' : '.'), '#ff9f43');
     if (byNum.size > 100) log('Attenzione: più di 100 carte diverse, Cardmarket potrebbe non inserirle tutte in un solo invio.', '#ff9f43');
 
     let total = 0, warnings = 0, noPrice = 0;

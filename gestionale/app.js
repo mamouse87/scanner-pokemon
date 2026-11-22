@@ -37,7 +37,7 @@ function loadRaw() {
   return ls;
 }
 function load() {
-  try { const s = JSON.parse(loadRaw()); if (s && s.listings) { delete s.pgAuto; return Object.assign({ cm: {}, sold: [], standby: {} }, s); } } catch (e) {}
+  try { const s = JSON.parse(loadRaw()); if (s && s.listings) { delete s.pgAuto; delete s.hist; return Object.assign({ cm: {}, sold: [], standby: {} }, s); } } catch (e) {}
   return { cm: {}, listings: {}, sold: [], standby: {} };
 }
 /** toglie dal browser le copie temporanee dei dati TCGdex (si riscaricano da sole): all = tutte, altrimenti solo quelle inutili o vecchie */
@@ -1614,7 +1614,7 @@ function renderLog() {
 // Ogni save() che segue un'operazione dell'utente (registrata con logOp) diventa un punto di annullamento:
 // tengo lo stato di PRIMA. Prezzi di mercato, storico prezzi, catalogo e registro non si annullano.
 const UNDO_MAX = 20, UNDO_T = new Set(['standby', 'vendita', 'venduta', 'prezzo', 'quantita', 'tolta', 'riportata', 'dati']);
-const UNDO_KEEP = ['log', 'market', 'sbMarket', 'pg', 'hist', 'cm', 'revAt'];
+const UNDO_KEEP = ['log', 'market', 'sbMarket', 'pg', 'cm', 'revAt'];
 let undoStack = [], redoStack = [], undoLast = null, undoPending = [], undoBusy = false, undoSaveT = null;
 function undoNote(t, set, txt) { if (!undoBusy) undoPending.push({ t, set, txt }); }
 function undoRecord(js) {
@@ -1991,7 +1991,6 @@ $('main').addEventListener('click', e => {
     const o = outOf(k, l);
     return o ? `<span class="cd-tag ${o.dir}">${o.dir === 'hi' ? '▲ troppo alto' : '▼ troppo basso'} di ${eur(Math.abs(o.d))}</span>` : '<span class="cd-tag ok">in linea con il mercato</span>';
   };
-  const hist = l => { const a = ((state.hist || {})[histKey(l)] || []); return a.length >= 2 ? histChart(l, 'Andamento') : `<p class="cd-none">Andamento: il grafico compare dopo almeno 2 giorni di prezzi raccolti${a.length ? ' (finora 1)' : ''}.</p>`; };
   const fig = (v, l, cls = '') => `<div class="${cls}"><b>${v}</b><span>${l}</span></div>`;
   // link a Cardmarket: l'immagine apre la prima variante (in vendita, poi Standby, altrimenti Normale italiana)
   const cmLink = x => x.vp ? vxCmUrl(cm, x, c.id, c.name, x.lang || 'it') : cmCardUrl(cm, c.name, !!x.rev, x.lang || 'it');
@@ -2020,7 +2019,7 @@ $('main').addEventListener('click', e => {
           <div class="cd-rule"><span>Regola</span><b>${l.ref != null ? ruleTxt(l) : '—'}</b>${l.ref != null ? `<small>riferimento ${eur(l.ref)} · ${fmtD(l.refAt)}</small>` : ''}</div>
           <button class="sm" data-sell="1">Venduta 1</button></div>
         ${market(mOf(k), l.price, l.rev && !l.vp)}
-        <div class="cd-foot">${hist(l)}<span class="small">${src(mOf(k))}</span></div>
+        <div class="cd-foot"><span class="small">${src(mOf(k))}</span></div>
       </section>`).join('')}
       ${sb.map(([k, x]) => `<section class="cd-v sb" data-sb="${esc(k)}">
         <header><b>${x.vp ? `<span class="vxl">${esc(x.vl || 'Variante speciale')}</span>` : x.rev ? '<span class="rv">Reverse Holo</span>' : 'Normale'}</b><span>${LANGN[x.lang] || x.lang}</span><em class="st">Standby</em>${cmA(x)}</header>
@@ -2820,7 +2819,6 @@ async function updatePrices(force) {
         const st2 = sb ? state.sbMarket : state.market;   // (lo stato può essere stato sostituito da un Annulla nel frattempo)
         if (!M && old && old.v === 2 && (old.lo != null || old.t != null)) { failed++; prog.done++; showProg(prog); continue; }
         st2[k] = Object.assign(M || { v: 2, src: '', lo: null, t: null }, { at: today() });
-        if (M && (!l.rev || M.rv)) histAdd(l, M);
         if (!sb) {
           // carte messe in vendita prima di questa versione: il primo valore letto diventa il riferimento
           const cur = baseOf(M, l.rb || 'low');
@@ -3214,37 +3212,6 @@ function importEditFromHash() {
   return true;
 }
 
-// ---------- storico prezzi (per il grafico degli ultimi 10 giorni) ----------
-// state.hist["setTcgdex|numero|N/R|lingua"] = [[AAAA-MM-GG, Da, Tendenza], …] un valore al giorno, ultimi 30 giorni
-const histKey = l => l.s ? sbKey(l.s, l.u, l.rev, l.lang, l.vp) : sbKey(lSid(l) || ('cm:' + l.exp), l.u, l.rev, l.lang, l.vp);
-function histAdd(l, M) {
-  if (!M || (M.lo == null && M.t == null)) return;
-  const day = String(M.upd || today()).slice(0, 10);
-  const H = (state.hist = state.hist || {}), k = histKey(l);
-  const a = H[k] || (H[k] = []);
-  const i = a.findIndex(x => x[0] === day);
-  if (i >= 0) a[i] = [day, M.lo, M.t]; else a.push([day, M.lo, M.t]);
-  a.sort((x, y) => x[0].localeCompare(y[0]));
-  if (a.length > 30) a.splice(0, a.length - 30);
-}
-function histChart(l, title) {
-  const a = ((state.hist || {})[histKey(l)] || []).slice(-10);
-  if (a.length < 2) return `<div class="small" style="margin:6px 0">📈 ${esc(title)}: l'andamento si costruisce giorno per giorno${a.length ? ` (finora 1 giorno: Da ${eur(a[0][1]) || '—'}, Tendenza ${eur(a[0][2]) || '—'})` : ''}. Apri il gestionale ogni giorno per raccogliere i prezzi.</div>`;
-  const W = 420, H = 130, pl = 44, pr = 10, pt = 18, pb = 22;
-  const vals = a.flatMap(x => [x[1], x[2]]).filter(v => v != null);
-  let lo = Math.min(...vals), hi = Math.max(...vals);
-  if (hi - lo < 0.02) { hi += 0.01; lo = Math.max(0, lo - 0.01); }
-  const X = i => pl + i * (W - pl - pr) / (a.length - 1), Y = v => pt + (hi - v) * (H - pt - pb) / (hi - lo);
-  const line = (j, col) => { const pts = a.map((x, i) => x[j] == null ? null : [X(i), Y(x[j])]).filter(Boolean);
-    return `<polyline fill="none" stroke="${col}" stroke-width="2" points="${pts.map(p => p.join(',')).join(' ')}"/>` + pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="2.5" fill="${col}"/>`).join(''); };
-  const lab = d => d.slice(8, 10) + '/' + d.slice(5, 7);
-  return `<div style="margin:8px 0"><div class="small"><b>📈 ${esc(title)}</b> · ultimi ${a.length} giorni · <span style="color:#2f7fd8">● Da</span> <span style="color:#e8590c">● Tendenza</span></div>
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;height:auto;display:block">
-    <line x1="${pl}" y1="${Y(hi)}" x2="${W - pr}" y2="${Y(hi)}" stroke="var(--line)"/><line x1="${pl}" y1="${Y(lo)}" x2="${W - pr}" y2="${Y(lo)}" stroke="var(--line)"/>
-    <text x="${pl - 4}" y="${Y(hi) + 4}" font-size="10" text-anchor="end" fill="var(--mut)">${eur(hi)}</text><text x="${pl - 4}" y="${Y(lo) + 4}" font-size="10" text-anchor="end" fill="var(--mut)">${eur(lo)}</text>
-    ${a.map((x, i) => `<text x="${X(i)}" y="${H - 6}" font-size="9.5" text-anchor="middle" fill="var(--mut)">${lab(x[0])}</text>`).join('')}
-    ${line(1, '#2f7fd8')}${line(2, '#e8590c')}</svg></div>`;
-}
 
 // ---------- catalogo dall'app (.txt) → Standby ----------
 // state.standby["setTcgdex|numero|N/R|lingua"] = {s, sn, u, rev, lang, q, n, r, com, date, file}

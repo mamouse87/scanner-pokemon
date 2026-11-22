@@ -321,7 +321,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 g</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 h</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -884,7 +884,12 @@
     }
     return prev[n];
   }
+  // tipi di Energia: TCGdex li scrive per esteso ("Energia Fighting Rocciosa"), Cardmarket con la lettera ("Energia [F] Rocciosa")
+  const ETYPE = { grass: 'G', erba: 'G', fire: 'R', fuoco: 'R', water: 'W', acqua: 'W', lightning: 'L', lampo: 'L', psychic: 'P', psico: 'P',
+    fighting: 'F', lotta: 'F', darkness: 'D', oscurita: 'D', metal: 'M', metallo: 'M', fairy: 'Y', folletto: 'Y', dragon: 'N', drago: 'N', colorless: 'C', incolore: 'C' };
+  const etype = n => String(n || '').replace(/[A-Za-zÀ-ÿ]+/g, w => ETYPE[w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')] || w);
   function sameName(a, b) {
+    a = etype(a); b = etype(b);
     const A = simp(a), B = simp(b);
     if (!A || !B) return null; // non verificabile
     if (A === B || A.includes(B) || B.includes(A)) return true;

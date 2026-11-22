@@ -1,0 +1,2778 @@
+{
+ "quando": "2026-11-22 17:20:44 UTC",
+ "price_guide": {
+  "stato": 200,
+  "byte": 15904415,
+  "secondi": 0.2,
+  "last_modified": "Sun, 22 Nov 2026 01:44:09 GMT",
+  "tipo": "application/json",
+  "chiavi": [
+   "version",
+   "createdAt",
+   "priceGuides"
+  ],
+  "version": 1,
+  "createdAt": "2026-11-22T02:43:59+0100",
+  "numero": 80934,
+  "esempio": {
+   "idProduct": 870135,
+   "idCategory": 51,
+   "avg": null,
+   "low": 0.02,
+   "trend": 0.16,
+   "avg1": 0.15,
+   "avg7": 0.14,
+   "avg30": 0.14,
+   "avg-holo": 0.16,
+   "low-holo": 0.02,
+   "trend-holo": 0.13,
+   "avg1-holo": 0.11,
+   "avg7-holo": 0.12,
+   "avg30-holo": 0.15
+  }
+ },
+ "products": {
+  "stato": 200,
+  "byte": 13890368,
+  "secondi": 0.1,
+  "last_modified": "Sun, 22 Nov 2026 10:53:55 GMT",
+  "tipo": "application/json",
+  "chiavi": [
+   "version",
+   "createdAt",
+   "products"
+  ],
+  "version": 1,
+  "createdAt": "2026-11-22T11:53:52+0100",
+  "numero": 75774,
+  "esempio": [
+   {
+    "idProduct": 273532,
+    "name": "Weedle [Multiply]",
+    "idCategory": 51,
+    "categoryName": "Pokémon Single",
+    "idExpansion": 1585,
+    "idMetacard": 340471,
+    "dateAdded": "0000-00-00 00:00:00"
+   },
+   {
+    "idProduct": 273533,
+    "name": "Kakuna [Bug Bite | Primal Clash]",
+    "idCategory": 51,
+    "categoryName": "Pokémon Single",
+    "idExpansion": 1585,
+    "idMetacard": 340472,
+    "dateAdded": "0000-00-00 00:00:00"
+   }
+  ]
+ },
+ "set_principale": {
+  "2023sv": [
+   5430,
+   "McDonald’s Match Battle 2023"
+  ],
+  "2024sv": [
+   5978,
+   "McDonald’s Dragon Discovery"
+  ],
+  "30th": [
+   6601,
+   null
+  ],
+  "30th-c": [
+   6601,
+   null
+  ],
+  "me02.5": [
+   6395,
+   "Ascended Heroes"
+  ],
+  "me04": [
+   6517,
+   null
+  ],
+  "me06": [
+   6704,
+   null
+  ],
+  "mep": [
+   6232,
+   "MEP Black Star Promos"
+  ],
+  "me01": [
+   6209,
+   "Mega Evolution"
+  ],
+  "mee": [
+   6324,
+   "Mega Evolution Energies"
+  ],
+  "me03": [
+   6443,
+   null
+  ],
+  "me02": [
+   6299,
+   "Phantasmal Flames"
+  ],
+  "me05": [
+   6569,
+   null
+  ],
+  "sv03.5": [
+   5402,
+   "151"
+  ],
+  "sv10.5b": [
+   6134,
+   "Black Bolt"
+  ],
+  "sv10": [
+   6096,
+   "Destined Rivals"
+  ],
+  "sv09": [
+   6006,
+   "Journey Together"
+  ],
+  "mfb": [
+   5526,
+   "My First Battle"
+  ],
+  "sv03": [
+   5385,
+   "Obsidian Flames"
+  ],
+  "sv02": [
+   5318,
+   "Paldea Evolved"
+  ],
+  "sv04.5": [
+   5546,
+   "Paldean Fates"
+  ],
+  "sv04": [
+   5444,
+   "Paradox Rift"
+  ],
+  "sv08.5": [
+   5944,
+   "Prismatic Evolutions"
+  ],
+  "svp": [
+   5241,
+   "SV Black Star Promos"
+  ],
+  "sv01": [
+   null,
+   null
+  ],
+  "sve": [
+   5224,
+   "Scarlet & Violet Energies"
+  ],
+  "sv06.5": [
+   5760,
+   "Shrouded Fable"
+  ],
+  "sv07": [
+   5802,
+   "Stellar Crown"
+  ],
+  "sv08": [
+   5879,
+   "Surging Sparks"
+  ],
+  "sv05": [
+   5589,
+   "Temporal Forces"
+  ],
+  "sv06": [
+   5691,
+   "Twilight Masquerade"
+  ],
+  "sv10.5w": [
+   6135,
+   "White Flare"
+  ],
+  "swsh12.5": [
+   5201,
+   "Crown Zenith"
+  ],
+  "swsh12.5gg": [
+   5201,
+   "Crown Zenith"
+  ],
+  "swsh12": [
+   5142,
+   "Silver Tempest"
+  ],
+  "swsh12tg": [
+   5142,
+   "Silver Tempest"
+  ]
+ },
+ "varianti_per_edizione": {
+  "reverse/pokeball": {
+   "Ascended Heroes: Additionals": 34,
+   "Black Bolt: Additionals": 80,
+   "Prismatic Evolutions: Additionals": 100,
+   "set principale": 8,
+   "White Flare: Additionals": 80
+  },
+  "reverse/energy": {
+   "Ascended Heroes: Additionals": 140
+  },
+  "holo/cosmos": {
+   "Ascended Heroes: Additionals": 7,
+   "Mega Evolution: Additionals": 5,
+   "Edizione 6516": 4,
+   "Phantasmal Flames: Additionals": 8,
+   "Edizione 6640": 1,
+   "set principale": 72,
+   "Destined Rivals: Additionals": 7,
+   "Journey Together: Additionals": 8,
+   "Prismatic Evolutions: Additionals": 8
+  },
+  "reverse/friendball": {
+   "Ascended Heroes: Additionals": 23
+  },
+  "reverse/loveball": {
+   "Ascended Heroes: Additionals": 25
+  },
+  "reverse/quickball": {
+   "Ascended Heroes: Additionals": 22
+  },
+  "reverse/team-rocket": {
+   "Ascended Heroes: Additionals": 10
+  },
+  "normal +player-rewards-program": {
+   "Edizione 6616": 9,
+   "Play! Pokémon Prize Pack Series Eight": 1,
+   "Play! Pokémon Prize Pack Series Four": 5
+  },
+  "holo/cosmos +player-rewards-program": {
+   "Edizione 6616": 8,
+   "Play! Pokémon Prize Pack Series Eight": 2
+  },
+  "reverse/duskball": {
+   "Ascended Heroes: Additionals": 26
+  },
+  "holo +gamestop": {
+   "Edizione 6518": 1,
+   "Mega Evolution: Additionals": 1,
+   "Journey Together: Additionals": 1,
+   "set principale": 4
+  },
+  "holo +eb-games": {
+   "Edizione 6518": 1,
+   "Mega Evolution: Additionals": 1,
+   "Phantasmal Flames: Additionals": 1,
+   "Journey Together: Additionals": 1,
+   "set principale": 3
+  },
+  "normal": {
+   "Edizione 6518": 5,
+   "Mega Evolution: Additionals": 3,
+   "Edizione 6516": 6,
+   "Phantasmal Flames: Additionals": 4,
+   "Edizione 6640": 5,
+   "Destined Rivals: Additionals": 5,
+   "Journey Together: Additionals": 2,
+   "set principale": 16
+  },
+  "holo +set-logo": {
+   "Edizione 6518": 2,
+   "Mega Evolution: Additionals": 2,
+   "Phantasmal Flames: Additionals": 1,
+   "Black Bolt: Additionals": 1,
+   "Destined Rivals: Additionals": 9,
+   "Journey Together: Additionals": 7,
+   "set principale": 20,
+   "Prismatic Evolutions: Additionals": 13,
+   "Paldean Fates": 2,
+   "White Flare: Additionals": 2
+  },
+  "holo +set-logo+staff": {
+   "set principale": 52,
+   "Destined Rivals: Additionals": 3
+  },
+  "holo +pokemon-center": {
+   "set principale": 27
+  },
+  "lenticular/jumbo": {
+   "set principale": 9
+  },
+  "holo/jumbo": {
+   "set principale": 34,
+   "Black Bolt: Additionals": 1,
+   "Journey Together: Additionals": 1,
+   "Prismatic Evolutions: Additionals": 2
+  },
+  "holo +staff": {
+   "set principale": 5,
+   "Destined Rivals: Additionals": 1
+  },
+  "holo +winner": {
+   "set principale": 1
+  },
+  "holo +game-on": {
+   "set principale": 2
+  },
+  "reverse/league +30th-pokeday": {
+   "Mega Evolution: Additionals": 1
+  },
+  "normal +set-logo": {
+   "Mega Evolution: Additionals": 1,
+   "Edizione 6516": 2,
+   "set principale": 6,
+   "Prismatic Evolutions: Additionals": 1
+  },
+  "normal +trick-or-trade": {
+   "Mega Evolution: Additionals": 1,
+   "Trick or Trade 2024": 4
+  },
+  "holo/cosmos +gamestop": {
+   "Edizione 6516": 1,
+   "Phantasmal Flames: Additionals": 1
+  },
+  "holo/cosmos +eb-games": {
+   "Edizione 6516": 1,
+   "Destined Rivals: Additionals": 1
+  },
+  "holo/cosmos +set-logo": {
+   "Phantasmal Flames: Additionals": 1,
+   "Black Bolt: Additionals": 1,
+   "set principale": 1
+  },
+  "reverse/cosmos": {
+   "set principale": 16,
+   "Prismatic Evolutions: Additionals": 1
+  },
+  "normal +gamestop": {
+   "set principale": 2
+  },
+  "reverse +eb-games": {
+   "set principale": 2
+  },
+  "normal +pokemon-center": {
+   "set principale": 1
+  },
+  "normal +pokemon-together": {
+   "set principale": 2
+  },
+  "normal +snowflake": {
+   "set principale": 4
+  },
+  "holo/galaxy": {
+   "set principale": 6
+  },
+  "holo/gold": {
+   "set principale": 1
+  },
+  "holo/gold/jumbo": {
+   "set principale": 1
+  },
+  "holo/tinsel": {
+   "Black Bolt: Additionals": 1,
+   "White Flare: Additionals": 2
+  },
+  "reverse/masterball": {
+   "Black Bolt: Additionals": 72,
+   "Prismatic Evolutions: Additionals": 67,
+   "White Flare: Additionals": 72
+  },
+  "holo +player-rewards-program": {
+   "Play! Pokémon Prize Pack Series Eight": 3,
+   "Edizione 6616": 1,
+   "Play! Pokémon Prize Pack Series Four": 1,
+   "Play! Pokémon Prize Pack Series Five": 1,
+   "Play! Pokémon Prize Pack Series Six": 2,
+   "Play! Pokémon Prize Pack Series Three": 4
+  },
+  "holo +ultra-ball-league": {
+   "Southeast Asia Promos": 1
+  },
+  "normal +liao-fu-guan": {
+   "Edizione 6454": 3
+  },
+  "holo/cosmos +great-ball-league": {
+   "Southeast Asia Promos": 1
+  },
+  "normal +jose-cruz-galindo-resendiz": {
+   "Edizione 6454": 1
+  },
+  "reverse/pokeball +professor-program": {
+   "Professor Program": 1
+  },
+  "holo": {
+   "Destined Rivals: Additionals": 1,
+   "set principale": 4
+  },
+  "holo/jumbo +set-logo": {
+   "Journey Together: Additionals": 3,
+   "Prismatic Evolutions: Additionals": 1,
+   "Paldean Fates": 1,
+   "set principale": 10
+  },
+  "holo +snowflake": {
+   "Journey Together: Additionals": 1,
+   "set principale": 7,
+   "Prismatic Evolutions: Additionals": 1
+  },
+  "normal +bulbasaur+pokeball": {
+   "set principale": 2
+  },
+  "normal +charmander+pokeball": {
+   "set principale": 2
+  },
+  "normal +pikachu+pokeball": {
+   "set principale": 2
+  },
+  "normal +squirtle+pokeball": {
+   "set principale": 1
+  },
+  "normal +bulbasaur": {
+   "set principale": 2
+  },
+  "normal +charmander": {
+   "set principale": 2
+  },
+  "normal +squirtle": {
+   "set principale": 1
+  },
+  "normal +gym-challenge": {
+   "Southeast Asia Promos": 2
+  },
+  "reverse": {
+   "set principale": 4
+  },
+  "normal +pre-release": {
+   "set principale": 3
+  },
+  "reverse +set-logo": {
+   "set principale": 4
+  },
+  "normal +eb-games": {
+   "set principale": 2
+  },
+  "holo +trick-or-trade": {
+   "Trick or Trade 2024": 2
+  },
+  "normal/cosmos": {
+   "set principale": 1
+  },
+  "holo +gym-challenge": {
+   "Southeast Asia Promos": 1
+  },
+  "holo +asia-promo": {
+   "Southeast Asia Promos": 1,
+   "set principale": 1
+  },
+  "reverse +regional-championships": {
+   "Promos": 1
+  },
+  "normal +worlds-2024": {
+   "WCD 2024": 1,
+   "set principale": 1
+  },
+  "normal +horizons": {
+   "set principale": 3
+  },
+  "holo/cosmos +snowflake": {
+   "set principale": 5
+  },
+  "normal/jumbo +rain-city": {
+   "set principale": 1
+  },
+  "holo +pokemon-day": {
+   "set principale": 2
+  },
+  "reverse +gamestop": {
+   "set principale": 1
+  },
+  "holo +30th-pokeday": {
+   "Prismatic Evolutions: Additionals": 1
+  },
+  "normal/jumbo +set-logo": {
+   "Prismatic Evolutions: Additionals": 1
+  },
+  "normal +worlds-2023+staff": {
+   "set principale": 1
+  },
+  "normal +asia-2023-24": {
+   "set principale": 1
+  },
+  "normal +worlds-2024+staff": {
+   "set principale": 1
+  },
+  "normal +professor-program": {
+   "Professor Program": 3
+  },
+  "normal +worlds-2025+staff": {
+   "set principale": 1
+  },
+  "reverse/league +winner": {
+   "set principale": 1
+  },
+  "reverse/cracked-ice": {
+   "set principale": 8
+  },
+  "reverse/tinsel": {
+   "set principale": 8
+  },
+  "normal/league": {
+   "set principale": 3
+  },
+  "holo +horizons": {
+   "set principale": 1
+  },
+  "reverse/galaxy +gamestop": {
+   "set principale": 1
+  },
+  "holo/galaxy +set-logo": {
+   "set principale": 1
+  },
+  "metal": {
+   "set principale": 1
+  },
+  "holo +fossil-museum": {
+   "White Flare: Additionals": 1
+  }
+ },
+ "varianti_esempi": {
+  "reverse/pokeball": [
+   [
+    "me02.5",
+    "001",
+    "870136",
+    "Erika's Oddish [Reckless Charge]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "002",
+    "870138",
+    "Erika's Gloom [Poison Spray]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "004",
+    "870140",
+    "Erika's Bellsprout [Vine Slap]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "005",
+    "870142",
+    "Erika's Weepinbell [Melt | Leafy Cyclone]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ]
+  ],
+  "reverse/energy": [
+   [
+    "me02.5",
+    "001",
+    "870135",
+    "Erika's Oddish [Reckless Charge]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "002",
+    "870137",
+    "Erika's Gloom [Poison Spray]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "004",
+    "870139",
+    "Erika's Bellsprout [Vine Slap]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "005",
+    "870141",
+    "Erika's Weepinbell [Melt | Leafy Cyclone]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ]
+  ],
+  "holo/cosmos": [
+   [
+    "me02.5",
+    "007",
+    "870106",
+    "Erika's Tangela [Gathering of Blossoms | Bind]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "008",
+    "878074",
+    "Chikorita [Growl | Seed Bomb]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "020",
+    "870111",
+    "Charmander [Fire Claws]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "029",
+    "878075",
+    "Tepig [Steady Firebreathing]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ]
+  ],
+  "reverse/friendball": [
+   [
+    "me02.5",
+    "008",
+    "870148",
+    "Chikorita [Growl | Seed Bomb]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "009",
+    "870150",
+    "Bayleef [Leaf Step]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "016",
+    "870162",
+    "Budew [Itchy Pollen]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "020",
+    "870170",
+    "Charmander [Fire Claws]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ]
+  ],
+  "reverse/loveball": [
+   [
+    "me02.5",
+    "011",
+    "870152",
+    "Wurmple [Bug Bite]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "012",
+    "870154",
+    "Silcoon [Multiplying Cocoon | Tackle]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "013",
+    "870156",
+    "Beautifly [Stun Spore | Energy Straw]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "014",
+    "870158",
+    "Cascoon [Trading Places]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ]
+  ],
+  "reverse/quickball": [
+   [
+    "me02.5",
+    "017",
+    "870164",
+    "Grubbin [Ambush]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "025",
+    "870178",
+    "Entei [Flare Fall]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "027",
+    "870180",
+    "Numel [Incandescent Body | Combustion]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "028",
+    "870182",
+    "Camerupt [Roasting Burn | Power Stomp]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ]
+  ],
+  "reverse/team-rocket": [
+   [
+    "me02.5",
+    "018",
+    "870166",
+    "Team Rocket's Tarountula [Take Down]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "019",
+    "870168",
+    "Team Rocket's Spidops [Charging Up | Rocket Rush]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "077",
+    "870256",
+    "Team Rocket's Exeggcute [Focused Wish]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "078",
+    "870258",
+    "Team Rocket's Exeggutor [Trikinesis | Double-Edge]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ]
+  ],
+  "normal +player-rewards-program": [
+   [
+    "me02.5",
+    "039",
+    "894183",
+    "Psyduck [Damp | Ram]",
+    6616,
+    null,
+    true
+   ],
+   [
+    "me02.5",
+    "086",
+    "894173",
+    "Mismagius [Assassin's Magic]",
+    6616,
+    null,
+    true
+   ],
+   [
+    "me02.5",
+    "150",
+    "894128",
+    "Dratini [Headbutt]",
+    6616,
+    null,
+    true
+   ],
+   [
+    "me02.5",
+    "155",
+    "894179",
+    "N's Zekrom [Shred | Rampaging Thunder]",
+    6616,
+    null,
+    true
+   ]
+  ],
+  "holo/cosmos +player-rewards-program": [
+   [
+    "me02.5",
+    "039",
+    "894184",
+    "Psyduck [Damp | Ram]",
+    6616,
+    null,
+    true
+   ],
+   [
+    "me02.5",
+    "155",
+    "894178",
+    "N's Zekrom [Shred | Rampaging Thunder]",
+    6616,
+    null,
+    true
+   ],
+   [
+    "me02.5",
+    "183",
+    "894200",
+    "Boss's Orders - Corbeau",
+    6616,
+    null,
+    true
+   ],
+   [
+    "me02.5",
+    "185",
+    "894203",
+    "Canari",
+    6616,
+    null,
+    true
+   ]
+  ],
+  "reverse/duskball": [
+   [
+    "me02.5",
+    "044",
+    "870208",
+    "Sneasel [Cut | Beset]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "045",
+    "870210",
+    "Weavile [Slash | Hail Claw]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "085",
+    "870268",
+    "Misdreavus [Ascension]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ],
+   [
+    "me02.5",
+    "086",
+    "870270",
+    "Mismagius [Assassin's Magic]",
+    6455,
+    "Ascended Heroes: Additionals",
+    true
+   ]
+  ],
+  "holo +gamestop": [
+   [
+    "me04",
+    "010",
+    "886625",
+    "Ho-Oh [Flames of Revival | Bright Wing]",
+    6518,
+    null,
+    true
+   ],
+   [
+    "me01",
+    "088",
+    "851265",
+    "Yveltal [Clutch | Dark Feather]",
+    6290,
+    "Mega Evolution: Additionals",
+    true
+   ],
+   [
+    "sv09",
+    "117",
+    "817770",
+    "Hop's Snorlax [Extra Helpings | Dynamic Press]",
+    6088,
+    "Journey Together: Additionals",
+    true
+   ],
+   [
+    "sv02",
+    "105",
+    "719854",
+    "Tinkaton [Gather Materials | Special Hammer]",
+    5318,
+    "Paldea Evolved",
+    true
+   ]
+  ],
+  "holo +eb-games": [
+   [
+    "me04",
+    "010",
+    "888580",
+    "Ho-Oh [Flames of Revival | Bright Wing]",
+    6518,
+    null,
+    true
+   ],
+   [
+    "me01",
+    "088",
+    "851266",
+    "Yveltal [Clutch | Dark Feather]",
+    6290,
+    "Mega Evolution: Additionals",
+    true
+   ],
+   [
+    "me02",
+    "026",
+    "858506",
+    "Suicune [Crystal Fall]",
+    6300,
+    "Phantasmal Flames: Additionals",
+    true
+   ],
+   [
+    "sv09",
+    "117",
+    "828859",
+    "Hop's Snorlax [Extra Helpings | Dynamic Press]",
+    6088,
+    "Journey Together: Additionals",
+    true
+   ]
+  ],
+  "normal": [
+   [
+    "me04",
+    "013",
+    "888552",
+    "Delphox [Flaring Magic | Energized Storm]",
+    6518,
+    null,
+    true
+   ],
+   [
+    "me04",
+    "029",
+    "888542",
+    "Ampharos [Synchro Pulse | Flashing Bolt]",
+    6518,
+    null,
+    true
+   ],
+   [
+    "me04",
+    "051",
+    "888531",
+    "Crobat [Nighttime Maneuvers | Poison Sound Wave]",
+    6518,
+    null,
+    true
+   ],
+   [
+    "me04",
+    "068",
+    "888530",
+    "Goodra [Slimy Sliding | Dragon Pulse]",
+    6518,
+    null,
+    true
+   ]
+  ],
+  "holo +set-logo": [
+   [
+    "me04",
+    "013",
+    "886624",
+    "Delphox [Flaring Magic | Energized Storm]",
+    6518,
+    null,
+    true
+   ],
+   [
+    "me04",
+    "019",
+    "886626",
+    "Keldeo [Shoot Through | Reflect Energy]",
+    6518,
+    null,
+    true
+   ],
+   [
+    "me01",
+    "088",
+    "854291",
+    "Yveltal [Clutch | Dark Feather]",
+    6290,
+    "Mega Evolution: Additionals",
+    true
+   ],
+   [
+    "me01",
+    "133",
+    "851067",
+    "Bulbasaur [Bind Down]",
+    6290,
+    "Mega Evolution: Additionals",
+    true
+   ]
+  ],
+  "holo +set-logo+staff": [
+   [
+    "mep",
+    "001",
+    "851044",
+    "Meganium [Wild Growth | Solar Beam]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "002",
+    "851046",
+    "Inteleon [Bring Down | Water Shot]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "003",
+    "851048",
+    "Alakazam [Psychic Draw | Powerful Hand]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "004",
+    "851050",
+    "Lunatone [Lunar Cycle | Power Gem]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ]
+  ],
+  "holo +pokemon-center": [
+   [
+    "mep",
+    "009",
+    "851056",
+    "Alakazam [Psychic Draw | Powerful Hand]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "010",
+    "851059",
+    "Riolu [Accelerating Stab]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "022",
+    "859031",
+    "Charcadet [Gather Strength | Chop]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "031",
+    "873704",
+    "N's Zekrom [Shred | Rampaging Thunder]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ]
+  ],
+  "lenticular/jumbo": [
+   [
+    "mep",
+    "011",
+    "851066",
+    "Mega Latias ex [Strafe | Illusory Impulse]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "013",
+    "859012",
+    "Mega Venusaur ex [Solar Transfer | Jungle Dump]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "025",
+    "859039",
+    "Mega Kangaskhan ex [Run Errand | Rapid-Fire Combo]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "034",
+    "873718",
+    "Mega Meganium ex [Giant Bouquet]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ]
+  ],
+  "holo/jumbo": [
+   [
+    "mep",
+    "012",
+    "858147",
+    "Mega Lucario ex [Aura Jab | Mega Brave]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "099",
+    "910855",
+    "Greninja ex [Stealthy Slash | Aqua Edge]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "100",
+    "910856",
+    "Sylveon ex [Colorful Harmony]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "sv03.5",
+    "009",
+    "816812",
+    "Blastoise ex [Solid Shell | Twin Cannons]",
+    5402,
+    "151",
+    true
+   ]
+  ],
+  "holo +staff": [
+   [
+    "mep",
+    "082",
+    "903005",
+    "Miraidon [Photon Cord | Thunder]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "083",
+    "903006",
+    "Slowbro [All Out | Zen Headbutt]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "084",
+    "903007",
+    "Dhelmise [Vengeful Anchor]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "085",
+    "903008",
+    "Bastiodon [Ancient Bulwark | Hammer In]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ]
+  ],
+  "holo +winner": [
+   [
+    "mep",
+    "093",
+    "894885",
+    "Pikachu [Scrappy Spark]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ]
+  ],
+  "holo +game-on": [
+   [
+    "mep",
+    "093",
+    "914473",
+    "Pikachu [Scrappy Spark]",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ],
+   [
+    "mep",
+    "120",
+    "914431",
+    "Celebratory Fanfare",
+    6232,
+    "MEP Black Star Promos",
+    true
+   ]
+  ],
+  "reverse/league +30th-pokeday": [
+   [
+    "me01",
+    "001",
+    "871308",
+    "Bulbasaur [Bind Down]",
+    6290,
+    "Mega Evolution: Additionals",
+    true
+   ]
+  ],
+  "normal +set-logo": [
+   [
+    "me01",
+    "064",
+    "851264",
+    "Xerneas [Geo Gate | Bright Horns]",
+    6290,
+    "Mega Evolution: Additionals",
+    true
+   ],
+   [
+    "me03",
+    "024",
+    "877704",
+    "Aurorus [Tundra Wall | Freezing Chill]",
+    6516,
+    null,
+    true
+   ],
+   [
+    "me03",
+    "028",
+    "877705",
+    "Luxray [Incessant Onslaught | Strong Volt]",
+    6516,
+    null,
+    true
+   ],
+   [
+    "sv03.5",
+    "001",
+    "720365",
+    "Bulbasaur [Leech Seed | 151]",
+    5402,
+    "151",
+    true
+   ]
+  ],
+  "normal +trick-or-trade": [
+   [
+    "me01",
+    "087",
+    "850911",
+    "Spiritomb [Spiteful Swirl | Mountain Breaker]",
+    6290,
+    "Mega Evolution: Additionals",
+    true
+   ],
+   [
+    "sv03",
+    "130",
+    "785587",
+    "Umbreon [Feint Attack | Pitch-Black Blade]",
+    5796,
+    "Trick or Trade 2024",
+    true
+   ],
+   [
+    "sv03",
+    "131",
+    "785589",
+    "Houndour [Coordinated Pack | Focus Fangs]",
+    5796,
+    "Trick or Trade 2024",
+    true
+   ],
+   [
+    "sv03",
+    "133",
+    "785591",
+    "Houndoom [Daring Strike | Shadow Slash]",
+    5796,
+    "Trick or Trade 2024",
+    true
+   ]
+  ],
+  "holo/cosmos +gamestop": [
+   [
+    "me03",
+    "050",
+    "877703",
+    "Gengar [Infinite Shadow | Mind Jack]",
+    6516,
+    null,
+    true
+   ],
+   [
+    "me02",
+    "026",
+    "858505",
+    "Suicune [Crystal Fall]",
+    6300,
+    "Phantasmal Flames: Additionals",
+    true
+   ]
+  ],
+  "holo/cosmos +eb-games": [
+   [
+    "me03",
+    "050",
+    "881891",
+    "Gengar [Infinite Shadow | Mind Jack]",
+    6516,
+    null,
+    true
+   ],
+   [
+    "sv10",
+    "070",
+    "848308",
+    "Team Rocket's Zapdos [Jamming Wing | Wicked Thunder]",
+    6140,
+    "Destined Rivals: Additionals",
+    true
+   ]
+  ],
+  "holo/cosmos +set-logo": [
+   [
+    "me02",
+    "008",
+    "858502",
+    "Genesect [Bug's Cannon | Speed Attack]",
+    6300,
+    "Phantasmal Flames: Additionals",
+    true
+   ],
+   [
+    "sv10.5b",
+    "012",
+    "865205",
+    "Victini [V-Force]",
+    6197,
+    "Black Bolt: Additionals",
+    true
+   ],
+   [
+    "sv06",
+    "024",
+    "786105",
+    "Teal Mask Ogerpon [Mountain Stroll | Ogre Comeback]",
+    5691,
+    "Twilight Masquerade",
+    true
+   ]
+  ],
+  "reverse/cosmos": [
+   [
+    "sv03.5",
+    "001",
+    "794908",
+    "Bulbasaur [Leech Seed | 151]",
+    5402,
+    "151",
+    true
+   ],
+   [
+    "sv03.5",
+    "004",
+    "794909",
+    "Charmander [Blazing Destruction | Steady Firebreathing]",
+    5402,
+    "151",
+    true
+   ],
+   [
+    "sv03.5",
+    "007",
+    "794910",
+    "Squirtle [Withdraw | Skull Bash]",
+    5402,
+    "151",
+    true
+   ],
+   [
+    "sv03.5",
+    "025",
+    "794911",
+    "Pikachu [Charge | Pika Punch]",
+    5402,
+    "151",
+    true
+   ]
+  ],
+  "normal +gamestop": [
+   [
+    "sv03.5",
+    "004",
+    "720366",
+    "Charmander [Blazing Destruction | Steady Firebreathing]",
+    5402,
+    "151",
+    true
+   ],
+   [
+    "sv03",
+    "130",
+    "727070",
+    "Umbreon [Feint Attack | Pitch-Black Blade]",
+    5385,
+    "Obsidian Flames",
+    true
+   ]
+  ],
+  "reverse +eb-games": [
+   [
+    "sv03.5",
+    "004",
+    "759873",
+    "Charmander [Blazing Destruction | Steady Firebreathing]",
+    5402,
+    "151",
+    true
+   ],
+   [
+    "sv04",
+    "028",
+    "782654",
+    "Iron Moth [Thermal Reactor | Heat Ray]",
+    5444,
+    "Paradox Rift",
+    true
+   ]
+  ],
+  "normal +pokemon-center": [
+   [
+    "sv03.5",
+    "007",
+    "721198",
+    "Squirtle [Withdraw | Skull Bash]",
+    5402,
+    "151",
+    true
+   ]
+  ],
+  "normal +pokemon-together": [
+   [
+    "sv03.5",
+    "025",
+    "748474",
+    "Pikachu [Charge | Pika Punch]",
+    5402,
+    "151",
+    true
+   ],
+   [
+    "sv03.5",
+    "133",
+    "748475",
+    "Eevee [Colorful Friends | Skip]",
+    5402,
+    "151",
+    true
+   ]
+  ],
+  "normal +snowflake": [
+   [
+    "sv03.5",
+    "025",
+    "845404",
+    "Pikachu [Charge | Pika Punch]",
+    5402,
+    "151",
+    true
+   ],
+   [
+    "sv03.5",
+    "133",
+    "845405",
+    "Eevee [Colorful Friends | Skip]",
+    5402,
+    "151",
+    true
+   ],
+   [
+    "sv02",
+    "046",
+    "845403",
+    "Delibird [Double Draw | Ice Wing]",
+    5318,
+    "Paldea Evolved",
+    true
+   ],
+   [
+    "sv08",
+    "047",
+    "845408",
+    "Cryogonal [Call Sign | Ice Beam]",
+    5879,
+    "Surging Sparks",
+    true
+   ]
+  ],
+  "holo/galaxy": [
+   [
+    "sv03.5",
+    "094",
+    "861151",
+    "Gengar [Poltergeist | Hollow Dive]",
+    5402,
+    "151",
+    true
+   ],
+   [
+    "sv03",
+    "136",
+    "858721",
+    "Darkrai [Dark Slumber | Night Cyclone]",
+    5385,
+    "Obsidian Flames",
+    true
+   ],
+   [
+    "sv03",
+    "141",
+    "858722",
+    "Scizor [Punishing Scissors | Cut]",
+    5385,
+    "Obsidian Flames",
+    true
+   ],
+   [
+    "sv04",
+    "158",
+    "750081",
+    "Iron Jugulis [Homing Headbutt | Baryon Beam]",
+    5444,
+    "Paradox Rift",
+    true
+   ]
+  ],
+  "holo/gold": [
+   [
+    "sv03.5",
+    "205",
+    "733800",
+    "Mew ex [Restart | Genome Hacking]",
+    5402,
+    "151",
+    true
+   ]
+  ],
+  "holo/gold/jumbo": [
+   [
+    "sv03.5",
+    "205",
+    "814545",
+    "Mew ex [Restart | Genome Hacking]",
+    5402,
+    "151",
+    true
+   ]
+  ],
+  "holo/tinsel": [
+   [
+    "sv10.5b",
+    "001",
+    "836667",
+    "Snivy [Tackle | Vine Whip | SV]",
+    6197,
+    "Black Bolt: Additionals",
+    true
+   ],
+   [
+    "sv10.5w",
+    "011",
+    "836668",
+    "Tepig [Tackle | Rollout | SV]",
+    6198,
+    "White Flare: Additionals",
+    true
+   ],
+   [
+    "sv10.5w",
+    "021",
+    "836669",
+    "Oshawott [Tackle | Water Gun | SV]",
+    6198,
+    "White Flare: Additionals",
+    true
+   ]
+  ],
+  "reverse/masterball": [
+   [
+    "sv10.5b",
+    "001",
+    "836269",
+    "Snivy [Tackle | Vine Whip | SV]",
+    6197,
+    "Black Bolt: Additionals",
+    true
+   ],
+   [
+    "sv10.5b",
+    "002",
+    "836270",
+    "Servine [Wrap | Vine Whip]",
+    6197,
+    "Black Bolt: Additionals",
+    true
+   ],
+   [
+    "sv10.5b",
+    "004",
+    "836271",
+    "Pansage [Collect | Scratch | SV]",
+    6197,
+    "Black Bolt: Additionals",
+    true
+   ],
+   [
+    "sv10.5b",
+    "005",
+    "836272",
+    "Simisage [Gentle Slap]",
+    6197,
+    "Black Bolt: Additionals",
+    true
+   ]
+  ],
+  "holo +player-rewards-program": [
+   [
+    "sv10.5b",
+    "028",
+    "864375",
+    "Kyurem ex [Slash | Blizzard Burst]",
+    6425,
+    "Play! Pokémon Prize Pack Series Eight",
+    true
+   ],
+   [
+    "sv10.5b",
+    "034",
+    "864406",
+    "Zekrom ex [Slash | Voltage Burst]",
+    6425,
+    "Play! Pokémon Prize Pack Series Eight",
+    true
+   ],
+   [
+    "sv10.5b",
+    "034",
+    "894193",
+    "Zekrom ex [Slash | Voltage Burst]",
+    6616,
+    null,
+    true
+   ],
+   [
+    "sv10.5b",
+    "067",
+    "864365",
+    "Genesect ex [Metallic Signal | Protect Charge]",
+    6425,
+    "Play! Pokémon Prize Pack Series Eight",
+    true
+   ]
+  ],
+  "holo +ultra-ball-league": [
+   [
+    "sv10.5b",
+    "034",
+    "855692",
+    "Zekrom ex [Slash | Voltage Burst]",
+    5834,
+    "Southeast Asia Promos",
+    true
+   ]
+  ],
+  "normal +liao-fu-guan": [
+   [
+    "sv10.5b",
+    "067",
+    "884294",
+    "Genesect ex [Metallic Signal | Protect Charge]",
+    6454,
+    null,
+    true
+   ],
+   [
+    "sv10.5b",
+    "079",
+    "884311",
+    "Air Balloon",
+    6454,
+    null,
+    true
+   ],
+   [
+    "sv10.5b",
+    "084",
+    "884309",
+    "Pokégear 3.0",
+    6454,
+    null,
+    true
+   ]
+  ],
+  "holo/cosmos +great-ball-league": [
+   [
+    "sv10.5b",
+    "079",
+    "855028",
+    "Air Balloon",
+    5834,
+    "Southeast Asia Promos",
+    true
+   ]
+  ],
+  "normal +jose-cruz-galindo-resendiz": [
+   [
+    "sv10.5b",
+    "079",
+    "884410",
+    "Air Balloon",
+    6454,
+    null,
+    true
+   ]
+  ],
+  "reverse/pokeball +professor-program": [
+   [
+    "sv10.5b",
+    "085",
+    "878014",
+    "Professor's Research - Professor Juniper",
+    3108,
+    "Professor Program",
+    true
+   ]
+  ],
+  "holo": [
+   [
+    "sv10",
+    "096",
+    "828209",
+    "Team Rocket's Tyranitar [Sand Stream | Demolition Tackle]",
+    6140,
+    "Destined Rivals: Additionals",
+    true
+   ],
+   [
+    "sv03",
+    "026",
+    "727116",
+    "Charmander [Heat Tackle]",
+    5385,
+    "Obsidian Flames",
+    true
+   ],
+   [
+    "sv03",
+    "027",
+    "727117",
+    "Charmeleon [Heat Tackle]",
+    5385,
+    "Obsidian Flames",
+    true
+   ],
+   [
+    "sv06",
+    "059",
+    "775950",
+    "Finizen [Aqua Slash]",
+    5691,
+    "Twilight Masquerade",
+    true
+   ]
+  ],
+  "holo/jumbo +set-logo": [
+   [
+    "sv09",
+    "030",
+    "841283",
+    "Reshiram ex [Fire Wing | Scorching Fire]",
+    6088,
+    "Journey Together: Additionals",
+    true
+   ],
+   [
+    "sv09",
+    "069",
+    "855661",
+    "Mimikyu ex [Mischievous Hands | Ghostly Trip]",
+    6088,
+    "Journey Together: Additionals",
+    true
+   ],
+   [
+    "sv09",
+    "114",
+    "853517",
+    "Salamence ex [Wide Blast | Dragon Impact]",
+    6088,
+    "Journey Together: Additionals",
+    true
+   ],
+   [
+    "sv08.5",
+    "082",
+    "868296",
+    "Lugia ex [Hyper Whirlpool]",
+    6009,
+    "Prismatic Evolutions: Additionals",
+    true
+   ]
+  ],
+  "holo +snowflake": [
+   [
+    "sv09",
+    "032",
+    "845411",
+    "Articuno [Frigid Fluttering | Ice Blast]",
+    6088,
+    "Journey Together: Additionals",
+    true
+   ],
+   [
+    "sv03",
+    "042",
+    "785464",
+    "Eiscue ex [Scalding Block]",
+    5385,
+    "Obsidian Flames",
+    true
+   ],
+   [
+    "sv02",
+    "061",
+    "785462",
+    "Chien-Pao ex [Shivery Chill | Hail Blade]",
+    5318,
+    "Paldea Evolved",
+    true
+   ],
+   [
+    "sv02",
+    "063",
+    "785463",
+    "Pikachu ex [Pika Punch | Dynamic Bolt]",
+    5318,
+    "Paldea Evolved",
+    true
+   ]
+  ],
+  "normal +bulbasaur+pokeball": [
+   [
+    "mfb",
+    "1",
+    "741975",
+    "Bulbasaur [Tackle | Vine Whip]",
+    5526,
+    "My First Battle",
+    true
+   ],
+   [
+    "mfb",
+    "8",
+    "741985",
+    "Basic Grass Energy",
+    5526,
+    "My First Battle",
+    true
+   ]
+  ],
+  "normal +charmander+pokeball": [
+   [
+    "mfb",
+    "16",
+    "741997",
+    "Basic Fire Energy",
+    5526,
+    "My First Battle",
+    true
+   ],
+   [
+    "mfb",
+    "9",
+    "741976",
+    "Bulbasaur [Tackle | Vine Whip]",
+    5526,
+    "My First Battle",
+    true
+   ]
+  ],
+  "normal +pikachu+pokeball": [
+   [
+    "mfb",
+    "17",
+    "741999",
+    "Pikachu [Quick Attack | Electro Ball | MFB]",
+    5526,
+    "My First Battle",
+    true
+   ],
+   [
+    "mfb",
+    "24",
+    "742009",
+    "Basic Lightning Energy",
+    5526,
+    "My First Battle",
+    true
+   ]
+  ],
+  "normal +squirtle+pokeball": [
+   [
+    "mfb",
+    "25",
+    "742011",
+    "Squirtle [Tackle | Water Gun]",
+    5526,
+    "My First Battle",
+    true
+   ]
+  ],
+  "normal +bulbasaur": [
+   [
+    "mfb",
+    "33",
+    "741983",
+    "Potion",
+    5526,
+    "My First Battle",
+    true
+   ],
+   [
+    "mfb",
+    "34",
+    "741984",
+    "Switch",
+    5526,
+    "My First Battle",
+    true
+   ]
+  ],
+  "normal +charmander": [
+   [
+    "mfb",
+    "33",
+    "741995",
+    "Potion",
+    5526,
+    "My First Battle",
+    true
+   ],
+   [
+    "mfb",
+    "34",
+    "741996",
+    "Switch",
+    5526,
+    "My First Battle",
+    true
+   ]
+  ],
+  "normal +squirtle": [
+   [
+    "mfb",
+    "34",
+    "742020",
+    "Switch",
+    5526,
+    "My First Battle",
+    true
+   ]
+  ],
+  "normal +gym-challenge": [
+   [
+    "sv03",
+    "022",
+    "780004",
+    "Toedscruel ex [Protective Mycelium | Colony Rush]",
+    5834,
+    "Southeast Asia Promos",
+    true
+   ],
+   [
+    "sv03",
+    "189",
+    "780009",
+    "Letter of Encouragement",
+    5834,
+    "Southeast Asia Promos",
+    true
+   ]
+  ],
+  "reverse": [
+   [
+    "sv03",
+    "056",
+    "725136",
+    "Froakie [Try Bouncing]",
+    5385,
+    "Obsidian Flames",
+    true
+   ],
+   [
+    "sv02",
+    "098",
+    "715573",
+    "Ceruledge [Life Sucker | Fighting Sword]",
+    5318,
+    "Paldea Evolved",
+    true
+   ],
+   [
+    "sv04",
+    "028",
+    "740504",
+    "Iron Moth [Thermal Reactor | Heat Ray]",
+    5444,
+    "Paradox Rift",
+    true
+   ],
+   [
+    "sv04",
+    "123",
+    "740660",
+    "Brute Bonnet [Toxic Powder | Rampaging Hammer]",
+    5444,
+    "Paradox Rift",
+    true
+   ]
+  ],
+  "normal +pre-release": [
+   [
+    "sv03",
+    "062",
+    "727118",
+    "Palafin [Jet Punch | Justice Kick]",
+    5385,
+    "Obsidian Flames",
+    true
+   ],
+   [
+    "sv03",
+    "072",
+    "727119",
+    "Toxtricity [Leer | Loud Mix]",
+    5385,
+    "Obsidian Flames",
+    true
+   ],
+   [
+    "sv03",
+    "085",
+    "727120",
+    "Togekiss [Precious Gift | Power Cyclone]",
+    5385,
+    "Obsidian Flames",
+    true
+   ]
+  ],
+  "reverse +set-logo": [
+   [
+    "sv03",
+    "086",
+    "804328",
+    "Espeon [Psychic Assault | Psy Bolt]",
+    5385,
+    "Obsidian Flames",
+    true
+   ],
+   [
+    "sv03",
+    "130",
+    "742043",
+    "Umbreon [Feint Attack | Pitch-Black Blade]",
+    5385,
+    "Obsidian Flames",
+    true
+   ],
+   [
+    "sv04",
+    "028",
+    "749909",
+    "Iron Moth [Thermal Reactor | Heat Ray]",
+    5444,
+    "Paradox Rift",
+    true
+   ],
+   [
+    "sv04",
+    "107",
+    "743160",
+    "Slither Wing [Stomp Off | Burning Turbulence]",
+    5444,
+    "Paradox Rift",
+    true
+   ]
+  ],
+  "normal +eb-games": [
+   [
+    "sv03",
+    "130",
+    "727071",
+    "Umbreon [Feint Attack | Pitch-Black Blade]",
+    5385,
+    "Obsidian Flames",
+    true
+   ],
+   [
+    "sv05",
+    "119",
+    "762532",
+    "Koraidon [Primordial Beatdown | Shred]",
+    5589,
+    "Temporal Forces",
+    true
+   ]
+  ],
+  "holo +trick-or-trade": [
+   [
+    "sv03",
+    "136",
+    "785594",
+    "Darkrai [Dark Slumber | Night Cyclone]",
+    5796,
+    "Trick or Trade 2024",
+    true
+   ],
+   [
+    "sv02",
+    "097",
+    "785611",
+    "Mimikyu [Safeguard | Ghost Eye]",
+    5796,
+    "Trick or Trade 2024",
+    true
+   ]
+  ],
+  "normal/cosmos": [
+   [
+    "sv03",
+    "148",
+    "781859",
+    "Pawniard [Triple Cutter]",
+    5385,
+    "Obsidian Flames",
+    true
+   ]
+  ],
+  "holo +gym-challenge": [
+   [
+    "sv03",
+    "164",
+    "780007",
+    "Pidgeot ex [Quick Search | Blustery Wind]",
+    5834,
+    "Southeast Asia Promos",
+    true
+   ]
+  ],
+  "holo +asia-promo": [
+   [
+    "sv03",
+    "164",
+    "819255",
+    "Pidgeot ex [Quick Search | Blustery Wind]",
+    5834,
+    "Southeast Asia Promos",
+    true
+   ],
+   [
+    "sv02",
+    "172",
+    "872163",
+    "Boss's Orders - Ghetsis",
+    5318,
+    "Paldea Evolved",
+    true
+   ]
+  ],
+  "reverse +regional-championships": [
+   [
+    "sv03",
+    "188",
+    "742991",
+    "Geeta",
+    2107,
+    "Promos",
+    true
+   ]
+  ],
+  "normal +worlds-2024": [
+   [
+    "sv03",
+    "196",
+    "815478",
+    "Town Store",
+    5992,
+    "WCD 2024",
+    true
+   ],
+   [
+    "svp",
+    "190",
+    "780209",
+    "Pikachu [Scrappy Spark]",
+    5241,
+    "SV Black Star Promos",
+    true
+   ]
+  ],
+  "normal +horizons": [
+   [
+    "sv02",
+    "012",
+    "794945",
+    "Sprigatito [Gather Sunlight | Seed Bomb]",
+    5318,
+    "Paldea Evolved",
+    true
+   ],
+   [
+    "sv08",
+    "029",
+    "794286",
+    "Fuecoco [Heat Burn]",
+    5879,
+    "Surging Sparks",
+    true
+   ],
+   [
+    "sv08",
+    "050",
+    "794316",
+    "Quaxly [Aerial Ace]",
+    5879,
+    "Surging Sparks",
+    true
+   ]
+  ],
+  "holo/cosmos +snowflake": [
+   [
+    "sv02",
+    "053",
+    "785460",
+    "Cetoddle [Avalanche]",
+    5318,
+    "Paldea Evolved",
+    true
+   ],
+   [
+    "sv02",
+    "058",
+    "785461",
+    "Frigibax [Chilly | Bite]",
+    5318,
+    "Paldea Evolved",
+    true
+   ],
+   [
+    "sv04",
+    "037",
+    "785465",
+    "Snorunt [Ice Shard]",
+    5444,
+    "Paradox Rift",
+    true
+   ],
+   [
+    "sv04",
+    "045",
+    "785466",
+    "Vanilluxe [Frigid Room | Icicle Missile]",
+    5444,
+    "Paradox Rift",
+    true
+   ]
+  ],
+  "normal/jumbo +rain-city": [
+   [
+    "sv02",
+    "062",
+    "793388",
+    "Pikachu [Growl | Pika Bolt]",
+    5318,
+    "Paldea Evolved",
+    true
+   ]
+  ],
+  "holo +pokemon-day": [
+   [
+    "sv04.5",
+    "040",
+    "756335",
+    "Ceruledge [Life Sucker | Fighting Sword]",
+    5546,
+    "Paldean Fates",
+    true
+   ],
+   [
+    "sv05",
+    "051",
+    "870424",
+    "Pikachu [Random Spark]",
+    5589,
+    "Temporal Forces",
+    true
+   ]
+  ],
+  "reverse +gamestop": [
+   [
+    "sv04",
+    "028",
+    "743159",
+    "Iron Moth [Thermal Reactor | Heat Ray]",
+    5444,
+    "Paradox Rift",
+    true
+   ]
+  ],
+  "holo +30th-pokeday": [
+   [
+    "sv08.5",
+    "040",
+    "810420",
+    "Sylveon [Safeguard | Magical Shot]",
+    6009,
+    "Prismatic Evolutions: Additionals",
+    true
+   ]
+  ],
+  "normal/jumbo +set-logo": [
+   [
+    "sv08.5",
+    "082",
+    "841281",
+    "Lugia ex [Hyper Whirlpool]",
+    6009,
+    "Prismatic Evolutions: Additionals",
+    true
+   ]
+  ],
+  "normal +worlds-2023+staff": [
+   [
+    "svp",
+    "045",
+    "727542",
+    "Paradise Resort",
+    5241,
+    "SV Black Star Promos",
+    true
+   ]
+  ],
+  "normal +asia-2023-24": [
+   [
+    "svp",
+    "101",
+    "726923",
+    "Pikachu [Scrappy Spark]",
+    5241,
+    "SV Black Star Promos",
+    true
+   ]
+  ],
+  "normal +worlds-2024+staff": [
+   [
+    "svp",
+    "150",
+    "783446",
+    "Paradise Resort",
+    5241,
+    "SV Black Star Promos",
+    true
+   ]
+  ],
+  "normal +professor-program": [
+   [
+    "svp",
+    "221",
+    "878015",
+    "Professor's Research - Professor Birch",
+    3108,
+    "Professor Program",
+    true
+   ],
+   [
+    "svp",
+    "222",
+    "878016",
+    "Professor's Research - Professor Kukui",
+    3108,
+    "Professor Program",
+    true
+   ],
+   [
+    "svp",
+    "223",
+    "878017",
+    "Professor's Research - Professor Magnolia",
+    3108,
+    "Professor Program",
+    true
+   ]
+  ],
+  "normal +worlds-2025+staff": [
+   [
+    "svp",
+    "224",
+    "845339",
+    "Paradise Resort",
+    5241,
+    "SV Black Star Promos",
+    true
+   ]
+  ],
+  "reverse/league +winner": [
+   [
+    "svp",
+    "225",
+    "838393",
+    "Pikachu [Scrappy Spark]",
+    5241,
+    "SV Black Star Promos",
+    true
+   ]
+  ],
+  "reverse/cracked-ice": [
+   [
+    "sve",
+    "009",
+    "809704",
+    "Basic Grass Energy",
+    5224,
+    "Scarlet & Violet Energies",
+    true
+   ],
+   [
+    "sve",
+    "010",
+    "809705",
+    "Basic Fire Energy",
+    5224,
+    "Scarlet & Violet Energies",
+    true
+   ],
+   [
+    "sve",
+    "011",
+    "809706",
+    "Basic Water Energy",
+    5224,
+    "Scarlet & Violet Energies",
+    true
+   ],
+   [
+    "sve",
+    "012",
+    "809707",
+    "Basic Lightning Energy",
+    5224,
+    "Scarlet & Violet Energies",
+    true
+   ]
+  ],
+  "reverse/tinsel": [
+   [
+    "sve",
+    "017",
+    "836972",
+    "Basic Grass Energy",
+    5224,
+    "Scarlet & Violet Energies",
+    true
+   ],
+   [
+    "sve",
+    "018",
+    "836973",
+    "Basic Fire Energy",
+    5224,
+    "Scarlet & Violet Energies",
+    true
+   ],
+   [
+    "sve",
+    "019",
+    "836974",
+    "Basic Water Energy",
+    5224,
+    "Scarlet & Violet Energies",
+    true
+   ],
+   [
+    "sve",
+    "020",
+    "836975",
+    "Basic Lightning Energy",
+    5224,
+    "Scarlet & Violet Energies",
+    true
+   ]
+  ],
+  "normal/league": [
+   [
+    "sv07",
+    "096",
+    "883667",
+    "Grimmsnarl [Goad 'n' Grab | Knuckle Sandwich]",
+    5802,
+    "Stellar Crown",
+    true
+   ],
+   [
+    "sv07",
+    "107",
+    "883682",
+    "Archaludon [Metal Bridge | Iron Blaster]",
+    5802,
+    "Stellar Crown",
+    true
+   ],
+   [
+    "sv05",
+    "129",
+    "883689",
+    "Dudunsparce [Run-Away Draw | Land Crush]",
+    5589,
+    "Temporal Forces",
+    true
+   ]
+  ],
+  "holo +horizons": [
+   [
+    "sv08",
+    "161",
+    "794534",
+    "Terapagos [Prism Charge | Hard Tackle]",
+    5879,
+    "Surging Sparks",
+    true
+   ]
+  ],
+  "reverse/galaxy +gamestop": [
+   [
+    "sv05",
+    "119",
+    "761962",
+    "Koraidon [Primordial Beatdown | Shred]",
+    5589,
+    "Temporal Forces",
+    true
+   ]
+  ],
+  "holo/galaxy +set-logo": [
+   [
+    "sv05",
+    "119",
+    "762531",
+    "Koraidon [Primordial Beatdown | Shred]",
+    5589,
+    "Temporal Forces",
+    true
+   ]
+  ],
+  "metal": [
+   [
+    "sv06",
+    "106",
+    "804205",
+    "Greninja ex [Shinobi Blade | Mirage Barrage]",
+    5691,
+    "Twilight Masquerade",
+    true
+   ]
+  ],
+  "holo +fossil-museum": [
+   [
+    "sv10.5w",
+    "051",
+    "889383",
+    "Archeops [Ancient Wing | Rock Throw]",
+    6198,
+    "White Flare: Additionals",
+    true
+   ]
+  ]
+ },
+ "varianti_senza_prodotto": [
+  [
+   "524029",
+   "mfb",
+   "33",
+   "normal +squirtle"
+  ]
+ ],
+ "varianti_con_prezzo": 1353,
+ "varianti_totali": 1354,
+ "oddish": [
+  {
+   "idProduct": 869612,
+   "name": "Erika's Oddish [Reckless Charge]",
+   "idCategory": 51,
+   "categoryName": "Pokémon Single",
+   "idExpansion": 6395,
+   "idMetacard": 457531,
+   "dateAdded": "2026-01-28 18:47:59"
+  },
+  {
+   "idProduct": 870135,
+   "name": "Erika's Oddish [Reckless Charge]",
+   "idCategory": 51,
+   "categoryName": "Pokémon Single",
+   "idExpansion": 6455,
+   "idMetacard": 457531,
+   "dateAdded": "2026-01-30 09:29:54"
+  },
+  {
+   "idProduct": 870136,
+   "name": "Erika's Oddish [Reckless Charge]",
+   "idCategory": 51,
+   "categoryName": "Pokémon Single",
+   "idExpansion": 6455,
+   "idMetacard": 457531,
+   "dateAdded": "2026-01-30 09:30:06"
+  }
+ ],
+ "scarlatto_violetto_base": {
+  "prodotti": 316,
+  "con_prezzo": 316,
+  "esempi": [
+   {
+    "idProduct": 689763,
+    "name": "Sprigatito [Scratch | Leafage]",
+    "idCategory": 51,
+    "categoryName": "Pokémon Single",
+    "idExpansion": 5223,
+    "idMetacard": 415179,
+    "dateAdded": "2022-12-14 11:43:12"
+   },
+   {
+    "idProduct": 689764,
+    "name": "Fuecoco [Gnaw | Combustion]",
+    "idCategory": 51,
+    "categoryName": "Pokémon Single",
+    "idExpansion": 5223,
+    "idMetacard": 415180,
+    "dateAdded": "2022-12-14 11:44:15"
+   },
+   {
+    "idProduct": 689765,
+    "name": "Quaxly [Pound | Kick]",
+    "idCategory": 51,
+    "categoryName": "Pokémon Single",
+    "idExpansion": 5223,
+    "idMetacard": 415181,
+    "dateAdded": "2022-12-14 11:44:57"
+   },
+   {
+    "idProduct": 689766,
+    "name": "Miraidon ex [Tandem Unit | Photon Blaster]",
+    "idCategory": 51,
+    "categoryName": "Pokémon Single",
+    "idExpansion": 5223,
+    "idMetacard": 415182,
+    "dateAdded": "2022-12-14 11:46:24"
+   },
+   {
+    "idProduct": 689767,
+    "name": "Koraidon ex [Dino Cry | Wild Impact]",
+    "idCategory": 51,
+    "categoryName": "Pokémon Single",
+    "idExpansion": 5223,
+    "idMetacard": 415183,
+    "dateAdded": "2022-12-14 11:47:00"
+   }
+  ]
+ }
+}

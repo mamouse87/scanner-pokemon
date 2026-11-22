@@ -186,7 +186,7 @@ const unacc = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, 
 const STAMP_IT = { 'snowflake': 'Fiocco di neve', 'player-rewards-program': 'Play! Pokémon', 'trick-or-trade': 'Trick or Trade', 'regional-championships': 'Campionati Regionali',
   'national-championships': 'Campionati Nazionali', 'state-championships': 'Campionati Statali', 'city-championships': 'Campionati Cittadini', '30th-pokeday': 'Pokémon Day 30°',
   'pokemon-day': 'Pokémon Day', '30th-anniversary': '30° anniversario', '25th-celebration': '25° anniversario', 'asia-promo': 'Promo Asia', 'fossil-museum': 'Museo dei fossili',
-  'set-logo': 'Logo set', 'pre-release': 'Pre-release', 'pokemon-center': 'Pokémon Center', 'staff': 'Staff', 'gamestop': 'GameStop', 'eb-games': 'EB Games', 'winner': 'Vincitore',
+  'set-logo': 'logo del set', 'logo set': 'logo del set', 'pre-release': 'Pre-release', 'pokemon-center': 'Pokémon Center', 'staff': 'Staff', 'gamestop': 'GameStop', 'eb-games': 'EB Games', 'winner': 'Vincitore',
   'professor-program': 'Programma Professore', 'gym-challenge': 'Sfida Palestra', 'game-on': 'Pokémon Game On!', 'ace-trainer': 'Ace Trainer', '1st-edition': '1a Edizione' };
 const FOIL_IT = { 'cracked-ice': 'Cracked Ice', 'tinsel': 'Tinsel', 'league': 'Lega', 'mirror': 'Mirror', 'player-reward': 'Play! Pokémon', 'lenticular': 'Lenticolare',
   'cosmos': 'Cosmo', 'galaxy': 'Galassia', 'gold': 'Oro', 'rainbow': 'Rainbow', 'starlight': 'Luce Stellare', 'glitter': 'Luccichio', 'metal': 'Metallo', 'energy': 'Energia',
@@ -220,7 +220,7 @@ function varBadge(v, bt) {
   if (t === 'holo') return 'HO';
   return unacc(v.type).slice(0, 2).toUpperCase() || 'SP';
 }
-const VAR_VER = 2;   // cambia quando cambiano i nomi delle varianti: le varianti salvate si rileggono
+const VAR_VER = 3;   // cambia quando cambiano i nomi delle varianti: le varianti salvate si rileggono
 let varSaveT = null;
 function varStore(cardId, d) {
   const det = Array.isArray(d && d.variants_detailed) ? d.variants_detailed : [];
@@ -541,7 +541,10 @@ function vxCmUrl(cm, x, cardId, name, lang) {
     const seg = u ? u.pathname.split('/').filter(Boolean) : [];
     const m = seg.length >= 2 && seg[seg.length - 1].match(/^(.*?)(?:-V\d+)?-([A-Za-z]*\d+[a-z]?)$/);
     const V = varCache(cardId), sib = (V?.x || []).map(v => v.p).sort((a, b) => a - b), i = sib.indexOf(String(x.vp));
-    if (u && u.origin === 'https://www.cardmarket.com' && m && i >= 0) {
+    // solo le Reverse Ball/Energia/Team Rocket stanno (quasi) sempre nei Supplementi; Cosmo, Non Holo, timbrate, Jumbo spesso nella pagina del set: lì non indovino
+    const lab = String(x.vl || ((V?.x || []).find(v => v.p === String(x.vp)) || {}).l || '');
+    const supLike = /^Reverse \S/.test(lab) && !/·/.test(lab);
+    if (supLike && u && u.origin === 'https://www.cardmarket.com' && m && i >= 0) {
       const exp = seg[seg.length - 2].replace(/-Additionals$/, '') + '-Additionals';
       seg[seg.length - 2] = exp; seg[seg.length - 1] = `${m[1]}${sib.length > 1 ? '-V' + (i + 1) : ''}-x${m[2]}`;
       return withLang(new URL('/' + seg.join('/'), 'https://www.cardmarket.com'));
@@ -2002,7 +2005,9 @@ $('main').addEventListener('click', e => {
   const vName = x => `${vLab(x)} · ${LANGN[x.lang || 'it'] || x.lang}`;
   const VC = c.id ? varCache(c.id) : null, noRev = VC && VC.det && !VC.rev;
   const v0 = ls[0]?.[1] || sb[0]?.[1] || { rev: false, lang: 'it' };
-  const cmA = x => `<a class="cd-cml" href="${esc(cmLink(x))}" target="cardscanner" referrerpolicy="no-referrer" title="Apri su Cardmarket con i filtri ${esc(vName(x))}">Cardmarket ↗</a>`;
+  // pagina esatta solo se nota (catalogo letto dallo script nella pagina bulk); altrimenti è una ricerca per nome, e lo dico
+  const cmA = x => { const h = cmLink(x), q = /\/Products\/Search/.test(h);
+    return `<a class="cd-cml" href="${esc(h)}" target="cardscanner" referrerpolicy="no-referrer" title="${q ? 'Pagina esatta di questa versione non ancora nota: apre la ricerca per nome. Diventa esatta dopo che lo script ha mandato al gestionale una pagina bulk dove c\'è questa versione (per esempio quando la metti in vendita).' : 'Apri su Cardmarket con i filtri ' + esc(vName(x))}">${q ? 'Cerca su Cardmarket ↗' : 'Cardmarket ↗'}</a>`; };
   openDlg(`<div class="cdx">
     <div class="cd-img"><a class="cd-cm" href="${esc(cmLink(v0))}" target="cardscanner" referrerpolicy="no-referrer" title="Apri su Cardmarket: ${esc(vName(v0))}">${imgTag(srcs, false) || `<div class="cd-ph">${esc(c.localId)}</div>`}<span>Apri su Cardmarket ↗<small>${esc(vName(v0))}</small></span></a><p class="small">${srcs.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noreferrer">immagine ${i + 1}</a>`).join(' · ') || 'nessuna immagine'}</p></div>
     <div class="cd-main">
@@ -2015,7 +2020,7 @@ $('main').addEventListener('click', e => {
         ${vs.map(({ l, v }) => `<div>${l.rev ? 'Reverse' : 'Normale'}: ${BASEN[l.rb || 'low']} ${eur(v.ref)} (${fmtD(l.refAt)}) → <b>${eur(v.cur)}</b> · con la tua regola <b>${eur(v.sugg)}</b> (tuo ${eur(l.price)})</div>`).join('')}
         <p class="row" style="margin:6px 0 0"><button class="sm pri" id="dVar">Conferma / tieni il prezzo…</button></p></div>` : ''}
       ${ls.map(([k, l]) => `<section class="cd-v on" data-k="${esc(k)}">
-        <header><b>${l.vp ? `<span class="vxl">${esc(l.vl || 'Variante speciale')}</span>` : l.rev ? '<span class="rv">Reverse Holo</span>' : 'Normale'}</b><span>${LANGN[l.lang] || l.lang}</span><em class="st">In vendita</em>${verdict(k, l)}${ls.length + sb.length > 1 ? cmA(l) : ''}</header>
+        <header><b>${l.vp ? `<span class="vxl">${esc(l.vl || 'Variante speciale')}</span>` : l.rev ? '<span class="rv">Reverse Holo</span>' : 'Normale'}</b><span>${LANGN[l.lang] || l.lang}</span><em class="st">In vendita</em>${verdict(k, l)}${cmA(l)}</header>
         <div class="cd-row">
           <label>Prezzo €<input type="number" min="0" step="0.01" value="${l.price ?? ''}" data-f="price"><small>dal ${fmtD(l.pAt || l.date)}</small></label>
           <label>Copie<input type="number" min="0" value="${l.q}" data-f="q"></label>
@@ -2025,7 +2030,7 @@ $('main').addEventListener('click', e => {
         <div class="cd-foot">${hist(l)}<span class="small">${src(mOf(k))}</span></div>
       </section>`).join('')}
       ${sb.map(([k, x]) => `<section class="cd-v sb" data-sb="${esc(k)}">
-        <header><b>${x.vp ? `<span class="vxl">${esc(x.vl || 'Variante speciale')}</span>` : x.rev ? '<span class="rv">Reverse Holo</span>' : 'Normale'}</b><span>${LANGN[x.lang] || x.lang}</span><em class="st">Standby</em>${ls.length + sb.length > 1 ? cmA(x) : ''}</header>
+        <header><b>${x.vp ? `<span class="vxl">${esc(x.vl || 'Variante speciale')}</span>` : x.rev ? '<span class="rv">Reverse Holo</span>' : 'Normale'}</b><span>${LANGN[x.lang] || x.lang}</span><em class="st">Standby</em>${cmA(x)}</header>
         ${x.rev && !x.vp && noRev ? `<div class="vbox wrbox"><b>⚠ In questo set questa carta non ha la Reverse semplice</b>
           <div>Le tue ${x.q} ${x.q === 1 ? 'copia segnata' : 'copie segnate'} Reverse sono una variante speciale. Quale?</div>
           <p class="row" style="margin:6px 0 0"><select class="wrSel">${VC.x.map(v => `<option value="${esc(v.p)}">${esc(v.l)}</option>`).join('')}</select><button class="sm pri" data-wr="1">Sposta le copie</button></p></div>` : ''}

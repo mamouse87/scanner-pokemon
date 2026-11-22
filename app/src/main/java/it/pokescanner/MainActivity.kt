@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvSetSub: TextView
     private lateinit var ivSetLogo: ImageView
     private lateinit var cbName: CompoundButton
-    private lateinit var cbRev: com.google.android.material.chip.Chip
+    private lateinit var modeBar: LinearLayout
     private lateinit var lastCard: View
     private lateinit var ivLast: ImageView
     private lateinit var btnShot: Button
@@ -148,7 +148,7 @@ class MainActivity : AppCompatActivity() {
         lastCard = findViewById(R.id.lastCard)
         ivLast = findViewById(R.id.ivLast)
         cbName = findViewById(R.id.cbName)
-        cbRev = findViewById(R.id.cbRev)
+        modeBar = findViewById(R.id.modeBar)
         btnShot = findViewById(R.id.btnShot)
         tvLast = findViewById(R.id.tvLast)
         tvStatus = findViewById(R.id.tvStatus)
@@ -192,8 +192,6 @@ class MainActivity : AppCompatActivity() {
         cbName.isChecked = nameCheck
         cbName.setOnCheckedChangeListener { _, c -> nameCheck = c; prefs.edit().putBoolean("nameCheck", c).apply() }
         // variante: Normale, Reverse o una speciale del set (resta attiva finché non la cambi)
-        cbRev.isCheckable = false
-        cbRev.setOnClickListener { chooseMode() }
         applyVarMode(false)
         findViewById<Button>(R.id.btnSwap).setOnClickListener {
             val r = Inventory.toggleLastVariant(this)
@@ -283,9 +281,13 @@ class MainActivity : AppCompatActivity() {
                     if (sd.logo.isNotEmpty()) sd.logo.replace(Regex("(assets\\.tcgdex\\.net/)[a-z-]+/"), "$1en/") + ".png" else "")
                 resetCand(); locked = null; hideForce()
                 prefetchJob?.cancel()
+                buildModeBar()
                 prefetchJob = lifecycleScope.launch {
+                    // mentre leggo le varianti del set i cerchi si aggiornano ogni 2 s (compaiono Energia, Ball…)
+                    val tick = launch { while (true) { kotlinx.coroutines.delay(2000); if (set === sd) buildModeBar() } }
                     try { withContext(Dispatchers.IO) { Variants.prefetch(this@MainActivity, lang, sd) } } catch (_: Exception) {}
-                    if (set === sd) checkModeAvailable(sd)
+                    tick.cancel()
+                    if (set === sd) { checkModeAvailable(sd); buildModeBar() }
                 }
                 status(if (fanMode) "Disponi le carte a ventaglio e premi \"Leggi ventaglio\"."
                        else "Inquadra la carta intera: la aggiungo da sola.")
@@ -826,16 +828,14 @@ class MainActivity : AppCompatActivity() {
     private fun tintReverse() {
         val c = when { Variants.isSpecial(varMode) -> OverlayView.SPECIAL; reverseMode -> Color.rgb(204, 93, 232); else -> Color.rgb(255, 203, 5) }
         btnList.backgroundTintList = android.content.res.ColorStateList.valueOf(c)
-        cbRev.chipBackgroundColor = android.content.res.ColorStateList.valueOf(
-            when { Variants.isSpecial(varMode) -> Color.rgb(253, 240, 207); reverseMode -> Color.rgb(243, 224, 250); else -> Color.rgb(240, 240, 240) })
     }
 
     /** Mostra la modalità attiva (testo del pulsante, cornice della fotocamera, colori) e la salva. */
     private fun applyVarMode(announce: Boolean) {
-        cbRev.text = "✦ " + when (varMode) { Variants.N -> "Normale"; Variants.R -> "Reverse"; Variants.ENERGIA -> "Energia"; Variants.BALL -> "Ball"; Variants.MASTER -> "Master Ball"; else -> varMode }
         overlay.reverseMode = reverseMode
         overlay.specialLabel = if (Variants.isSpecial(varMode)) Variants.modeLabel(varMode) else null
         tintReverse()
+        buildModeBar()
         prefs.edit().putString("varMode", varMode).putBoolean("reverseMode", reverseMode).apply()
         resetCand(); locked = null
         if (announce) status(when {
@@ -843,6 +843,48 @@ class MainActivity : AppCompatActivity() {
             varMode == Variants.R -> "Modalità REVERSE: tutte le carte che scansioni ora sono Reverse Holo."
             varMode == Variants.BALL -> "Modalità REVERSE BALL: ogni carta prende la sua Ball (Poké, Love, Scuro…) o il Team Rocket."
             else -> "Modalità ${Variants.modeLabel(varMode).uppercase()}: le carte che non hanno questa variante non vengono aggiunte."
+        })
+    }
+
+    private fun modeLetter(m: String) = when (m) { Variants.N -> "N"; Variants.R -> "R"; Variants.ENERGIA -> "E"; Variants.BALL -> "B"; Variants.MASTER -> "M"; else -> "?" }
+    private fun modeColor(m: String) = when { Variants.isSpecial(m) -> OverlayView.SPECIAL; m == Variants.R -> Color.rgb(204, 93, 232); else -> Color.rgb(255, 203, 5) }
+
+    /**
+     * Cerchi delle varianti sul bordo destro della fotocamera: solo quelle che esistono nel set.
+     * Tocco = passa a quella variante; tocco lungo = elenco con i nomi per esteso.
+     */
+    private fun buildModeBar() {
+        val sd = set
+        val (found, known) = if (sd != null) Variants.setModes(this, lang, sd) else listOf(Variants.N, Variants.R) to 0
+        val modes = if (varMode in found) found else found + varMode
+        val d = resources.displayMetrics.density
+        val size = (50 * d).toInt()
+        modeBar.removeAllViews()
+        for (m in modes) {
+            val on = m == varMode
+            val col = modeColor(m)
+            modeBar.addView(TextView(this).apply {
+                text = modeLetter(m); textSize = 19f; gravity = android.view.Gravity.CENTER
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(if (on && m == Variants.R) Color.WHITE else Color.rgb(40, 40, 40))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(if (on) col else Color.argb(215, 255, 255, 255))
+                    setStroke((if (on) 3 * d else 1.5f * d).toInt(), if (on) Color.WHITE else col)
+                }
+                elevation = if (on) 6 * d else 2 * d
+                contentDescription = Variants.modeLabel(m)
+                setOnClickListener {
+                    if (m != varMode) { varMode = m; applyVarMode(true) }
+                    else status("Modalità ${Variants.modeLabel(m)} già attiva.")
+                }
+                setOnLongClickListener { chooseMode(); true }
+            }, LinearLayout.LayoutParams(size, size).apply { setMargins(0, (5 * d).toInt(), 0, (5 * d).toInt()) })
+        }
+        val tot = sd?.cards?.values?.count { it.id.isNotEmpty() } ?: 0
+        if (sd != null && known < tot) modeBar.addView(TextView(this).apply {
+            text = "$known/$tot"; textSize = 10f; setTextColor(Color.WHITE); gravity = android.view.Gravity.CENTER
+            setShadowLayer(3f, 0f, 0f, Color.BLACK)
         })
     }
 
@@ -898,7 +940,8 @@ class MainActivity : AppCompatActivity() {
                 "2. CARTA SINGOLA: inquadra una carta alla volta. Appena legge il numero (es. 123/198) la aggiunge da sola con un bip. " +
                 "Se riconosce la stessa carta entro 3 secondi ti chiede se è un'altra copia.\n\n" +
                 "3. VENTAGLIO: sovrapponi le carte lasciando visibile la riga del numero in basso e premi \"Leggi ventaglio\".\n\n" +
-                "4. ✦ VARIANTE (Normale, Reverse, Energia, Ball, Master Ball: solo quelle del set): finché è attiva, tutte le carte che scansioni prendono quella variante. " +
+                "4. VARIANTE: i cerchi a destra della fotocamera (N Normale, R Reverse, E Energia, B Ball, M Master Ball) mostrano solo le varianti del set. " +
+                "Tocca un cerchio per cambiare; tieni premuto per l'elenco con i nomi. Finché è attiva, tutte le carte che scansioni prendono quella variante. " +
                 "Con \"Ball\" ogni carta prende la sua (Poké, Love, Scuro… o Team Rocket). Una carta che non ha la variante scelta non viene aggiunta (suono di errore). " +
                 "La cornice diventa viola per la Reverse, oro per le varianti speciali.\n\n" +
                 "5. Verifica nome: controlla anche il nome stampato, per evitare numeri letti male.\n\n" +

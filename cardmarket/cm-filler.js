@@ -7,7 +7,8 @@
   // varianti speciali dei "Supplementi" (Reverse Energia / Poké Ball / Master Ball): Cardmarket le distingue solo
   // dall'indirizzo del prodotto (…-V1-xASC001, …-V2-xASC001)
   const slugOf = u => { const t = String(u || '').split(/[?#]/)[0].replace(/\/+$/, ''); return t.slice(t.lastIndexOf('/') + 1); };
-  const VXL = { E: 'Reverse Energia', P: 'Reverse Poké Ball', M: 'Reverse Master Ball' };
+  const VXL = { E: 'Reverse Energia', P: 'Reverse Poké Ball', M: 'Reverse Master Ball', C: 'Cosmo Holo', S: 'Timbrata' };
+  const VXB = { E: 'EN', P: 'PB', M: 'MB', C: 'CH', S: 'TB' };
   const isVx = v => !!(v && VXL[v]);
   // ---------- grafica comune dei riquadri (isolata dalla grafica di Cardmarket con lo Shadow DOM) ----------
   const CS_CSS = `
@@ -229,7 +230,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 c</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 d</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -301,14 +302,14 @@
             <div class="bar"><i style="width:${pct}%"></i></div></div>
           ${todo.length ? `<label class="sw"><input type="checkbox" id="oAuto" ${auto ? 'checked' : ''}><span><b>Conferma automatica</b><br><span class="mut">${isQ ? 'Lo script preme da solo il pulsante − o + della riga' : 'Lo script preme da solo "MODIFICA ARTICOLO"'}, una carta ogni 3 secondi. Senza spunta lo premi tu, carta per carta.</span></span></label>` : ''}
           <div><div class="tabs"><button class="tab ${tab === 'todo' ? 'on' : ''}" data-t="todo">Da fare (${todo.length})</button><button class="tab ${tab === 'done' ? 'on' : ''}" data-t="done">Fatte (${fatte.length})</button><button class="tab ${tab === 'miss' ? 'on' : ''}" data-t="miss">Non trovate (${miss.length})</button></div>
-            <div class="list">${listOf.length ? listOf.map(x => `<div class="li"><span class="c">${escH((x.it.code || '') + ' ' + x.it.u)}${isVx(x.it.v) ? ' <span class="rv" style="background:#e0a100">' + ({ E: 'EN', P: 'PB', M: 'MB' })[x.it.v] + '</span>' : x.it.rev ? ' <span class="rv">R</span>' : ''}</span>
+            <div class="list">${listOf.length ? listOf.map(x => `<div class="li"><span class="c">${escH((x.it.code || '') + ' ' + x.it.u)}${isVx(x.it.v) ? ' <span class="rv" style="background:#e0a100">' + VXB[x.it.v] + '</span>' : x.it.rev ? ' <span class="rv">R</span>' : ''}</span>
               <span class="n">${escH(x.it.n || x.o?.name || '')}</span>
               <span class="p">${x.it.qt != null ? `${x.o ? x.o.qty : '—'} → <b>${x.tq ?? x.it.qt} copie</b>` : `${x.o ? eur(x.o.price) : eur(x.it.old)} → <b>${eur(x.it.price)}</b>`} ${!x.o ? '' : x.st === 'zero' ? '<span class="pill err">togli a mano</span>' : x.st === 'ok' ? '<span class="pill ok">fatto</span>' : x.st === 'same' ? '<span class="pill ok">già così</span>' : x.st === 'skip' ? '<span class="pill oth">saltata</span>' : x.st === 'err' ? '<span class="pill err">errore</span>' : ''}</span>
               ${!x.o || (x.st === 'err' && x.why) ? `<span class="why">${escH(x.why || '')}</span>` : ''}</div>`).join('')
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 c</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 d</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -1008,7 +1009,7 @@
       let m = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*(?:\|\s*([^|]*?))?\s*$/i);
       if (m) { setName = m[1]; langCode = m[2].toLowerCase(); lang = LANG[langCode] || 5; setId = (m[3] || '').trim(); return; }
       // formato 2: 006 | x1 | N | Combee | Comune
-      m = l.match(/^([A-Z]*\d+[a-z]?)\s*\|\s*x\s*(\d+)\s*\|\s*([NREPM])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|#]*?))?\s*(?:\|\s*#([\w-]+))?\s*$/i);
+      m = l.match(/^([A-Z]*\d+[a-z]?)\s*\|\s*x\s*(\d+)\s*\|\s*([NREPMCS])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|#]*?))?\s*(?:\|\s*#([\w-]+))?\s*$/i);
       if (m) {
         const L = m[3].toUpperCase(), it = { num: m[1], qty: +m[2], rev: L === 'R', name: m[4] || '', rarity: m[5] || '' };
         if (isVx(L)) { it.v = L; if (m[6]) it.p = m[6]; }
@@ -1084,8 +1085,8 @@
   // un elenco nuovo è sempre una lista nuova, con l'avanzamento da zero
   const listId = () => hashStr($('csInput').value.replace(/\s+/g, ' ').trim());
   const vkey = (num, rev, v) => norm(num) + '|' + (isVx(v) ? v : rev ? 'R' : 'N');
-  const vTagH = it => isVx(it.v) ? ` <span class="rv" style="background:#e0a100">${it.v === 'E' ? 'EN' : it.v === 'P' ? 'PB' : 'MB'}</span>` : it.rev ? ' <span class="rv">R</span>' : '';
-  const vTagT = it => isVx(it.v) ? ' ' + (it.v === 'E' ? 'EN' : it.v === 'P' ? 'PB' : 'MB') : it.rev ? ' R' : '';
+  const vTagH = it => isVx(it.v) ? ` <span class="rv" style="background:#e0a100">${VXB[it.v]}</span>` : it.rev ? ' <span class="rv">R</span>' : '';
+  const vTagT = it => isVx(it.v) ? ' ' + VXB[it.v] : it.rev ? ' R' : '';
   /** la riga di questa carta è in questa pagina? le speciali si cercano per prodotto */
   // nella pagina dei Supplementi i numeri sono quelli delle carte speciali (xASC 001): le normali e le Reverse del set sono altrove
   const onSupPage = () => { const j = jobGet(); return !!(j && j.cmx && String(j.cmx) === expansion().id); };

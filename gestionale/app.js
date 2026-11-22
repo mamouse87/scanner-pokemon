@@ -154,9 +154,11 @@ const lkey = (p, rev, lang) => `${p}|${rev ? 'R' : 'N'}|${lang || 'it'}`;
 // ---------- varianti speciali: prodotti dei "Supplementi" di Cardmarket (es. "Ascesa Eroica: Supplementi") ----------
 // Nel gestionale stanno nel set principale; su Cardmarket sono prodotti a parte, con lo stesso numero della carta
 // e "V1" / "V2" nell'indirizzo. Una carta in vendita o in Standby con vx = 'E' | 'P' | 'M' è una di queste.
-const VXN = { E: 'Reverse Energia', P: 'Reverse Poké Ball', M: 'Reverse Master Ball' };
-const VXS = { E: 'Energia', P: 'Poké Ball', M: 'Master Ball' };
-const VXB = { E: 'EN', P: 'PB', M: 'MB' };
+// varianti speciali (prodotti a parte su Cardmarket, nei "Supplementi"): ordine = VXO
+const VXN = { E: 'Reverse Energia', P: 'Reverse Poké Ball', M: 'Reverse Master Ball', C: 'Cosmo Holo', S: 'Timbrata' };
+const VXS = { E: 'Energia', P: 'Poké Ball', M: 'Master Ball', C: 'Cosmo', S: 'Timbrata' };
+const VXB = { E: 'EN', P: 'PB', M: 'MB', C: 'CH', S: 'TB' };
+const VXO = 'EPMCS';
 const isVx = v => !!(v && VXN[v]);
 const vcOf = x => x && isVx(x.vx) ? x.vx : (x && x.rev ? 'R' : 'N');
 /** nome della variante: Normale, Reverse (Holo), Reverse Poké Ball… */
@@ -175,7 +177,7 @@ function vxBySlug() {
   });
   return m;
 }
-const vHay = x => isVx(x.vx) ? `${VXN[x.vx]} ${VXS[x.vx]} ${VXB[x.vx]} speciale supplementi pokeball masterball`.toLowerCase() : x.rev ? 'reverse holo rev' : 'normale';
+const vHay = x => isVx(x.vx) ? `${VXN[x.vx]} ${VXS[x.vx]} ${VXB[x.vx]} speciale supplementi pokeball masterball cosmo cosmos timbrata stamped`.toLowerCase() : x.rev ? 'reverse holo rev' : 'normale';
 const isSupName = n => /:\s*(supplementi|additionals?)\s*$/i.test(String(n || ''));
 const supBase = n => String(n || '').replace(/:\s*(supplementi|additionals?)\s*$/i, '').trim();
 const slugOf = u => { const t = String(u || '').split(/[?#]/)[0].replace(/\/+$/, ''); return t.slice(t.lastIndexOf('/') + 1); };
@@ -200,7 +202,7 @@ function supProduct(setId, u, vx) {
 /** varianti speciali riconosciute in un set */
 function setVx(setId) {
   const S = (state.sup || {})[setId];
-  return S && S.ok ? [...new Set(Object.values(S.map || {}).filter(isVx))].sort((a, b) => 'EPM'.indexOf(a) - 'EPM'.indexOf(b)) : [];
+  return S && S.ok ? [...new Set(Object.values(S.map || {}).filter(isVx))].sort((a, b) => VXO.indexOf(a) - VXO.indexOf(b)) : [];
 }
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 4000); }
 
@@ -597,7 +599,7 @@ async function renderSet() {
     const sq = sb.reduce((a, [, x]) => a + x.q, 0);
     const sqN = qv(sb, 'N'), sqR = qv(sb, 'R');
     // varianti speciali (Supplementi di Cardmarket): sigla colorata con le copie
-    const xs = arr => 'EPM'.split('').map(v => { const q = qv(arr, v); return q ? ` <span class="vxl vx${v}" title="${VXN[v]}">${VXB[v]} ×${q}</span>` : ''; }).join('');
+    const xs = arr => VXO.split('').map(v => { const q = qv(arr, v); return q ? ` <span class="vxl vx${v}" title="${VXN[v]}">${VXB[v]} ×${q}</span>` : ''; }).join('');
     const hasX = ls.some(([, l]) => isVx(l.vx)) || sb.some(([, x]) => isVx(x.vx));
     const vv = ls.map(([k, l]) => varOf(k, l)).filter(Boolean);
     const prices = [...new Set(ls.map(([, l]) => l.price).filter(v => v != null))].sort((a, b) => a - b);
@@ -666,7 +668,7 @@ function openVxDialog(setId, setName) {
   if (!E) {
     const sx = Object.entries(state.cmx || {}).find(([, n]) => isSupName(n) && tcgIdFor(n) === setId);
     openDlg(`<h3>Varianti speciali · ${esc(setName)}</h3>
-      <p>Su Cardmarket le carte <b>Reverse Energia, Poké Ball e Master Ball</b> di questo set stanno in un'espansione a parte${sx ? `: <b>${esc(sx[1])}</b>` : ' (di solito "' + esc(setName) + ': Supplementi")'}.</p>
+      <p>Su Cardmarket le carte <b>Reverse Energia, Poké Ball, Master Ball, Cosmo Holo e timbrate</b> di questo set stanno in un'espansione a parte${sx ? `: <b>${esc(sx[1])}</b>` : ' (di solito "' + esc(setName) + ': Supplementi")'}.</p>
       <p>Per usarle nel gestionale serve l'elenco di quei prodotti, una volta sola:</p>
       <ol><li>${sx ? `<a href="${CMBULK}${encodeURIComponent(sx[0])}" target="cardscanner" referrerpolicy="no-referrer"><b>Apri la pagina "Inserisci carte bulk" dei Supplementi</b> ↗</a>` : 'Su Cardmarket apri "Inserisci carte bulk" e scegli in Edizione <b>' + esc(setName) + ': Supplementi</b>'}.</li>
       <li>Apri il riquadro di Card Scanner (${csExt() ? 'icona dell\'estensione' : 'pulsante nei preferiti'}) e premi <b>Aggiorna i dati del set nel gestionale</b> in fondo.${'' }</li>
@@ -680,22 +682,28 @@ function openVxDialog(setId, setName) {
   const prods = Object.values(E.cards || {}).filter(c => c.u);
   const byNum = {};
   prods.forEach(c => (byNum[norm(c.u)] = byNum[norm(c.u)] || []).push(c));
-  const vnums = [...new Set(prods.map(c => vNumOf(c.ur)).filter(Boolean))].sort((a, b) => a - b);
+  // quante versioni ha di solito una carta (Ascesa Eroica ed Evoluzioni Prismatiche: 2). Le carte con più versioni
+  // (es. Leafeon V1/V2/V3 con la Cosmo Holo) o senza V non seguono la regola: si guardano una per una, con l'immagine
+  const cnt = {}; Object.values(byNum).forEach(a => { if (a.every(c => vNumOf(c.ur))) cnt[a.length] = (cnt[a.length] || 0) + 1; });
+  const usual = +(Object.entries(cnt).sort((a, b) => b[1] - a[1] || a[0] - b[0])[0] || [2])[0];
+  const regular = c => !!vNumOf(c.ur) && byNum[norm(c.u)].length === usual && byNum[norm(c.u)].every(x => vNumOf(x.ur));
+  const vnums = [...new Set(prods.filter(regular).map(c => vNumOf(c.ur)))].sort((a, b) => a - b);
   // regola proposta: quella salvata, altrimenti V1 = Poké Ball, V2 = Master Ball (Ascesa Eroica: V1 = Energia, V2 = Poké Ball)
   const rule = Object.assign(/ascesa|ascended/i.test(E.name + setName) ? { 1: 'E', 2: 'P' } : { 1: 'P', 2: 'M' }, S0.rule || {});
   // eccezioni: numeri con una sola versione o versioni senza V (o con V fuori dalla regola)
-  const exc = prods.filter(c => { const v = vNumOf(c.ur); return !v || byNum[norm(c.u)].length < 2 || !vnums.includes(v); })
-    .sort((a, b) => (parseInt(a.u) || 0) - (parseInt(b.u) || 0));
-  const sample = Object.values(byNum).find(a => a.length >= 2 && a.every(c => vNumOf(c.ur)));
-  const opts = (sel, withX) => `<option value="">— scegli —</option>${'EPM'.split('').map(v => `<option value="${v}" ${sel === v ? 'selected' : ''}>${VXN[v]}</option>`).join('')}${withX ? `<option value="X" ${sel === 'X' ? 'selected' : ''}>Non è una variante (ignora)</option>` : ''}`;
+  const exc = prods.filter(c => !regular(c) || !vnums.includes(vNumOf(c.ur)))
+    .sort((a, b) => (parseInt(a.u) || 0) - (parseInt(b.u) || 0) || vNumOf(a.ur) - vNumOf(b.ur));
+  const sample = Object.values(byNum).find(a => a.length === usual && a.every(c => vNumOf(c.ur)));
+  const opts = (sel, withX) => `<option value="">— scegli —</option>${VXO.split('').map(v => `<option value="${v}" ${sel === v ? 'selected' : ''}>${VXN[v]}</option>`).join('')}${withX ? `<option value="X" ${sel === 'X' ? 'selected' : ''}>Non è una variante (ignora)</option>` : ''}`;
   const img = c => c.i ? `<img src="${esc(c.i)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<div class="vxph">nessuna immagine</div>';
   const link = c => esc(cmCardUrl(c, c.n, null, 'it'));
   openDlg(`<h3>Riconosci le varianti · ${esc(setName)}</h3>
     <p class="small">Su Cardmarket i Supplementi (<b>${esc(E.name)}</b>, ${prods.length} prodotti) hanno lo stesso nome e numero della carta: le versioni si distinguono solo con <b>V1 / V2</b> nell'indirizzo. Guarda le immagini e dimmi quale variante è ognuna.</p>
     ${sample ? `<div class="vxsample">${sample.sort((a, b) => vNumOf(a.ur) - vNumOf(b.ur)).map(c => `<a class="vxcard" href="${link(c)}" target="cardscanner" referrerpolicy="no-referrer">${img(c)}<b>V${vNumOf(c.ur)}</b><span>${esc(c.u)} ${esc(c.n)}</span></a>`).join('')}</div>` : ''}
     <div class="vxrule">${vnums.map(v => `<label>V${v} è <select data-v="${v}">${opts(rule[v] || '')}</select></label>`).join('')}</div>
-    ${exc.length ? `<h4 style="margin:14px 0 6px">Da guardare una per una (${exc.length}): una sola versione o senza V</h4>
-      <div class="vxexc">${exc.map(c => { const v = vNumOf(c.ur), cur = S0.map?.[c.p] || (v && byNum[norm(c.u)].length >= 2 ? rule[v] : '') || '';
+    ${exc.length ? `<h4 style="margin:14px 0 6px">Da guardare una per una (${exc.length}): con più versioni del solito, una sola versione o senza V</h4>
+      <p class="small">Qui la regola V1 / V2 potrebbe non valere: guarda l'immagine (clic = pagina su Cardmarket). Es. Cosmo Holo, carte timbrate.</p>
+      <div class="vxexc">${exc.map(c => { const v = vNumOf(c.ur), cur = S0.map?.[c.p] || '';
         return `<div class="vxi"><a href="${link(c)}" target="cardscanner" referrerpolicy="no-referrer">${img(c)}</a><div><b>${esc(c.u)} ${esc(c.n)}</b><small>${v ? 'V' + v : 'senza V'} · ${byNum[norm(c.u)].length} ${byNum[norm(c.u)].length === 1 ? 'versione' : 'versioni'}</small>
           <select data-p="${esc(c.p)}">${opts(cur, true)}</select></div></div>`; }).join('')}</div>` : ''}
     <p class="small">Clic sull'immagine: apre il prodotto su Cardmarket per controllare. Puoi riaprire questa finestra quando vuoi da <b>🎨 Varianti</b>.</p>
@@ -1216,7 +1224,7 @@ function clRowsOfSet() {
     const n = norm(c.localId), g = {};
     (current.byNum[n] || []).forEach(([k, l]) => { const gk = vcOf(l) + (l.lang || 'it'); const x = g[gk] = g[gk] || { u: l.u || c.localId, n: info(l).name || c.name, rev: !!l.rev, vx: l.vx, lang: l.lang || 'it', avail: 0, lk: '', sk: '' }; x.avail += l.q; x.lk = k; });
     (current.sbByNum[n] || []).forEach(([k, s]) => { const gk = vcOf(s) + (s.lang || 'it'); const x = g[gk] = g[gk] || { u: s.u || c.localId, n: c.name || s.n || '', rev: !!s.rev, vx: s.vx, lang: s.lang || 'it', avail: 0, lk: '', sk: '' }; x.avail += s.q; x.sk = k; });
-    Object.values(g).filter(x => x.avail > 0).sort((a, b) => 'NREPM'.indexOf(vcOf(a)) - 'NREPM'.indexOf(vcOf(b)) || a.lang.localeCompare(b.lang))
+    Object.values(g).filter(x => x.avail > 0).sort((a, b) => ('NR' + VXO).indexOf(vcOf(a)) - ('NR' + VXO).indexOf(vcOf(b)) || a.lang.localeCompare(b.lang))
       .forEach(x => rows.push(Object.assign(x, { rar: rc[n] || c.rarity || '' })));
   }
   return rows;

@@ -3211,14 +3211,50 @@ function parseCatalog(text) {
     m = l.match(/^SET\s+(.*?)\s*\|\s*([a-z]{2})\s*(?:\|\s*([^|]*?))?\s*$/i);
     if (m) { cur = { name: m[1].trim(), lang: m[2].toLowerCase(), id: (m[3] || '').trim(), com, listId, items: [] }; listId = ''; sets.push(cur); return; }
     if (!cur) return;
-    m = l.match(/^([A-Z]*\d+[a-z]?)\s*\|\s*x\s*(\d+)\s*\|\s*([NR])\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|]*?))?\s*$/i);
-    if (m) cur.items.push({ u: m[1], q: +m[2], rev: m[3].toUpperCase() === 'R', n: m[4] || '', r: m[5] || '' });
+    // terza colonna: N, R oppure X + variante speciale (nome della variante, es. "X Poké Ball", o numero prodotto Cardmarket, es. "X870135")
+    m = l.match(/^([A-Z]*\d+[a-z]?)\s*\|\s*x\s*(\d+)\s*\|\s*([NR]|X\s*[^|]*?)\s*(?:\|\s*([^|]*?))?\s*(?:\|\s*([^|]*?))?\s*$/i);
+    if (m) {
+      const t = m[3].trim(), xq = /^X/i.test(t) && t.length > 1 ? t.slice(1).trim() : '';
+      cur.items.push(Object.assign({ u: m[1], q: +m[2], rev: t.toUpperCase() === 'R', n: m[4] || '', r: m[5] || '' }, xq ? { xq } : {}));
+    }
   });
   return sets.filter(s => s.items.length);
 }
+/** variante speciale scritta nella lista ("Poké Ball", "Reverse Energia", "PB", "870135") tra quelle vere della carta */
+function matchVar(V, q) {
+  const all = (V && V.x) || [], s0 = simp(q);
+  if (!all.length) return { err: 'la carta non ha varianti speciali su TCGdex' };
+  if (/^\d+$/.test(s0)) { const v = all.find(o => o.p === s0); return v ? { v } : { err: `${s0} non è una variante di questa carta (${all.map(o => o.l).join(', ')})` }; }
+  // nomi italiani di TCGdex → inglesi, così vanno bene tutti e due ("Dusk Ball" = "Scuro Ball")
+  const EN = [['SCUROBALL', 'DUSKBALL'], ['VELOXBALL', 'QUICKBALL'], ['ENERGIA', 'ENERGY'], ['COSMO', 'COSMOS'], ['COSMOSS', 'COSMOS'], ['GALASSIA', 'GALAXY'], ['LUCESTELLARE', 'STARLIGHT'], ['LUCCICHIO', 'GLITTER'], ['ORO', 'GOLD'], ['OLOGRAFICA', 'HOLO'], ['METALLO', 'METAL']];
+  const cn = x => EN.reduce((t, [i, e]) => t.split(i).join(e), x), s = cn(s0);
+  const L = o => cn(simp(String(o.l).replace(/·.*$/, '')));
+  let h = all.filter(o => cn(simp(o.l)) === s || L(o) === s || L(o) === 'REVERSE' + s || simp(o.b) === s0);
+  if (!h.length) h = all.filter(o => L(o).endsWith(s));
+  if (!h.length) h = all.filter(o => cn(simp(o.l)).includes(s));
+  if (h.length === 1) return { v: h[0] };
+  return { err: h.length ? `"${q}" va bene per più varianti (${h.map(o => o.l).join(', ')}): scrivi il nome intero` : `"${q}" non c'è tra le varianti della carta (${all.map(o => o.l).join(', ')})` };
+}
+/** righe "X …" di una lista: trova la variante su TCGdex; le righe che non si risolvono vengono saltate (it.skip) */
+async function resolveListVariants(sid, S) {
+  const xs = S.items.filter(it => it.xq);
+  if (!xs.length) return [];
+  const [it, en] = await Promise.all([tcg('/sets/' + encodeURIComponent(sid), 24), tcg('@en/sets/' + encodeURIComponent(sid), 24)]);
+  const by = {};
+  [...(en?.cards || []), ...(it?.cards || [])].forEach(c => { by[norm(c.localId)] = c; });
+  const bad = [];
+  for (const x of xs) {
+    const c = by[norm(x.u)];
+    const V = c && c.id ? await cardVariants(c.id) : null;
+    const r = !c ? { err: 'numero non trovato nel set' } : !V ? { err: 'non riesco a leggere le varianti (serve internet)' } : matchVar(V, x.xq);
+    if (r.v) Object.assign(x, { rev: false, vp: r.v.p, vl: r.v.l, vb: r.v.b, n: x.n || c.name });
+    else { x.skip = 1; bad.push(`${x.u} ${x.xq}: ${r.err}`); }
+  }
+  return bad;
+}
 /** copie già in vendita della stessa carta (stesso set, numero, variante, lingua) */
-function listedQty(setId, u, rev, lang) {
-  return Object.values(state.listings).filter(l => !l.vp && l.rev === rev && (l.lang || 'it') === lang && norm(l.u) === norm(u) &&
+function listedQty(setId, u, rev, lang, vp) {
+  return Object.values(state.listings).filter(l => (vp ? String(l.vp) === String(vp) : !l.vp && l.rev === rev) && (l.lang || 'it') === lang && norm(l.u) === norm(u) &&
     tcgIdFor(l.expName || state.cm[l.exp]?.name) === setId).reduce((a, l) => a + l.q, 0);
 }
 /** "＋ Aggiungi carte": dalle liste dell'app oppure a mano, una carta alla volta (vanno in Standby) */
@@ -3346,9 +3382,11 @@ async function importCatalog(files) {
         if (!sid) { msg.push(`${listId}: set "${S.name}" non riconosciuto, saltata`); continue; }
         const sn = tcgSets.find(x => x.id === sid)?.name || S.name;
         let tot = 0;
+        (await resolveListVariants(sid, S)).forEach(b => msg.push(`${listId}: riga saltata, ${b}`));
         S.items.forEach(it => {
-          const k = sbKey(sid, it.u, it.rev, S.lang);
-          const x = state.standby[k] || (state.standby[k] = { s: sid, sn, u: it.u, rev: it.rev, lang: S.lang, q: 0, n: it.n, r: it.r, com: S.com || '', date: today(), file: f.name });
+          if (it.skip) return;
+          const k = sbKey(sid, it.u, it.rev, S.lang, it.vp);
+          const x = state.standby[k] || (state.standby[k] = Object.assign({ s: sid, sn, u: it.u, rev: it.rev, lang: S.lang, q: 0, n: it.n, r: it.r, com: S.com || '', date: today(), file: f.name }, it.vp ? { vp: it.vp, vl: it.vl, vb: it.vb } : {}));
           x.q += it.q; x.file = f.name; if (S.com) x.com = S.com;
           tot += it.q;
         });
@@ -3364,14 +3402,16 @@ async function importCatalog(files) {
       if (old.length && !confirm(`Il set "${sn}" ha già ${old.reduce((a, k) => a + state.standby[k].q, 0)} copie in Standby.\n\nSostituirle con il contenuto di "${f.name}"?`)) continue;
       old.forEach(k => delete state.standby[k]);
       const agg = {};
+      (await resolveListVariants(sid, S)).forEach(b => msg.push(`${sn}: riga saltata, ${b}`));
       S.items.forEach(it => {
-        const k = sbKey(sid, it.u, it.rev, S.lang);
-        const x = agg[k] || (agg[k] = { s: sid, sn, u: it.u, rev: it.rev, lang: S.lang, q: 0, n: it.n, r: it.r, com: S.com || '', date: today(), file: f.name });
+        if (it.skip) return;
+        const k = sbKey(sid, it.u, it.rev, S.lang, it.vp);
+        const x = agg[k] || (agg[k] = Object.assign({ s: sid, sn, u: it.u, rev: it.rev, lang: S.lang, q: 0, n: it.n, r: it.r, com: S.com || '', date: today(), file: f.name }, it.vp ? { vp: it.vp, vl: it.vl, vb: it.vb } : {}));
         x.q += it.q;
       });
       let tot = 0, already = 0;
       Object.entries(agg).forEach(([k, x]) => {
-        const inV = listedQty(sid, x.u, x.rev, x.lang);
+        const inV = listedQty(sid, x.u, x.rev, x.lang, x.vp);
         const q = x.q - inV;
         already += Math.min(inV, x.q);
         if (q > 0) { x.q = q; state.standby[k] = x; tot += q; }
@@ -3382,7 +3422,8 @@ async function importCatalog(files) {
   }
   msg.forEach(m => logOp('standby', (m.match(/Standby di (.+)$/) || m.match(/^([^:]+): \d+ copie in Standby/) || [])[1] || '', m));
   save();
-  if (msg.length) toast(msg.join(' · '));
+  if (msg.some(m => m.includes('riga saltata'))) alert(msg.join('\n') + '\n\nLe righe saltate non sono entrate: aggiungile con "＋ Aggiungi carte" scegliendo la variante.');
+  else if (msg.length) toast(msg.join(' · '));
   if (last) { selected = last; filter = 'all'; }
   refresh();
   updatePrices(false);

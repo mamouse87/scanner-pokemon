@@ -37,7 +37,7 @@ function loadRaw() {
   return ls;
 }
 function load() {
-  try { const s = JSON.parse(loadRaw()); if (s && s.listings) return Object.assign({ cm: {}, sold: [], standby: {} }, s); } catch (e) {}
+  try { const s = JSON.parse(loadRaw()); if (s && s.listings) { delete s.pgAuto; return Object.assign({ cm: {}, sold: [], standby: {} }, s); } } catch (e) {}
   return { cm: {}, listings: {}, sold: [], standby: {} };
 }
 /** toglie dal browser le copie temporanee dei dati TCGdex (si riscaricano da sole): all = tutte, altrimenti solo quelle inutili o vecchie */
@@ -830,7 +830,7 @@ function renderSettings() {
       <h3>📈 Prezzi di mercato</h3>
       <p class="small">I sei valori di Cardmarket (Da, Tendenza, Media, Media 1/7/30 giorni) e il Consigliato, letti da TCGdex per tutte le carte in vendita e in Standby. Si aggiornano da soli all'apertura se hanno più di ${AUTO_H} ore, poi ogni ora.</p>
       <dl class="kv"><dt>Ultimo aggiornamento</dt><dd>${state.revAt ? fmtDT(state.revAt) : 'mai'}</dd>
-        <dt>Price Guide di Cardmarket</dt><dd>${state.pg ? `caricata il ${fmtDT(state.pg.at)}` : 'non caricata (facoltativa)'}${state.pgAuto ? ' · si scarica da sola' : ''}</dd></dl>
+        <dt>Price Guide di Cardmarket</dt><dd>${state.pg ? `caricata il ${fmtDT(state.pg.at)}` : 'non caricata (facoltativa)'}</dd></dl>
       <div class="row"><button class="pri" id="sUpd">🔄 Aggiorna adesso</button><button id="sPg">📂 Carica Price Guide…</button><a class="small" href="${PG_PAGE}" target="cardscanner" referrerpolicy="no-referrer">dove si scarica</a></div>
     </section>
     <section class="sc">
@@ -1614,7 +1614,7 @@ function renderLog() {
 // Ogni save() che segue un'operazione dell'utente (registrata con logOp) diventa un punto di annullamento:
 // tengo lo stato di PRIMA. Prezzi di mercato, storico prezzi, catalogo e registro non si annullano.
 const UNDO_MAX = 20, UNDO_T = new Set(['standby', 'vendita', 'venduta', 'prezzo', 'quantita', 'tolta', 'riportata', 'dati']);
-const UNDO_KEEP = ['log', 'market', 'sbMarket', 'pg', 'hist', 'cm', 'revAt', 'pgAuto'];
+const UNDO_KEEP = ['log', 'market', 'sbMarket', 'pg', 'hist', 'cm', 'revAt'];
 let undoStack = [], redoStack = [], undoLast = null, undoPending = [], undoBusy = false, undoSaveT = null;
 function undoNote(t, set, txt) { if (!undoBusy) undoPending.push({ t, set, txt }); }
 function undoRecord(js) {
@@ -2625,7 +2625,6 @@ function sell(k, q, source, file, price, date, meta) {
 //   ref = valore di mercato al caricamento (o all'ultima conferma), refAt, pAt = data del prezzo.
 // Ogni variazione del valore di mercato rispetto a ref, anche di 0,01 €, viene segnalata finché non la confermi.
 const r2 = v => Math.round(v * 100) / 100;
-const PG_URL = 'https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_6.json';
 const PG_PAGE = 'https://www.cardmarket.com/it/Pokemon/Data/Price-Guide';
 const AUTO_H = 12;  // ogni quante ore aggiorno da solo
 const BASEN = { low: 'Da', trend: 'Tendenza', cons: 'Consigliato' };
@@ -2680,17 +2679,6 @@ function pgImport(d) {
   list.forEach(x => { if (keep.has(String(x.idProduct))) p[x.idProduct] = [...MK.map(f => n(x[f])), ...MK.map(f => n(x[f + '-holo']))]; });
   state.pg = { v: 2, at: d.createdAt ? new Date(d.createdAt).toISOString() : today(), p };
   return Object.keys(p).length;
-}
-async function pgAuto() {
-  if (state.pg && state.pg.v === 2 && Date.now() - new Date(state.pg.at) < 20 * 3600e3) return true;
-  try {
-    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 30000);
-    const r = await fetch(PG_URL, { signal: ctl.signal }); clearTimeout(tm);
-    if (!r.ok) throw 0;
-    pgImport(await r.json());
-    state.pgAuto = 1;
-    return true;
-  } catch (e) { state.pgAuto = 0; return false; }
 }
 async function pgFile(f) {
   try {
@@ -2818,7 +2806,6 @@ async function updatePrices(force) {
   upd = (async () => {
     const prog = { done: 0, tot: jobs.length, copies: jobs.reduce((a, j) => a + (j.l.q || 0), 0) };
     showProg(prog);
-    await pgAuto();
     state.market = state.market || {}; state.sbMarket = state.sbMarket || {};
     let i = 0, nNew = 0, fetched = 0, failed = 0;
     const before = new Set(variations().map(x => x.k));

@@ -979,8 +979,24 @@ const CS_PEND = 'gestionaleCsPending', CM_TAB = 'cardscanner';
 const csExt = () => document.documentElement.dataset.csExt || '';
 function openCm(url, payload) {
   try { localStorage.setItem(CS_PEND, JSON.stringify({ at: Date.now(), p: payload })); } catch (e) {}
-  if (csExt()) { window.postMessage({ csExt: 'job', p: payload, url: url.split('#')[0] }, location.origin); return true; }
-  return window.open(url.split('#')[0] + '#' + payload, CM_TAB);
+  const direct = () => window.open(url.split('#')[0] + '#' + payload, CM_TAB);
+  const v = csExt();
+  if (v) {
+    window.postMessage({ csExt: 'job', p: payload, url: url.split('#')[0] }, location.origin);
+    // dalla 1.3.5 l'estensione conferma di aver preso l'operazione; se non risponde (di solito: estensione appena aggiornata
+    // e gestionale non ricaricato) apro Cardmarket io, entro il tempo in cui il browser accetta ancora l'apertura dopo il clic
+    const [a, b, c] = v.split('.').map(Number);
+    if (a > 1 || (a === 1 && (b > 3 || (b === 3 && c >= 5)))) {
+      let done = false;
+      const fallback = () => { direct(); toast('L\'estensione non ha risposto (succede dopo averla aggiornata): ho aperto Cardmarket direttamente. Ricarica il gestionale con Ctrl+F5.'); };
+      const on = e => { if (!e.data || typeof e.data.csExtAck !== 'boolean') return;   // solo un sì/no: nessun dato da proteggere
+        done = true; removeEventListener('message', on); if (!e.data.csExtAck) fallback(); };
+      addEventListener('message', on);
+      setTimeout(() => { if (!done) { removeEventListener('message', on); fallback(); } }, 1200);
+    }
+    return true;
+  }
+  return direct();
 }
 function csPendingDone() { try { localStorage.removeItem(CS_PEND); } catch (e) {} }
 window.addEventListener('message', e => {

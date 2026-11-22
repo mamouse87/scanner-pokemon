@@ -343,10 +343,11 @@ function importFromHash() {
     mergeCatalog({ id: sub.exp, name: sub.name, cards: sub.cards });
     last = { id: sub.exp, name: sub.name };
     for (const r of sub.rows) {
-      const k = lkey(r.p, r.rev, r.lang);
+      // variante speciale: prodotto a parte; Cardmarket può tenerle "Reverse Holo" (casella fissa), qui conta solo la variante
+      const vx = isVx(r.v) ? r.v : vxOfP(sub.exp, r.p), rv = vx ? false : !!r.rev;
+      const k = lkey(r.p, rv, r.lang);
       const c = state.cm[sub.exp]?.cards?.[r.p] || {};
-      const vx = isVx(r.v) ? r.v : vxOfP(sub.exp, r.p);
-      const L = state.listings[k] || (state.listings[k] = { p: r.p, exp: sub.exp, expName: sub.name, u: r.u || c.u || '', rev: r.rev, lang: r.lang, q: 0, price: null, date: sub.at, com: '' });
+      const L = state.listings[k] || (state.listings[k] = { p: r.p, exp: sub.exp, expName: sub.name, u: r.u || c.u || '', rev: rv, lang: r.lang, q: 0, price: null, date: sub.at, com: '' });
       if (vx) L.vx = vx;
       // copie aggiunte a una carta già in vendita allo stesso prezzo: la regola e il riferimento restano quelli di prima
       const keep = L.q > 0 && L.price != null && r.price != null && r2(r.price) === r2(L.price);
@@ -1020,7 +1021,7 @@ function chkAfterListing(added) {
     const L = state.listings[k]; if (!L) return;
     const o = Object.assign({ code: String(setCode(L) || '').toUpperCase(), num: L.u, rev: !!L.rev, lang: L.lang || 'it', q, price: price != null ? r2(price) : null, name: info(L).name, exp: L.expName || state.cm[L.exp]?.name || '' }, isVx(L.vx) ? { vx: L.vx, sl: slOfL(L) } : {});
     // stessa carta allo stesso prezzo: Cardmarket aggiunge le copie alla stessa offerta
-    const same = chk.list.find(x => x.num && norm(x.num) === norm(o.num) && x.rev === o.rev && (x.lang || 'it') === o.lang && x.price === o.price && (x.sl || x.vx || '') === (o.sl || o.vx || '') &&
+    const same = chk.list.find(x => x.num && norm(x.num) === norm(o.num) && (o.sl ? x.sl === o.sl : x.rev === o.rev) && (x.lang || 'it') === o.lang && x.price === o.price && (x.sl || x.vx || '') === (o.sl || o.vx || '') &&
       ((o.code && x.code === o.code) || simp(x.exp) === simp(o.exp)));
     if (same) same.q += q; else chk.list.push(o);
   });
@@ -1088,9 +1089,9 @@ function chkApply(d) {
   }
   if (d.type === 'miss') { const L = state.listings[d.k]; delete state.listings[d.k]; delete (state.market || {})[d.k]; return [L.expName, `${nm(L)} ×${L.q}: tolta dalle carte in vendita`]; }
   if (d.type === 'extra' && d.E && d.card) {
-    const o = d.o, k = lkey(d.card.p, o.rev, o.lang), prices = [...new Set(d.os.map(x => r2(x.price)))];
-    const L = state.listings[k] || (state.listings[k] = { p: d.card.p, exp: d.E.id, expName: d.E.name, u: d.card.u || o.num, rev: o.rev, lang: o.lang, q: 0, price: null, date: today(), com: '' });
-    const vx0 = vxOfP(d.E.id, d.card.p); if (vx0) L.vx = vx0;
+    const vx0 = vxOfP(d.E.id, d.card.p), o = d.o, orv = vx0 ? false : !!o.rev, k = lkey(d.card.p, orv, o.lang), prices = [...new Set(d.os.map(x => r2(x.price)))];
+    const L = state.listings[k] || (state.listings[k] = { p: d.card.p, exp: d.E.id, expName: d.E.name, u: d.card.u || o.num, rev: orv, lang: o.lang, q: 0, price: null, date: today(), com: '' });
+    if (vx0) L.vx = vx0;
     L.q += d.q; L.price = Math.max(...prices); L.pAt = today();
     // se erano in Standby, escono da lì
     const sid = tcgIdFor(d.E.name);

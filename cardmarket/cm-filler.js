@@ -233,7 +233,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 f</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 g</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -312,7 +312,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 f</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 g</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -460,8 +460,8 @@
       job.items.forEach(it => {
         const tail = `|${nrm(it.u)}|${it.rev ? 'R' : 'N'}|${it.lang || 'it'}`;
         let os = (it.code && byCode[it.code.toUpperCase() + tail]) || byExp[smp(it.exp) + tail] || [];
-        // variante speciale: solo le offerte di quel prodotto (V1 o V2)
-        if (it.sl) os = os.filter(o => o.sl === it.sl);
+        // variante speciale: le offerte di quel prodotto (V1, V2…), Reverse Holo o no (Cardmarket può tenerle fisse su Reverse)
+        if (it.sl) os = offers.list.filter(o => o.sl === it.sl && (o.lang || 'it') === (it.lang || 'it'));
         if (!os.length) {
           // perché non c'è? cerco la stessa carta con un'altra variante o lingua
           const same = offers.list.filter(o => nrm(o.num) === nrm(it.u) && ((it.code && o.code === it.code.toUpperCase()) || smp(o.exp) === smp(it.exp)));
@@ -582,10 +582,11 @@
     // (o cambia numero) e resta una sola riga con il prezzo nuovo. Questo per me vuol dire "fatto".
     async function mergedOk(x, target, doc) {
       const fx = x.o.fx || { e: '0', r: x.o.rev ? 'Y' : 'N', s: 1 };
-      const same = o => o.rev === !!x.it.rev && (o.lang || 'it') === (x.it.lang || 'it') && nrm(o.num) === nrm(x.o.num) && (!x.it.sl || o.sl === x.it.sl) &&
+      const xr = x.it.sl ? !!x.o.rev : !!x.it.rev;
+      const same = o => o.rev === xr && (o.lang || 'it') === (x.it.lang || 'it') && nrm(o.num) === nrm(x.o.num) && (!x.it.sl || o.sl === x.it.sl) &&
         (o.code && x.o.code ? o.code === x.o.code : smp(o.name) === smp(x.o.name)) && o.price != null && Math.abs(o.price - target) < 0.005;
-      if (doc && parseRows(doc, fx.r === 'Y' ? true : !!x.it.rev).some(same)) return true;
-      try { const r = await readPages({ idExpansion: fx.e, isReverseHolo: fx.r === '0' ? (x.it.rev ? 'Y' : 'N') : fx.r }, x.o.name, false); return r.list.some(same); } catch (e) { return false; }
+      if (doc && parseRows(doc, fx.r === 'Y' ? true : xr).some(same)) return true;
+      try { const r = await readPages({ idExpansion: fx.e, isReverseHolo: fx.r === '0' ? (xr ? 'Y' : 'N') : fx.r }, x.o.name, false); return r.list.some(same); } catch (e) { return false; }
     }
     async function priceStep(x, auto) {
       const fr = await frameRow(x, !auto);
@@ -612,7 +613,7 @@
       const title = (m.querySelector('.modal-title, h1, h2, h3, h4, h5') || {}).textContent || '';
       if (title && x.o.name && !smp(title).includes(smp(x.o.name).slice(0, 6))) { f.remove(); return fail(`⚠ Il riquadro aperto ("${title.trim()}") non sembra quello di ${x.o.name}: mi fermo per sicurezza.`); }
       const revBox = m.querySelector('input[name="isReverseHolo"], input[name*="everse"]');
-      if (revBox && revBox.type === 'checkbox' && revBox.checked !== !!x.it.rev) { f.remove(); return fail(`⚠ Il riquadro di ${x.o.name} non è ${x.it.rev ? 'Reverse' : 'normale'} come previsto: mi fermo per sicurezza.`); }
+      if (revBox && revBox.type === 'checkbox' && revBox.checked !== (x.it.sl ? !!x.o.rev : !!x.it.rev)) { f.remove(); return fail(`⚠ Il riquadro di ${x.o.name} non è ${x.it.rev ? 'Reverse' : 'normale'} come previsto: mi fermo per sicurezza.`); }
       Object.getOwnPropertyDescriptor(W.HTMLInputElement.prototype, 'value').set.call(inp, target.toFixed(2));
       inp.dispatchEvent(new W.Event('input', { bubbles: true })); inp.dispatchEvent(new W.Event('change', { bubbles: true }));
       inp.style.outline = '3px solid #ffcb05'; inp.style.background = '#fff7cc';
@@ -918,7 +919,8 @@
     setVal(field(tr, 'idLanguage'), String(o.lang));
     setVal(field(tr, 'idCondition'), '2'); // Near Mint
     const rev = field(tr, 'isReverseHolo');
-    if (rev && !rev.disabled) { rev.checked = o.rev; rev.dispatchEvent(new Event('change', { bubbles: true })); }
+    // varianti speciali: la casella Reverse Holo resta come la mette Cardmarket
+    if (rev && !rev.disabled && !isVx(o.v)) { rev.checked = o.rev; rev.dispatchEvent(new Event('change', { bubbles: true })); }
     setVal(field(tr, 'amount'), String(o.qty));
     if (o.price != null) setVal(field(tr, 'price'), o.price.toFixed(2));
     else if (o.err) setVal(field(tr, 'price'), ''); // la riga duplicata per la Reverse non deve tenere il prezzo della normale

@@ -224,7 +224,7 @@
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 b</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 c</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -303,7 +303,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 b</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 c</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -573,7 +573,7 @@
       if (doc && parseRows(doc, fx.r === 'Y' ? true : !!x.it.rev).some(same)) return true;
       try { const r = await readPages({ idExpansion: fx.e, isReverseHolo: fx.r === '0' ? (x.it.rev ? 'Y' : 'N') : fx.r }, x.o.name, false); return r.list.some(same); } catch (e) { return false; }
     }
-    async function priceStep(x, auto) {
+    async function priceStep(x, auto, again) {
       const fr = await frameRow(x, !auto);
       if (fr.err) {
         // riga sparita: se c'è già una sola offerta della carta al prezzo giusto, Cardmarket le ha unite → fatto
@@ -589,10 +589,21 @@
       try { row.scrollIntoView({ block: 'center' }); } catch (e) {}
       const M = () => doc.getElementById('modal');
       const isOpen = () => { const m = M(); return !!m && m.classList.contains('show') && W.getComputedStyle(m).display !== 'none'; };
-      link.click();
+      // la pagina appena caricata a volte non ha ancora collegato il pulsante Modifica (il clic va a vuoto):
+      // aspetto un attimo, e se il riquadro non si apre riclicco (fino a 3 volte); poi ricarico la pagina e riprovo una volta
+      await sleep(600);
       let inp = null;
-      for (let t = 0; t < 12000 && !inp; t += 200) { await sleep(200); if (isOpen()) inp = M().querySelector('input[name="price"]'); }
-      if (!inp) { f.remove(); return fail(`⚠ Il riquadro "Modifica" di ${x.o.name} non si è aperto. Premi ▶ per riprovare.`); }
+      for (let a = 0; a < 3 && !inp; a++) {
+        if (a) prog(`${x.o.name}: il riquadro "Modifica" non si apre, riprovo (${a + 1} di 3)…`);
+        link.click();
+        for (let t = 0; t < 5000 && !inp; t += 200) { await sleep(200); if (isOpen()) inp = M().querySelector('input[name="price"]'); }
+        if (stopHard) break;
+      }
+      if (!inp) {
+        f.remove();
+        if (!again && !stopHard) { prog(`${x.o.name}: ricarico la pagina e riprovo…`); await sleep(1500); return priceStep(x, auto, true); }
+        return fail(`⚠ Il riquadro "Modifica" di ${x.o.name} non si è aperto. Premi ▶ per riprovare.`);
+      }
       const m = M();
       // controlli di sicurezza: carta giusta e variante giusta
       const title = (m.querySelector('.modal-title, h1, h2, h3, h4, h5') || {}).textContent || '';

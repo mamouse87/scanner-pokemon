@@ -1910,7 +1910,9 @@ $('main').addEventListener('click', e => {
         <div class="cd-leg">${same ? `<span class="c">● Tuo prezzo = Consigliato ${eur(C.v)}</span>` : `${price != null ? `<span class="p">● Tuo ${eur(price)}</span>` : ''}<span class="c">● Consigliato ${eur(C.v)}</span>`}
           <span class="r">da ${eur(lo)} a ${eur(hi)}</span></div>`;
     }
-    return `<div class="cd-mk">${L.map(([l, v]) => `<div><span>${l}</span><b>${eur(v) || '—'}</b></div>`).join('')}<div class="c"><span>Consigliato</span><b>${C ? eur(C.v) : '—'}</b></div></div>${bar}`;
+    const dl = C && C.drop ? C.drop.map(([l]) => l) : [];
+    return `<div class="cd-mk">${L.map(([l, v]) => `<div${dl.includes(l) ? ' class="anom" title="Valore anomalo: non usato per il Consigliato"' : ''}><span>${l}</span><b>${eur(v) || '—'}</b></div>`).join('')}<div class="c"><span>Consigliato</span><b>${C ? eur(C.v) : '—'}</b></div></div>${bar}
+      ${dl.length ? `<p class="small anomtxt">⚠ ${C.drop.map(([l, v]) => `${l} ${eur(v)}`).join(', ')}: ${dl.length === 1 ? 'valore anomalo' : 'valori anomali'} rispetto a Tendenza e medie recenti (probabile vendita fuori scala), non ${dl.length === 1 ? 'usato' : 'usati'} per il Consigliato.</p>` : ''}`;
   };
   const verdict = (k, l) => {
     const M = mOf(k); if (!M || (l.rev && !M.rv) || l.price == null || !consOf(M)) return '';
@@ -2666,13 +2668,21 @@ function fromVals(l, v) {
  *  (mediana di Tendenza, Media, Media 7 g, Media 30 g; la media di 1 giorno è troppo ballerina e non la uso). */
 function consOf(M) {
   if (!M) return null;
-  const s = [M.t, M.a, M.a7, M.a30].filter(v => v != null && isFinite(v)).sort((a, b) => a - b);
+  // valori anomali: nella Price Guide a volte una vendita fuori scala gonfia Media o Media 30 g (es. Oddish 001 di
+  // Ascesa Eroica: Tendenza 0,02 €, Media 0,40 €, 30 g 0,45 €, mentre su Cardmarket la media 30 g è 0,04 €).
+  // Riferimento = valori recenti (Tendenza, 7 g, 1 g); scarto chi supera sia 3 volte il riferimento sia il riferimento + 0,20 €.
+  const fin = v => v != null && isFinite(v);
+  const rec = [M.t, M.a7, M.a1].filter(fin).sort((a, b) => a - b);
+  const ref = rec.length ? (rec.length % 2 ? rec[(rec.length - 1) / 2] : (rec[rec.length / 2 - 1] + rec[rec.length / 2]) / 2) : null;
+  const lim = ref != null ? Math.max(ref * 3, ref + 0.2) : Infinity;
+  const drop = [['Tendenza', M.t], ['Media', M.a], ['7 g', M.a7], ['30 g', M.a30]].filter(([, v]) => fin(v) && v > lim);
+  const s = [M.t, M.a, M.a7, M.a30].filter(v => fin(v) && v <= lim).sort((a, b) => a - b);
   const med = s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null;
   if (!isFinite(M.lo)) M = Object.assign({}, M, { lo: null });
   if (med == null && M.lo == null) return null;
-  if (med == null) return { v: r2(Math.max(0.02, M.lo)), med: null };
-  if (M.lo == null || M.lo >= med) return { v: r2(Math.max(0.02, med)), med };
-  return { v: r2(Math.max(0.02, (M.lo + med) / 2)), med };
+  const R = med == null ? { v: r2(Math.max(0.02, M.lo)), med: null } : (M.lo == null || M.lo >= med) ? { v: r2(Math.max(0.02, med)), med } : { v: r2(Math.max(0.02, (M.lo + med) / 2)), med };
+  if (drop.length) R.drop = drop;
+  return R;
 }
 /** idProduct Cardmarket di una carta in standby (dall'elenco del set inviato dallo script, se c'è) */
 function sbPid(S) {

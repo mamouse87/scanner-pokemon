@@ -110,6 +110,23 @@ object CardRepo {
         return SetData(o.getString("id"), o.optString("name", id), total, cards, logo, o.optString("symbol", ""), extra, code)
     }
 
+    private fun cardCache(ctx: Context, lang: String, cardId: String) =
+        File(ctx.filesDir, "card_${lang}_$cardId.json".replace(Regex("[^A-Za-z0-9._-]"), "_"))
+
+    /** Copia salvata della carta (qualsiasi età), senza andare su internet. */
+    fun cardFile(ctx: Context, lang: String, cardId: String): String? =
+        try { cardCache(ctx, lang, cardId).takeIf { it.exists() }?.readText() } catch (_: Exception) { null }
+
+    /** Carta da TCGdex: la copia salvata se ha meno di [maxAgeMs], altrimenti internet (e, senza internet, la copia vecchia). */
+    fun card(ctx: Context, lang: String, cardId: String, maxAgeMs: Long): JSONObject? {
+        val f = cardCache(ctx, lang, cardId)
+        if (f.exists() && System.currentTimeMillis() - f.lastModified() < maxAgeMs) {
+            try { return JSONObject(f.readText()) } catch (_: Exception) {}
+        }
+        val enc = try { URLEncoder.encode(cardId, "UTF-8") } catch (_: Exception) { return null }
+        return try { JSONObject(get(ctx, "/$lang/cards/$enc", "card_${lang}_$cardId.json")) } catch (_: Exception) { null }
+    }
+
     /** Rarità in italiano (TCGdex inglese tradotto, se la carta non c'è in italiano) */
     private val RAR_IT = mapOf(
         "common" to "Comune", "uncommon" to "Non comune", "rare" to "Rara", "rare holo" to "Rara holo", "holo rare" to "Rara holo",

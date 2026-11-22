@@ -75,7 +75,7 @@ object SavedLists {
         val id = "$sigla-${compact(g.setName)}${n.toString().padStart(3, '0')}"
         val sb = StringBuilder("CARDSCANNER 2\n# LISTA $id\nSET ${g.setName} | ${g.lang} | ${first.setId}\n")
         if (comment.isNotBlank()) sb.append("COMMENTO ${comment.trim()}\n")
-        for ((_, i) in g.items) sb.append("${CardRepo.pad(i.num)} | x${i.qty} | ${if (i.variant == "R") "R" else "N"} | ${i.name} | ${i.rarity}\n")
+        for ((_, i) in g.items) sb.append("${CardRepo.pad(i.num)} | x${i.qty} | ${when { i.variant == "R" -> "R"; i.variant.startsWith("X") -> i.variant; else -> "N" }} | ${i.name} | ${i.rarity}\n")
         val l = SavedList(id, g.lang, first.setId, g.setName, sigla, n, System.currentTimeMillis(),
             g.items.sumOf { it.second.qty }, g.items.size, sb.toString())
         lists.add(l)

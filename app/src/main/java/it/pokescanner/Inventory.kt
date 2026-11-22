@@ -4,7 +4,7 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** variant: "" = normale, "R" = Reverse Holo */
+/** variant: "" = normale, "R" = Reverse Holo, "X<idProduct>" = variante speciale (prodotto Cardmarket a parte, nome in vlabel) */
 data class Item(
     val lang: String,
     val setId: String,
@@ -17,7 +17,9 @@ data class Item(
     var qty: Int,
     val variant: String = "",
     /** immagine TCGdex (indirizzo base, senza /low.webp) */
-    var img: String = ""
+    var img: String = "",
+    /** nome della variante speciale (es. "Reverse Energia") */
+    var vlabel: String = ""
 )
 
 data class Group(val lang: String, val setName: String, val total: Int, val items: List<Pair<String, Item>>)
@@ -33,6 +35,11 @@ object Inventory {
     )
 
     fun variantName(v: String) = if (v == "R") "Reverse Holo" else "Normale"
+    fun isSpecial(i: Item) = i.variant.startsWith("X")
+    /** "Normale", "Reverse Holo" o il nome della variante speciale */
+    fun label(i: Item) = if (isSpecial(i)) i.vlabel.ifEmpty { "Variante speciale" } else variantName(i.variant)
+    /** testo breve per la carta appena aggiunta: "" per la normale */
+    fun tag(i: Item) = when { i.variant == "R" -> "  ✦ REVERSE"; isSpecial(i) -> "  ✦ " + i.vlabel.ifEmpty { "SPECIALE" }.uppercase(); else -> "" }
 
     fun key(lang: String, setId: String, num: String, variant: String = "") = "$lang|$setId|$num|$variant"
 
@@ -54,7 +61,7 @@ object Inventory {
                 val item = Item(
                     o.getString("lang"), o.getString("setId"), o.optString("setName"), o.optInt("total"),
                     o.getString("num"), o.optString("name"), o.optString("cardId"), o.optString("rarity"),
-                    o.optInt("qty", 1), o.optString("variant", ""), o.optString("img", "")
+                    o.optInt("qty", 1), o.optString("variant", ""), o.optString("img", ""), o.optString("vl", "")
                 )
                 items[key(item.lang, item.setId, item.num, item.variant)] = item
             }
@@ -69,20 +76,21 @@ object Inventory {
                 JSONObject()
                     .put("lang", i.lang).put("setId", i.setId).put("setName", i.setName).put("total", i.total)
                     .put("num", i.num).put("name", i.name).put("cardId", i.cardId).put("rarity", i.rarity)
-                    .put("qty", i.qty).put("variant", i.variant).put("img", i.img)
+                    .put("qty", i.qty).put("variant", i.variant).put("img", i.img).put("vl", i.vlabel)
             )
         }
         prefs(ctx).edit().putString("data", a.toString()).apply()
     }
 
     /** Aggiunge una copia. Restituisce la chiave e la voce aggiornata. */
-    fun add(ctx: Context, lang: String, set: SetData, num: String, variant: String = "", persist: Boolean = true): Pair<String, Item> {
+    fun add(ctx: Context, lang: String, set: SetData, num: String, variant: String = "", persist: Boolean = true, label: String = ""): Pair<String, Item> {
         val n = CardRepo.norm(num)
         val k = key(lang, set.id, n, variant)
         val card = set.cards[n]
         val item = items.getOrPut(k) {
-            Item(lang, set.id, set.name, set.total, n, card?.name ?: "", card?.id ?: "", "", 0, variant, card?.image ?: "")
+            Item(lang, set.id, set.name, set.total, n, card?.name ?: "", card?.id ?: "", "", 0, variant, card?.image ?: "", label)
         }
+        if (label.isNotEmpty() && item.vlabel.isEmpty()) item.vlabel = label
         if (item.img.isEmpty() && !card?.image.isNullOrEmpty()) item.img = card!!.image
         item.qty++
         history.addLast(k)
@@ -118,7 +126,7 @@ object Inventory {
         return null
     }
 
-    /** Sposta l'ultima carta aggiunta tra Normale e Reverse. */
+    /** Sposta l'ultima carta aggiunta tra Normale e Reverse (una variante speciale torna Normale). */
     fun toggleLastVariant(ctx: Context): Pair<String, Item>? {
         while (history.isNotEmpty()) {
             val k = history.removeLast()
@@ -126,7 +134,7 @@ object Inventory {
             change(ctx, k, -1)
             val nv = if (old.variant == "R") "" else "R"
             val nk = key(old.lang, old.setId, old.num, nv)
-            val ni = items.getOrPut(nk) { old.copy(variant = nv, qty = 0) }
+            val ni = items.getOrPut(nk) { old.copy(variant = nv, qty = 0, vlabel = "") }
             ni.qty++
             history.addLast(nk)
             save(ctx)

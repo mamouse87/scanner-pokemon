@@ -144,9 +144,10 @@ class ListActivity : AppCompatActivity() {
             val name = "${code.ifEmpty { first.setId.uppercase().replace(Regex("[^A-Z0-9]"), "") }}-${SavedLists.compact(g.setName)}${next.toString().padStart(3, '0')}"
             val n = g.items.sumOf { it.second.qty }
             val rev = g.items.filter { it.second.variant == "R" }.sumOf { it.second.qty }
+            val spec = g.items.filter { Inventory.isSpecial(it.second) }.sumOf { it.second.qty }
             val et = commentField()
             val info = TextView(this@ListActivity).apply {
-                text = "$n carte ($rev Reverse).\n\nChiudendo la lista le carte diventano la lista \"$name\" e la scansione di questo set riparte da zero. " +
+                text = "$n carte ($rev Reverse${if (spec > 0) ", $spec varianti speciali" else ""}).\n\nChiudendo la lista le carte diventano la lista \"$name\" e la scansione di questo set riparte da zero. " +
                     "Le liste chiuse le trovi in fondo, in \"Liste salvate\", e le mandi tutte insieme con \"📤 Invia liste al gestionale\"."
                 setPadding(0, 0, 0, 16)
             }
@@ -315,7 +316,7 @@ class ListActivity : AppCompatActivity() {
                     v.findViewById<TextView>(R.id.tvName).text = r.item.name.ifEmpty { "—" }
                     val rar = v.findViewById<TextView>(R.id.tvRarity)
                     val extra = listOfNotNull(
-                        if (r.item.variant == "R") "✦ Reverse Holo" else null,
+                        if (r.item.variant.isNotEmpty()) "✦ " + Inventory.label(r.item) else null,
                         r.item.rarity.ifEmpty { null }
                     ).joinToString(" · ")
                     rar.text = extra

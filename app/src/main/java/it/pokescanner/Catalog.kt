@@ -39,7 +39,8 @@ object Catalog {
             for ((_, i) in g.items) {
                 val img = sd?.cards?.get(i.num)?.image ?: ""
                 val isRev = i.variant == "R"
-                val search = esc("${i.name} ${CardRepo.pad(i.num)} ${i.rarity} ${if (isRev) "reverse" else ""}".lowercase())
+                val isX = Inventory.isSpecial(i)
+                val search = esc("${i.name} ${CardRepo.pad(i.num)} ${i.rarity} ${if (isRev) "reverse" else ""} ${if (isX) i.vlabel else ""}".lowercase())
                 body.append("<div class=\"card${if (isRev) " rev" else ""}\" data-s=\"$search\">")
                 if (img.isNotEmpty()) {
                     body.append("<img loading=\"lazy\" src=\"${esc(img)}/low.webp\" data-hi=\"${esc(img)}/high.webp\" alt=\"${esc(i.name)}\" data-fb=\"1\">")
@@ -48,6 +49,7 @@ object Catalog {
                 }
                 if (i.qty > 1) body.append("<span class=\"qty\">×${i.qty}</span>")
                 if (isRev) body.append("<span class=\"badge\">REVERSE</span>")
+                if (isX) body.append("<span class=\"badge\" style=\"background:#e0a100\">${esc(i.vlabel.ifEmpty { "SPECIALE" }.uppercase())}</span>")
                 body.append("<div class=\"info\"><b>${CardRepo.pad(i.num)}/${if (i.total > 0) i.total else "?"}</b> ${esc(i.name)}")
                 if (i.rarity.isNotEmpty()) body.append("<small>${esc(i.rarity)}</small>")
                 body.append("</div></div>")

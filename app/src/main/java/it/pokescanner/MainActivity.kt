@@ -59,6 +59,7 @@ import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
@@ -73,7 +74,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvSetSub: TextView
     private lateinit var ivSetLogo: ImageView
     private lateinit var cbName: CompoundButton
-    private lateinit var cbRev: CompoundButton
+    private lateinit var cbRev: com.google.android.material.chip.Chip
     private lateinit var lastCard: View
     private lateinit var ivLast: ImageView
     private lateinit var btnShot: Button
@@ -98,7 +99,10 @@ class MainActivity : AppCompatActivity() {
     private var lang = "it"
     private var fanMode = false
     private var nameCheck = true
-    private var reverseMode = false
+    /** variante delle carte che scansioni: Normale, Reverse o una speciale (Energia, Ball, Master Ball) */
+    private var varMode = Variants.N
+    private val reverseMode get() = varMode == Variants.R
+    private var prefetchJob: Job? = null
     private val prefs by lazy { getSharedPreferences("app", MODE_PRIVATE) }
 
     @Volatile private var paused = false   // durante lo scatto del ventaglio / i dialoghi
@@ -158,7 +162,7 @@ class MainActivity : AppCompatActivity() {
         lang = prefs.getString("lang", "it") ?: "it"
         fanMode = prefs.getBoolean("fan", false)
         nameCheck = prefs.getBoolean("nameCheck", true)
-        reverseMode = prefs.getBoolean("reverseMode", false)
+        varMode = prefs.getString("varMode", null) ?: if (prefs.getBoolean("reverseMode", false)) Variants.R else Variants.N
 
         // schermo sempre acceso mentre scansioni
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -187,14 +191,10 @@ class MainActivity : AppCompatActivity() {
         }
         cbName.isChecked = nameCheck
         cbName.setOnCheckedChangeListener { _, c -> nameCheck = c; prefs.edit().putBoolean("nameCheck", c).apply() }
-        cbRev.isChecked = reverseMode
-        overlay.reverseMode = reverseMode
-        cbRev.setOnCheckedChangeListener { _, c ->
-            reverseMode = c; overlay.reverseMode = c; tintReverse()
-            prefs.edit().putBoolean("reverseMode", c).apply()
-            resetCand(); locked = null
-            status(if (c) "Modalità REVERSE: tutte le carte che scansioni ora sono Reverse Holo." else "Modalità normale.")
-        }
+        // variante: Normale, Reverse o una speciale del set (resta attiva finché non la cambi)
+        cbRev.isCheckable = false
+        cbRev.setOnClickListener { chooseMode() }
+        applyVarMode(false)
         findViewById<Button>(R.id.btnSwap).setOnClickListener {
             val r = Inventory.toggleLastVariant(this)
             if (r == null) { showLast("Nessuna carta da cambiare", ""); return@setOnClickListener }
@@ -209,7 +209,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnScan).setOnClickListener { setScanning(!scanning) }
         btnForce.setOnClickListener {
             val p = pending ?: return@setOnClickListener
-            addCard(p, "forzata", decideVariant().first)
+            addWithMode(p, "forzata")
             lockCurrent(p); resetCand(); hideForce()
         }
         findViewById<Button>(R.id.btnTorch).setOnClickListener {
@@ -282,6 +282,11 @@ class MainActivity : AppCompatActivity() {
                 ImageLoader.load(this@MainActivity, lifecycleScope, ivSetLogo, if (sd.logo.isNotEmpty()) sd.logo + ".png" else "",
                     if (sd.logo.isNotEmpty()) sd.logo.replace(Regex("(assets\\.tcgdex\\.net/)[a-z-]+/"), "$1en/") + ".png" else "")
                 resetCand(); locked = null; hideForce()
+                prefetchJob?.cancel()
+                prefetchJob = lifecycleScope.launch {
+                    try { withContext(Dispatchers.IO) { Variants.prefetch(this@MainActivity, lang, sd) } } catch (_: Exception) {}
+                    if (set === sd) checkModeAvailable(sd)
+                }
                 status(if (fanMode) "Disponi le carte a ventaglio e premi \"Leggi ventaglio\"."
                        else "Inquadra la carta intera: la aggiungo da sola.")
             }.onFailure {
@@ -488,17 +493,17 @@ class MainActivity : AppCompatActivity() {
                 return
             }
         }
-        val (variant, sure) = decideVariant()
         lockCurrent(n)
         // stessa carta di nuovo entro pochi secondi: probabilmente è la stessa copia ancora davanti alla fotocamera
-        if (n == lastAddN && variant == lastAddVar && System.currentTimeMillis() - lastAddTime < DUP_MS) {
+        val rv = resolveNow(n)
+        if (rv != null && n == lastAddN && rv.first == lastAddVar && System.currentTimeMillis() - lastAddTime < DUP_MS) {
             resetCand(); hideForce()
-            askDuplicate(n, variant, sure)
+            askDuplicate(n, rv.first, rv.second)
             return
         }
-        addCard(n, if (sure) "" else "variante non letta", variant)
         resetCand(); hideForce()
         status("Ok, prossima carta.")
+        addWithMode(n, "")
     }
 
     private fun lockCurrent(n: String) { locked = n; lockedSig = curSig; goneN = 0 }
@@ -535,10 +540,55 @@ class MainActivity : AppCompatActivity() {
         return dot / a.size < 0.7f                 // forme diverse (mano, carta spostata via, altra carta)
     }
 
-    /** Variante decisa a maggioranza sui fotogrammi letti. Restituisce ("" o "R", deciso con certezza?) */
-    private fun decideVariant(): Pair<String, Boolean> = (if (reverseMode) "R" else "") to true
+    /** Variante della carta per la modalità attiva, se si sa subito: ("" | "R" | "X<idProduct>", nome). null = da leggere o assente */
+    private fun resolveNow(n: String): Pair<String, String>? {
+        if (!Variants.isSpecial(varMode)) return (if (varMode == Variants.R) "R" else "") to ""
+        val id = set?.cards?.get(CardRepo.norm(n))?.id ?: return null
+        val cv = Variants.cached(this, lang, id) ?: return null
+        val o = Variants.pick(cv, varMode) ?: return null
+        return "X" + o.p to o.label
+    }
 
-    private fun askDuplicate(n: String, variant: String, sure: Boolean) {
+    /** Aggiunge la carta nella variante della modalità attiva; per le speciali la cerca tra le varianti vere della carta (TCGdex). */
+    private fun addWithMode(num: String, note: String) {
+        val sd = set ?: return
+        if (!Variants.isSpecial(varMode)) { addCard(num, note, if (varMode == Variants.R) "R" else ""); return }
+        val n = CardRepo.norm(num)
+        val card = sd.cards[n]
+        if (card == null || card.id.isEmpty()) {
+            feedbackError()
+            status("La carta ${CardRepo.pad(n)} non risulta nel set: con la modalità ${Variants.modeLabel(varMode)} non so quale variante sia. Non aggiunta.", true)
+            return
+        }
+        val cv = Variants.cached(this, lang, card.id)
+        if (cv != null) { addSpecial(n, note, card, cv); return }
+        val mode = varMode
+        paused = true
+        status("Leggo le varianti di ${CardRepo.pad(n)} ${card.name}…")
+        lifecycleScope.launch {
+            val r = withContext(Dispatchers.IO) { Variants.load(this@MainActivity, lang, card.id) }
+            paused = false
+            when {
+                r == null -> { feedbackError(); status("Non riesco a leggere le varianti di ${CardRepo.pad(n)} ${card.name} (serve internet): non aggiunta.", true) }
+                mode == varMode -> addSpecial(n, note, card, r)
+            }
+        }
+    }
+
+    private fun addSpecial(n: String, note: String, card: CardInfo, cv: CardVars) {
+        val o = Variants.pick(cv, varMode)
+        if (o == null) {
+            feedbackError()
+            val has = cv.opts.filter { it.cat != "altra" }.joinToString(", ") { it.label }
+            showLast("✗ ${CardRepo.pad(n)} ${card.name}\nnon esiste come ${Variants.modeLabel(varMode)}: non aggiunta", card.image)
+            status("${CardRepo.pad(n)} ${card.name} non esiste come ${Variants.modeLabel(varMode)}" +
+                (if (has.isNotEmpty()) " (esiste come: $has)" else "") + ". Non l'ho aggiunta: cambia modalità o mettila da parte.", true)
+            return
+        }
+        addCard(n, note, "X" + o.p, o.label)
+    }
+
+    private fun askDuplicate(n: String, variant: String, label: String) {
         val sd = set ?: return
         paused = true
         val name = sd.cards[n]?.name ?: ""
@@ -546,8 +596,8 @@ class MainActivity : AppCompatActivity() {
         feedbackPresent()
         AlertDialog.Builder(this)
             .setTitle("Stessa carta?")
-            .setMessage("${CardRepo.pad(n)} $name${if (variant == "R") " (Reverse)" else ""} è stata appena aggiunta (ora ×$qty).\n\nÈ un'altra copia?")
-            .setPositiveButton("Sì, aggiungi") { _, _ -> addCard(n, if (sure) "" else "variante non letta", variant) }
+            .setMessage("${CardRepo.pad(n)} $name${if (variant == "R") " (Reverse)" else if (label.isNotEmpty()) " ($label)" else ""} è stata appena aggiunta (ora ×$qty).\n\nÈ un'altra copia?")
+            .setPositiveButton("Sì, aggiungi") { _, _ -> addCard(n, "", variant, label) }
             .setNegativeButton("No, è la stessa") { _, _ -> status("Ok, non aggiunta. Prossima carta.") }
             .setOnDismissListener { paused = false; lockCurrent(n) }
             .show()
@@ -624,11 +674,18 @@ class MainActivity : AppCompatActivity() {
     private fun showFanResult(bmp: Bitmap?, scan: Recognizer.Scan, sd: SetData) {
         paused = true
         scan.good.forEach { it.reverse = reverseMode }
-        val counts = scan.good.groupingBy { CardRepo.norm(it.num) to (if (it.reverse == true) "R" else "") }.eachCount()
+        // modalità speciale: ogni carta prende la sua variante (Energia, la sua Ball…); quelle che non ce l'hanno restano fuori
+        val spec = Variants.isSpecial(varMode)
+        val vmap = HashMap<String, Pair<String, String>?>()
+        if (spec) scan.good.map { CardRepo.norm(it.num) }.distinct().forEach { n -> vmap[n] = resolveNow(n) }
+        val good = if (spec) scan.good.filter { vmap[CardRepo.norm(it.num)] != null } else scan.good
+        val noVar = if (spec) scan.good.map { CardRepo.norm(it.num) }.distinct().filter { vmap[it] == null } else emptyList()
+        val counts = good.groupingBy { h -> CardRepo.norm(h.num).let { n -> n to (if (spec) vmap[n]!!.first else if (h.reverse == true) "R" else "") } }.eachCount()
             .toSortedMap(compareBy<Pair<String, String>>({ it.first.toIntOrNull() ?: Int.MAX_VALUE }, { it.first }, { it.second }))
-        val revN = scan.good.count { it.reverse == true }
+        val labelOf = { n: String -> if (spec) vmap[n]?.second ?: "" else "" }
+        val revN = good.count { it.reverse == true }
         val unknownN = 0
-        val total = scan.good.size
+        val total = good.size
 
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 16, 40, 0) }
         if (bmp != null) {
@@ -651,23 +708,25 @@ class MainActivity : AppCompatActivity() {
         sb.append(if (total == 0) "Nessuna carta riconosciuta.\n" else "Riconosciute $total carte (${counts.size} diverse):\n")
         for ((nv, c) in counts) {
             val name = sd.cards[nv.first]?.name ?: ""
-            sb.append("${CardRepo.pad(nv.first)} $name${if (nv.second == "R") "  ✦Reverse" else ""}${if (c > 1) "  ×$c" else ""}\n")
+            sb.append("${CardRepo.pad(nv.first)} $name${if (nv.second == "R") "  ✦Reverse" else if (spec) "  ✦" + labelOf(nv.first) else ""}${if (c > 1) "  ×$c" else ""}\n")
         }
         if (revN > 0) sb.append("\nTutte Reverse Holo (modalità Reverse attiva).\n")
+        if (spec && total > 0) sb.append("\nTutte ${Variants.modeLabel(varMode)}: ognuna con la sua variante.\n")
+        if (noVar.isNotEmpty()) sb.append("\n⚠ Non esistono come ${Variants.modeLabel(varMode)} (o varianti non ancora lette): ${noVar.joinToString(", ") { CardRepo.pad(it) }}. Non le aggiungo.\n")
         if (unknownN > 0) sb.append("⚠ Per $unknownN carte non sono riuscito a capire se sono Reverse (sigla grigia): contate come normali.\n")
         if (scan.bad.isNotEmpty())
             sb.append("\n⚠ ${scan.bad.size} righe con totale diverso da /${sd.total} (in rosso, ignorate).\n")
         if (total > 0) sb.append("\nConta le carte del ventaglio: se sono di più, qualcuna non è stata letta (non ha il riquadro verde).")
         content.addView(TextView(this).apply { text = sb.toString(); textSize = 15f; setPadding(0, 12, 0, 0) })
 
-        if (total == 0) feedbackError()
+        if (total == 0 || noVar.isNotEmpty()) feedbackError()
         val b = AlertDialog.Builder(this)
             .setTitle("Ventaglio")
             .setView(ScrollView(this).apply { addView(content) })
             .setNegativeButton("Annulla", null)
             .setOnDismissListener { paused = false }
         if (total > 0) b.setPositiveButton("Aggiungi $total") { _, _ ->
-            for ((nv, c) in counts) repeat(c) { Inventory.add(this, lang, sd, nv.first, nv.second, persist = false) }
+            for ((nv, c) in counts) repeat(c) { Inventory.add(this, lang, sd, nv.first, nv.second, persist = false, label = labelOf(nv.first)) }
             Inventory.save(this)
             counts.keys.forEach { nv -> fetchRarityFor(Inventory.key(lang, sd.id, nv.first, nv.second)) }
             showLast("✓ Aggiunte $total carte dal ventaglio", "")
@@ -678,13 +737,13 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------- lista ----------------
 
-    private fun addCard(num: String, note: String, variant: String = "") {
+    private fun addCard(num: String, note: String, variant: String = "", label: String = "") {
         val sd = set ?: return
-        val (k, item) = Inventory.add(this, lang, sd, num, variant)
+        val (k, item) = Inventory.add(this, lang, sd, num, variant, label = label)
         lastAddN = item.num; lastAddVar = variant; lastAddTime = System.currentTimeMillis()
         val extra = sd.total > 0 && (item.num.toIntOrNull() ?: 0) > sd.total
         showLast("✓ ${CardRepo.pad(item.num)}/${sd.total}${if (extra) " · fuoriserie" else ""}\n${item.name.ifEmpty { "—" }}" +
-            (if (variant == "R") "  ✦ REVERSE" else "") + "   ×${item.qty}" +
+            Inventory.tag(item) + "   ×${item.qty}" +
             (if (note.isNotEmpty()) "  ($note)" else ""), item.img)
         when {
             sd.cards[item.num] == null && sd.cards.isNotEmpty() -> {   // numero che nel set non esiste (es. scritto male a mano)
@@ -703,7 +762,7 @@ class MainActivity : AppCompatActivity() {
         val r = Inventory.addAgain(this, n)
         if (r == null) { showLast("Nessuna carta a cui aggiungere copie: scansionane prima una", ""); feedbackError(); return }
         val (_, it2) = r
-        showLast("＋$n ${CardRepo.pad(it2.num)} ${it2.name}" + (if (it2.variant == "R") "  ✦ REVERSE" else "") + "   ×${it2.qty}", it2.img)
+        showLast("＋$n ${CardRepo.pad(it2.num)} ${it2.name}" + Inventory.tag(it2) + "   ×${it2.qty}", it2.img)
         lastAddN = it2.num; lastAddVar = it2.variant; lastAddTime = System.currentTimeMillis()
         feedbackPresent()
         updateListBtn()
@@ -743,8 +802,8 @@ class MainActivity : AppCompatActivity() {
             .setView(LinearLayout(this).apply { setPadding(48, 16, 48, 0); addView(et, ViewGroup.LayoutParams(-1, -2)) })
             .setPositiveButton("Aggiungi") { _, _ ->
                 val v = et.text.toString().trim().substringBefore('/').trim()
-                // con la modalità ✦ REVERSE attiva anche la carta scritta a mano è Reverse (si può cambiare con ⇄ Rev)
-                if (v.isNotEmpty()) addCard(v, "a mano", decideVariant().first)
+                // anche la carta scritta a mano prende la variante della modalità attiva (Reverse, Energia, Ball…)
+                if (v.isNotEmpty()) addWithMode(v, "a mano")
             }
             .setNegativeButton("Annulla", null)
             .setOnDismissListener { paused = false }
@@ -763,10 +822,68 @@ class MainActivity : AppCompatActivity() {
     private val LANG_FLAG = mapOf("it" to "🇮🇹", "en" to "🇬🇧", "fr" to "🇫🇷", "de" to "🇩🇪", "es" to "🇪🇸", "pt" to "🇵🇹", "ja" to "🇯🇵")
     private fun showLang() { chipLang.text = "${LANG_FLAG[lang] ?: ""} ${lang.uppercase()}" }
 
-    /** Colori viola quando la modalità Reverse è attiva, per non dimenticarla accesa. */
+    /** Colori viola (Reverse) od oro (varianti speciali) quando la modalità è attiva, per non dimenticarla accesa. */
     private fun tintReverse() {
-        val c = if (reverseMode) Color.rgb(204, 93, 232) else Color.rgb(255, 203, 5)
+        val c = when { Variants.isSpecial(varMode) -> OverlayView.SPECIAL; reverseMode -> Color.rgb(204, 93, 232); else -> Color.rgb(255, 203, 5) }
         btnList.backgroundTintList = android.content.res.ColorStateList.valueOf(c)
+        cbRev.chipBackgroundColor = android.content.res.ColorStateList.valueOf(
+            when { Variants.isSpecial(varMode) -> Color.rgb(253, 240, 207); reverseMode -> Color.rgb(243, 224, 250); else -> Color.rgb(240, 240, 240) })
+    }
+
+    /** Mostra la modalità attiva (testo del pulsante, cornice della fotocamera, colori) e la salva. */
+    private fun applyVarMode(announce: Boolean) {
+        cbRev.text = "✦ " + when (varMode) { Variants.N -> "Normale"; Variants.R -> "Reverse"; Variants.ENERGIA -> "Energia"; Variants.BALL -> "Ball"; Variants.MASTER -> "Master Ball"; else -> varMode }
+        overlay.reverseMode = reverseMode
+        overlay.specialLabel = if (Variants.isSpecial(varMode)) Variants.modeLabel(varMode) else null
+        tintReverse()
+        prefs.edit().putString("varMode", varMode).putBoolean("reverseMode", reverseMode).apply()
+        resetCand(); locked = null
+        if (announce) status(when {
+            varMode == Variants.N -> "Modalità normale."
+            varMode == Variants.R -> "Modalità REVERSE: tutte le carte che scansioni ora sono Reverse Holo."
+            varMode == Variants.BALL -> "Modalità REVERSE BALL: ogni carta prende la sua Ball (Poké, Love, Scuro…) o il Team Rocket."
+            else -> "Modalità ${Variants.modeLabel(varMode).uppercase()}: le carte che non hanno questa variante non vengono aggiunte."
+        })
+    }
+
+    /** Scelta della variante: solo quelle che esistono nel set (lette da TCGdex). */
+    private fun chooseMode() {
+        val sd = set ?: run { status("Scegli prima un set.", true); return }
+        val (found, known) = Variants.setModes(this, lang, sd)
+        val modes = if (varMode in found) found else found + varMode
+        val labels = modes.map { m -> when (m) {
+            Variants.N -> "Normale"
+            Variants.R -> "Reverse Holo"
+            Variants.ENERGIA -> "Reverse Energia"
+            Variants.BALL -> "Reverse Ball (la Ball della carta, o Team Rocket)"
+            Variants.MASTER -> "Reverse Master Ball"
+            else -> m } }.toTypedArray()
+        val tot = sd.cards.values.count { it.id.isNotEmpty() }
+        val note = (if (known < tot) "Sto leggendo le varianti del set: $known di $tot carte (serve internet). Se manca una modalità, riapri tra poco.\n\n" else "") +
+            "Le varianti rare (Cosmo, timbrate, Non Holo…) aggiungile dal gestionale."
+        val head = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(56, 40, 56, 8)
+            addView(TextView(this@MainActivity).apply { text = "Variante delle carte"; textSize = 20f; setTypeface(typeface, android.graphics.Typeface.BOLD) })
+            addView(TextView(this@MainActivity).apply { text = note; textSize = 13f; setPadding(0, 12, 0, 0) })
+        }
+        AlertDialog.Builder(this).setCustomTitle(head)
+            .setSingleChoiceItems(labels, modes.indexOf(varMode).coerceAtLeast(0)) { d, i ->
+                d.dismiss()
+                if (modes[i] != varMode) { varMode = modes[i]; applyVarMode(true) }
+            }
+            .setNegativeButton("Chiudi", null).show()
+    }
+
+    /** Set appena letto: se la modalità speciale attiva non esiste in questo set torno a Normale. */
+    private fun checkModeAvailable(sd: SetData) {
+        if (!Variants.isSpecial(varMode)) return
+        val (found, known) = Variants.setModes(this, lang, sd)
+        val tot = sd.cards.values.count { it.id.isNotEmpty() }
+        if (known >= tot * 0.9 && varMode !in found) {
+            val old = Variants.modeLabel(varMode)
+            varMode = Variants.N; applyVarMode(false)
+            status("In ${sd.name} non c'è la $old: torno alla modalità Normale.", true)
+        }
     }
 
     private fun rememberRecent(id: String) {
@@ -781,7 +898,9 @@ class MainActivity : AppCompatActivity() {
                 "2. CARTA SINGOLA: inquadra una carta alla volta. Appena legge il numero (es. 123/198) la aggiunge da sola con un bip. " +
                 "Se riconosce la stessa carta entro 3 secondi ti chiede se è un'altra copia.\n\n" +
                 "3. VENTAGLIO: sovrapponi le carte lasciando visibile la riga del numero in basso e premi \"Leggi ventaglio\".\n\n" +
-                "4. ✦ REVERSE: finché è attiva, tutte le carte che scansioni sono Reverse Holo (la cornice diventa viola).\n\n" +
+                "4. ✦ VARIANTE (Normale, Reverse, Energia, Ball, Master Ball: solo quelle del set): finché è attiva, tutte le carte che scansioni prendono quella variante. " +
+                "Con \"Ball\" ogni carta prende la sua (Poké, Love, Scuro… o Team Rocket). Una carta che non ha la variante scelta non viene aggiunta (suono di errore). " +
+                "La cornice diventa viola per la Reverse, oro per le varianti speciali.\n\n" +
                 "5. Verifica nome: controlla anche il nome stampato, per evitare numeri letti male.\n\n" +
                 "Altri comandi: due dita per lo zoom, tocca l'immagine per mettere a fuoco, 🔦 luce, ↶ annulla l'ultima, " +
                 "⇄ Rev cambia l'ultima tra normale e Reverse, ✍ aggiunge a mano, ＋ aggiunge un'altra copia dell'ultima carta (tieni premuto per scegliere quante).\n\n" +

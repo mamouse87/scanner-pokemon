@@ -23,6 +23,7 @@ class OverlayView(ctx: Context, attrs: AttributeSet?) : View(ctx, attrs) {
     companion object {
         val NORMAL = Color.rgb(77, 171, 247)
         val REVERSE = Color.rgb(204, 93, 232)
+        val SPECIAL = Color.rgb(224, 161, 0)
         val UNKNOWN = Color.rgb(150, 150, 150)
         fun codeColor(r: Boolean?) = when (r) { true -> REVERSE; false -> NORMAL; null -> UNKNOWN }
     }
@@ -39,12 +40,21 @@ class OverlayView(ctx: Context, attrs: AttributeSet?) : View(ctx, attrs) {
     /** Cornice viola sull'anteprima quando la modalità Reverse è attiva, per non dimenticarla accesa. */
     var reverseMode = false
         set(v) { field = v; invalidate() }
+    /** Modalità speciale (Energia, Ball, Master Ball): cornice oro con il nome. null = nessuna */
+    var specialLabel: String? = null
+        set(v) { field = v; invalidate() }
     private val pFrame = Paint().apply { color = REVERSE; style = Paint.Style.STROKE; strokeWidth = 18f }
     private val pLabel = Paint().apply { color = REVERSE; textSize = 48f; isFakeBoldText = true; isAntiAlias = true }
+    private val pFrameX = Paint().apply { color = SPECIAL; style = Paint.Style.STROKE; strokeWidth = 18f }
+    private val pLabelX = Paint().apply { color = SPECIAL; textSize = 48f; isFakeBoldText = true; isAntiAlias = true }
 
     override fun onDraw(c: Canvas) {
         super.onDraw(c)
-        if (reverseMode) {
+        val sl = specialLabel
+        if (sl != null) {
+            c.drawRect(9f, 9f, width - 9f, height - 9f, pFrameX)
+            c.drawText(sl.uppercase(), 36f, 76f, pLabelX)
+        } else if (reverseMode) {
             c.drawRect(9f, 9f, width - 9f, height - 9f, pFrame)
             c.drawText("REVERSE", 36f, 76f, pLabel)
         }

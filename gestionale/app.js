@@ -671,8 +671,7 @@ function openVxDialog(setId, setName) {
       <p>Su Cardmarket le carte <b>Reverse Energia, Poké Ball, Master Ball, Cosmo Holo e timbrate</b> di questo set stanno in un'espansione a parte${sx ? `: <b>${esc(sx[1])}</b>` : ' (di solito "' + esc(setName) + ': Supplementi")'}.</p>
       <p>Per usarle nel gestionale serve l'elenco di quei prodotti, una volta sola:</p>
       <ol><li>${sx ? `<a href="${CMBULK}${encodeURIComponent(sx[0])}" target="cardscanner" referrerpolicy="no-referrer"><b>Apri la pagina "Inserisci carte bulk" dei Supplementi</b> ↗</a>` : 'Su Cardmarket apri "Inserisci carte bulk" e scegli in Edizione <b>' + esc(setName) + ': Supplementi</b>'}.</li>
-      <li>Apri il riquadro di Card Scanner (${csExt() ? 'icona dell\'estensione' : 'pulsante nei preferiti'}) e premi <b>Aggiorna i dati del set nel gestionale</b> in fondo.${'' }</li>
-      <li>Se i Supplementi hanno più pagine, ripeti su ogni pagina.</li>
+      <li>${csExt() ? 'Il riquadro di Card Scanner si apre da solo' : 'Premi il pulsante Card Scanner nei preferiti'}: premi <b>📤 Manda le carte speciali al gestionale</b> (legge anche le altre pagine dei Supplementi). Se non compare, aggiorna l'estensione (o il pulsante) all'ultima versione.</li>
       <li>Torna qui e premi di nuovo <b>🎨 Varianti</b>.</li></ol>
       <p class="row" style="justify-content:flex-end"><button id="vxClose">Chiudi</button></p>`, () => { $('vxClose').onclick = closeDlg; });
     return;

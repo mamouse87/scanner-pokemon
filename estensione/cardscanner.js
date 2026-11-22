@@ -190,7 +190,10 @@ window.__csMain = async (csExt) => {
   if (EXT && EXT.auto && !tookNew) {
     const j = jobGet(), qid = new URLSearchParams(location.search).get('idExpansion');
     const onBulk = /\/Stock\/ListingMethods\/BulkListing/i.test(location.pathname) && !!document.getElementById('BulkListingForm');
-    if (!(onBulk && j && !j.done && (!j.cm || !qid || String(j.cm) === qid || (j.cmx && String(j.cmx) === qid)))) return;
+    const xs = document.querySelector('select[name="idExpansion"]'), xo = xs && ([...xs.options].find(o => o.value === qid) || xs.options[xs.selectedIndex]);
+    const selName = xo ? xo.textContent : '';
+    const onSup = onBulk && /supplementi|additionals?/i.test(selName);
+    if (!onSup && !(onBulk && j && !j.done && (!j.cm || !qid || String(j.cm) === qid || (j.cmx && String(j.cmx) === qid)))) return;
   }
   // ================= LE MIE OFFERTE: cambio prezzi =================
   // Sulla pagina "Le mie offerte" (Stock/Offers/Singles) lo script legge tutte le pagine delle offerte
@@ -231,7 +234,7 @@ window.__csMain = async (csExt) => {
       R.getElementById('pnIn').innerHTML = stepsHtml(['Leggi le offerte', 'Invia al gestionale'], fresh ? 1 : 0, sent ? 2 : fresh ? 1 : 0) + `<div class="bd">
         <div class="card info"><div class="nm">Controllo del magazzino</div>
           <div>Leggo tutte le tue offerte di carte singole (tutte le pagine, Normali e Reverse; oltre le 300 che Cardmarket mostra, set per set) e le mando al gestionale, che ti mostra le differenze.</div>
-          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 d</div></div>
+          <div class="mut">Su Cardmarket non cambio nulla. · versione 22/11 e</div></div>
         <div class="msg" id="oProg">${escH(msg)}</div>
         ${fresh ? `<button class="big go" id="kSend">📤 Invia al gestionale (${offers.list.length} offerte)</button>` : `<button class="big navy" id="oRead">🔎 Leggi le mie offerte</button>`}
         ${fresh ? `<div class="stat"><span><b>${offers.list.length}</b> offerte · ${offers.list.reduce((a, o) => a + (o.qty || 1), 0)} copie</span><span class="mut">${offers.list.filter(o => o.rev).length} Reverse</span></div>` : ''}
@@ -310,7 +313,7 @@ window.__csMain = async (csExt) => {
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 d</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 e</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -785,6 +788,7 @@ window.__csMain = async (csExt) => {
   PR.getElementById('pnIn').innerHTML = `
     <div id="csSteps"></div>
     <div class="bd" id="csBody">
+      <div id="csSup" class="card okc hide"></div>
       <div id="csJob" class="card info"></div>
       <!-- la lista e il prezzo arrivano dal gestionale ("Apri su Cardmarket"): qui non si scelgono più -->
       <div class="hide"><input type="file" id="csFile"><input type="checkbox" id="csPrice" checked>
@@ -1031,9 +1035,9 @@ window.__csMain = async (csExt) => {
     const opt = [...document.querySelectorAll('select[name="idExpansion"] option')].find(o => o.value === String(id));
     return { id: String(id), name: opt ? opt.textContent.trim() : '' };
   }
-  function catalog() {
+  function catalog(root) {
     const cards = [];
-    form.querySelectorAll('tbody tr').forEach(tr => {
+    (root || form).querySelectorAll('tbody tr').forEach(tr => {
       const a = tr.querySelector('.col-product a');
       const pid = field(tr, 'idProduct');
       if (!a || !pid) return;
@@ -1270,11 +1274,11 @@ window.__csMain = async (csExt) => {
       (left ? ` Restano ${left} copie della lista da mettere in vendita (in questa o in altre pagine).` : ' Tutta la lista è stata inviata ✔'), left ? '#ff9f43' : '#3ecf6e');
     return 'sent';
   }
-  function sendToGest(listed) {
+  function sendToGest(listed, cards) {
     const exp = expansion();
     const exps = document.querySelector('select[name="idExpansion"]');
     const data = {
-      v: 2, exp: { id: exp.id, name: exp.name, cards: catalog() },
+      v: 2, exp: { id: exp.id, name: exp.name, cards: cards || catalog() },
       exps: exps ? [...exps.options].map(o => [o.value, o.textContent.trim()]).filter(x => x[0]) : [],
       listed: listed || []
     };
@@ -1299,6 +1303,8 @@ window.__csMain = async (csExt) => {
   function showJob() {
     const j = jobGet(), box = $('csJob');
     box.className = 'card info';
+    // pagina dei Supplementi senza elenco: c'è solo il riquadro delle carte speciali
+    if (!j && isSupExp()) { box.className = 'hide'; $('csGo').classList.add('hide'); steps(); return; }
     if (!j) {
       box.className = 'card warn';
       box.innerHTML = '<b>Nessun elenco dal gestionale.</b><br>Nel gestionale apri il set, premi <b>Metti in vendita su Cardmarket</b> e scegli il prezzo: poi torna qui e premi di nuovo questo pulsante.';
@@ -1341,6 +1347,47 @@ window.__csMain = async (csExt) => {
       (nMiss ? `<div style="color:#b42318;font-size:12.5px;margin-top:4px">${nMiss} carte senza prezzo di mercato: dopo la compilazione hanno il bordo rosso, scrivi tu il prezzo.</div>` : '');
     steps();
   }
+  // ---------- Supplementi: elenco delle carte speciali al gestionale (tutte le pagine, solo lettura) ----------
+  function isSupExp() { return /supplementi|additionals?/i.test(expansion().name); }
+  async function supCards(onProg) {
+    const cards = catalog(), seen = new Set(cards.map(c => c.p));
+    const m = document.body.textContent.match(/Pagina\s+(\d+)\s+di\s+(\d+)/i), cur = m ? +m[1] : 1, tot = m ? +m[2] : 1;
+    let read = 1, stuck = false;
+    for (let pg = 1; pg <= tot && pg <= 30; pg++) {
+      if (pg === cur) continue;
+      onProg(`leggo la pagina ${pg} di ${tot}…`);
+      const u = new URL(location.href); u.hash = ''; u.searchParams.set('site', String(pg));
+      const r = await fetch(u.toString(), { credentials: 'include' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const f = new DOMParser().parseFromString(await r.text(), 'text/html').getElementById('BulkListingForm');
+      const more = f ? catalog(f).filter(c => !seen.has(c.p)) : [];
+      if (!more.length) { stuck = true; break; }   // la pagina non cambia: le altre pagine le fai tu
+      more.forEach(c => { seen.add(c.p); cards.push(c); }); read++;
+      await sleep(400);
+    }
+    return { cards, tot, read, stuck };
+  }
+  function showSup() {
+    const box = $('csSup');
+    if (!isSupExp()) return;
+    const exp = expansion();
+    box.classList.remove('hide');
+    box.innerHTML = `<div class="nm">Carte speciali · ${esc(exp.name)}</div>
+      <div class="mut">Per riconoscere le varianti (Reverse Energia, Poké Ball, Master Ball, Cosmo Holo, timbrate) il gestionale ha bisogno dell'elenco di queste carte. Lo leggo da Cardmarket e lo mando al gestionale: <b>non metto in vendita niente</b>.</div>
+      <button class="big navy" id="csSupGo" style="margin-top:10px">📤 Manda le carte speciali al gestionale</button><div class="mut" id="csSupMsg" style="margin-top:6px"></div>`;
+    $('csSupGo').onclick = async () => {
+      const b = $('csSupGo'), msg = t => { $('csSupMsg').textContent = t; };
+      b.disabled = true; b.textContent = 'Leggo le carte…';
+      try {
+        const r = await supCards(msg);
+        sendToGest([], r.cards);
+        b.textContent = '✓ Mandate al gestionale';
+        $('csSupMsg').innerHTML = `${r.cards.length} carte speciali${r.tot > 1 ? ` (${r.read} di ${r.tot} pagine)` : ''}. Ora nel gestionale apri il set e premi <b>🎨 Varianti</b>.` +
+          (r.stuck ? `<br><span style="color:#b42318">Non riesco a leggere da qui le altre pagine: vai alle pagine successive dei Supplementi e premi di nuovo questo pulsante su ognuna.</span>` : '');
+      } catch (e) { b.disabled = false; b.textContent = '📤 Riprova'; msg('Errore: ' + (e.message || e)); }
+    };
+  }
+  showSup();
   $('csClip').onclick = async e => {
     e.preventDefault();
     let t = '';

@@ -49,6 +49,7 @@ if 'products' in data:
         dove[kind][where] += 1
         if len(esempi[kind]) < 4: esempi[kind].append([sid, num, pid, p.get('name'), e, exp_names.get(e), pid in pg])
     R['varianti_per_edizione'] = {k: dict(v) for k, v in dove.items()}
+    R['per_prodotto'] = {pid: [sid, num, kind, by[pid]['idExpansion'], by[pid]['name'], 'principale' if by[pid]['idExpansion'] == main.get(sid) else exp_names.get(by[pid]['idExpansion'])] for pid, (sid, num, kind) in ids['vx'].items() if pid in by and sid in ('sv05', 'sv10.5b', 'sv06', 'me01')}
     R['varianti_esempi'] = esempi
     R['varianti_senza_prodotto'] = manca[:50]
     R['varianti_con_prezzo'] = sum(1 for pid in ids['vx'] if pid in pg)

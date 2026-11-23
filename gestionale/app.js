@@ -676,6 +676,7 @@ async function renderSet() {
       <label>Ordina per <select id="cfSort"><option value="num">Numero</option><option value="name">Nome A–Z</option><option value="pd">Prezzo più alto</option><option value="pa">Prezzo più basso</option><option value="val">Valore più alto</option><option value="q">Più copie</option><option value="days">In vendita da più tempo</option></select></label>
       <span class="small" id="cfInfo"></span><button class="lnk" id="cfReset">Azzera filtri</button></div>
     <div class="grid">`;
+  ordG = {};
   for (const c of cards) {
     const n0 = norm(c.localId);
     const ls = byNum[n0] || [], sb = sbByNum[n0] || [];
@@ -701,14 +702,26 @@ async function renderSet() {
     const pF = prices.length ? prices[prices.length - 1] : (sb.map(([k, x]) => { const M = sbmOf(k); return M && !(x.rev && !M.rv) ? consOf(M)?.v : null; }).filter(v => v != null).sort((a, b) => b - a)[0] ?? '');
     const valF = ls.reduce((a, [, l]) => a + (l.price || 0) * l.q, 0);
     const d0 = ls.map(([, l]) => l.date).filter(Boolean).sort()[0];
+    // ordine a mano: un pulsante ＋ per ogni variante e lingua che hai (in vendita o in Standby)
+    if (cart && (ls.length || sb.length)) {
+      const gm = {};
+      [...sb.map(([k, x]) => ['s', k, x]), ...ls.map(([k, l]) => ['l', k, l])].forEach(([kind, k, x]) => {
+        const it = cartInfo(selected, setName, kind, k, x, c.name);
+        const o = gm[it.g] || (gm[it.g] = Object.assign(it, { avail: 0 }));
+        o.avail += x.q; if (kind === 'l' && x.price != null && o.p == null) o.p = x.price;
+      });
+      ordG[n0] = Object.values(gm).sort((a, b) => !!a.vp - !!b.vp || a.rev - b.rev || a.lang.localeCompare(b.lang));
+    }
+    const inOrd = (ordG[n0] || []).some(it => cart?.items[it.g]);
     const band = [];
     if (ls.length) band.push(`<div class="band b-ok"><span class="bl"><span>In vendita</span><span>${n ? '×' + n : ''}${r ? ` <span class="r">R ×${r}</span>` : ''}${xs(ls)}</span></span></div>`);
     if (sq) band.push(`<div class="band b-sb"><span class="bl"><span>Standby</span><span>${sqN ? 'N ×' + sqN : ''}${sqR ? ` <span class="r">R ×${sqR}</span>` : ''}${xs(sb)}</span></span></div>`);
-    h += `<div class="card ${cls}${r ? ' r' : ''}${hasX ? ' x' : ''}${isWr ? ' wr' : ''}${sq ? ' hassb' : ''}${vv.length ? ' vr' : ''}${selMode && sel.has(n0) ? ' sel' : ''}" data-n="${esc(n0)}" data-p="${pF}" data-q="${qAll}" data-v="${valF}" data-d="${d0 ? daysAgo(d0) : ''}" data-nm="${esc(c.name)}" data-s="${esc(`${c.name} ${c.localId} ${n0} ${rar} ${cm?.n || ''}`.toLowerCase())}">
+    h += `<div class="card ${cls}${r ? ' r' : ''}${hasX ? ' x' : ''}${isWr ? ' wr' : ''}${sq ? ' hassb' : ''}${vv.length ? ' vr' : ''}${selMode && sel.has(n0) ? ' sel' : ''}${inOrd ? ' inord' : ''}" data-n="${esc(n0)}" data-p="${pF}" data-q="${qAll}" data-v="${valF}" data-d="${d0 ? daysAgo(d0) : ''}" data-nm="${esc(c.name)}" data-s="${esc(`${c.name} ${c.localId} ${n0} ${rar} ${cm?.n || ''}`.toLowerCase())}">
       <div class="im"><span>${esc(c.localId)}</span>${imgTag(imgSrcs(c.image, cm, c.localId), true)}</div>
       ${isWr ? `<span class="wtag" title="Segnata Reverse, ma questa carta non ha la Reverse semplice: apri la carta per indicare la variante">⚠ Reverse?</span>` : ''}
       ${vv.length ? `<span class="vtag" title="Prezzo di mercato cambiato">${vv.map(v => (v.d > 0 ? '▲ ' : '▼ ') + eur(Math.abs(v.d))).join(' ')}</span>` : ''}
       ${band.join('')}
+      ${ordG[n0] ? `<div class="oad">${ordBtns(n0)}</div>` : ''}
       <div class="info"><span class="nr">${esc(c.localId)}${official ? '/' + official : ''}${isExtra ? '<span class="fs">FS</span>' : ''}${rar ? ' · ' : ''}<span class="rar">${esc(rar)}</span></span>
       <b title="${esc(c.name)}">${esc(c.name)}</b>
       ${prices.length ? `<span class="pr"><span class="price">${prices.map(eur).join(' / ')}</span></span>` : ''}
@@ -768,8 +781,8 @@ function renderTabs() {
   const cur = selected && selected.startsWith('__') && !(selected === '__log' && logF.sid) ? selected : 'cards';
   const sold = state.sold.reduce((a, x) => a + x.q, 0), nOut = outAll().length;
   // Controllo: numero di differenze dell'ultimo controllo; "!" se è passato più di un giorno (o non l'hai mai fatto) e hai carte in vendita
-  const nChk = chkDiffs().length, chkOld = Object.keys(state.listings).length && (!state.chkAt || daysAgo(state.chkAt) >= 1);
-  const chkBadge = nChk ? `<i class="o" title="differenze con Cardmarket">${nChk}</i>` : chkOld ? `<i class="w" title="${state.chkAt ? 'Ultimo controllo con Cardmarket: ' + daysAgo(state.chkAt) + ' giorni fa' : 'Controllo con Cardmarket mai fatto'}">!</i>` : '';
+  const nChk = chkDiffs().length + (state.cmTodo || []).length, chkOld = Object.keys(state.listings).length && (!state.chkAt || daysAgo(state.chkAt) >= 1);
+  const chkBadge = nChk ? `<i class="o" title="differenze con Cardmarket o ordini a mano da sistemare">${nChk}</i>` : chkOld ? `<i class="w" title="${state.chkAt ? 'Ultimo controllo con Cardmarket: ' + daysAgo(state.chkAt) + ' giorni fa' : 'Controllo con Cardmarket mai fatto'}">!</i>` : '';
   $('tabs').innerHTML = TABS.map(([id, l]) => `<button class="tb ${cur === id ? 'on' : ''}" data-tab="${id}" style="--tc:${TABC[id]}">${l}${id === '__sales' && sold ? `<i>${sold}</i>` : ''}${id === '__chk' ? chkBadge : ''}${id === '__out' && nOut ? `<i class="o" title="carte con il prezzo lontano dal Consigliato">${nOut}</i>` : ''}${id === '__set' && (!bkOk() || (gh && ghState === 'err')) ? '<i class="w" title="Backup non attivo o in errore">!</i>' : ''}</button>`).join('');
   document.querySelector('.wrap').classList.toggle('nosets', cur !== 'cards');
   document.querySelector('.wrap').style.setProperty('--tabc', TABC[cur] || TABC.cards);
@@ -1104,7 +1117,7 @@ function openQtyEdit(rows, why, scope) {
   logOp('quantita', scope || '', `Preparato "${name}" (${why}): ${job.items.map(i => `${i.code}${i.u}${i.rev ? ' R' : ''} → ${i.qt}`).join(', ')}`, null);
   save();
   toast(`Elenco ${name} pronto: ${csExt() ? 'su Cardmarket il riquadro di Card Scanner si apre da solo: premi' : 'su Cardmarket premi Card Scanner e poi'} ▶ Correggi le quantità`);
-  return true;
+  return name;
 }
 /** stessa carta in più offerte su Cardmarket a prezzi diversi: lo script porta tutte le offerte al prezzo del gestionale */
 function openPriceFix(ds, why) {
@@ -1211,9 +1224,16 @@ function renderChk() {
     return n > 1 && t === 'qty' ? `<button id="kAllCm" class="pri">Correggi tutte su Cardmarket (${n})</button>`
       : n > 1 && t === 'multi' ? `<button id="kAllPm" class="pri">Un solo prezzo su Cardmarket per tutte (${n})</button>` : ''; };
   const bulk = t => { if (t === 'multi') return ''; const n = list.filter(d => d.type === t && (t !== 'extra' || (d.E && d.card))).length; return n > 1 && chkF.type === t ? `<button id="kAll" data-t="${t}">${{ qty: 'Usa le quantità di Cardmarket', price: 'Usa i prezzi di Cardmarket', miss: 'Togli tutte dal gestionale', extra: 'Aggiungi tutte al gestionale' }[t]} (${n})</button>` : ''; };
+  const todo = state.cmTodo || [];
+  const todoBox = todo.length ? `<div class="todo"><h3>🧾 Da sistemare su Cardmarket (${todo.length})</h3>
+    <p class="small" style="margin:0 0 8px">Ordini a mano: nel gestionale le copie sono già uscite, su Cardmarket vanno abbassate. Il riquadro sparisce quando lo script rimanda le quantità corrette.</p>
+    ${todo.map((td, i) => `<div class="tdr"><span><b>${fmtDT(td.at)}</b> · ${esc(td.why)}<br><span class="small">${td.rows.map(r => `${esc(setCode(r.l))}${esc(r.l.u)}${r.l.rev ? ' R' : ''} ${esc(info(r.l).name || '')} ${r.l.q} → ${r.qt}`).join(' · ')}</span>
+      ${td.manual ? '<br><span class="small" style="color:var(--var)"><b>Offerte da portare a 0: toglile a mano su Cardmarket</b>, poi premi Fatto.</span>' : td.sent ? `<br><span class="small">Elenco preparato ${esc(td.name)}: se lo script non l'ha ancora eseguito, aprilo di nuovo.</span>` : ''}</span>
+      <span class="row">${td.manual ? '' : `<button class="sm pri" data-tr="${i}">Apri su Cardmarket</button>`}<button class="sm" data-td="${i}" title="Tolgo il promemoria: le copie su Cardmarket le hai già sistemate">✔ Fatto</button></span></div>`).join('')}</div>` : '';
   $('main').innerHTML = `<div class="sethead"><div><h2>Controllo con Cardmarket</h2>
     <div class="sub">Confronta le carte in vendita nel gestionale con le offerte lette sul tuo negozio. "Usa…" corregge il gestionale; "Correggi su Cardmarket" fa cambiare le copie su Cardmarket dallo script.</div></div>
     <button class="pri" id="kNew">🔎 ${chk ? 'Nuovo controllo' : 'Controlla adesso'}</button></div>
+    ${todoBox}
     ${chk ? `<div class="figs"><div class="fig ${all.length ? 'f-hi' : 'f-ok'}"><b>${all.length}</b><span>${all.length === 1 ? 'differenza' : 'differenze'}</span></div>
       <div class="fig"><b>${chk.list.length}</b><span>offerte su Cardmarket · ${chk.list.reduce((a, o) => a + o.q, 0)} copie</span></div>
       <div class="fig"><b>${nL}</b><span>righe nel gestionale · ${qL} copie</span></div>
@@ -1226,6 +1246,10 @@ function renderChk() {
       : '<p class="empty">Tutto allineato: le carte in vendita nel gestionale corrispondono alle offerte su Cardmarket ✔</p>'}`
     : `<p class="empty">Non hai ancora fatto un controllo.<br>Premi <b>Controlla adesso</b>: lo script legge le tue offerte su Cardmarket (con te collegato) e qui compaiono le differenze.</p>`}`;
   $('kNew').onclick = openStockCheck;
+  $('main').querySelectorAll('[data-tr]').forEach(b => b.onclick = () => cmTodoRun(todo[+b.dataset.tr]));
+  $('main').querySelectorAll('[data-td]').forEach(b => b.onclick = () => { const td = todo[+b.dataset.td];
+    if (!confirm('Togliere il promemoria? Fallo solo se su Cardmarket le copie sono già giuste.')) return;
+    state.cmTodo = todo.filter(x => x !== td); logOp('quantita', '', `Promemoria Cardmarket chiuso a mano: ${td.why}`, null); save(); renderChk(); renderTabs(); });
   if ($('kChips')) $('kChips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; chkF.type = b.dataset.f; renderChk(); };
   $('main').querySelectorAll('[data-a]').forEach(b => b.onclick = () => { const d = list[+b.dataset.a];
     if (d.type === 'miss' && !confirm(`Togliere ${d.l.u} ${info(d.l).name || ''} (×${d.l.q}) dalle carte in vendita del gestionale?\n\nFallo solo se su Cardmarket non è davvero in vendita.`)) return;
@@ -1241,6 +1265,160 @@ function renderChk() {
   if ($('kAll')) $('kAll').onclick = () => { const t = $('kAll').dataset.t, sel = list.filter(d => d.type === t);
     if (!confirm(`${$('kAll').textContent}?\n\nCambia solo il gestionale. Puoi tornare indietro con ↶ Annulla.`)) return;
     chkApplyMany(sel, t); };
+}
+
+// ---------- ordine a mano (23/11): carrello che resta aperto mentre giri i set ----------
+// Il carrello vive fuori dallo stato (localStorage 'gestionaleOrdine'): non finisce nei backup né nell'annulla.
+// Una riga del carrello = stessa carta, variante e lingua (gruppo g). Le copie escono prima dallo Standby, poi da quelle in vendita.
+let cart = (() => { try { return JSON.parse(localStorage.getItem('gestionaleOrdine') || 'null'); } catch (e) { return null; } })();
+const cartSave = () => { try { if (cart) localStorage.setItem('gestionaleOrdine', JSON.stringify(cart)); else localStorage.removeItem('gestionaleOrdine'); } catch (e) {} };
+const gidOf = (sid, u, x) => `${sid}|${norm(u)}|${vcOf(x)}|${x.lang || 'it'}`;
+const ORD_T = { pay: ['💶', 'Pagato', 'Cliente diretto'], swap: ['🔁', 'Scambio', 'Scambio'], gift: ['🎁', 'Regalo', 'Regalo'] };
+/** copie del gruppo adesso: Standby e in vendita */
+function cartSrc(g) {
+  const sb = [], ls = [];
+  Object.entries(state.standby || {}).forEach(([k, x]) => { if (x.q > 0 && gidOf(x.s, x.u, x) === g) sb.push([k, x]); });
+  Object.entries(state.listings).forEach(([k, l]) => { if (l.q > 0 && gidOf(lSid(l) || 'cm:' + l.exp, l.u, l) === g) ls.push([k, l]); });
+  return { sb, ls, n: [...sb, ...ls].reduce((a, [, x]) => a + x.q, 0) };
+}
+/** dati di un gruppo per il carrello, da una riga in vendita (l) o in Standby (s) */
+function cartInfo(sid, setName, kind, k, x, name) {
+  const ref = kind === 'l' ? x.price : (() => { const M = sbmOf(k); return M && !(x.rev && !M.rv) ? consOf(M)?.v ?? null : null; })();
+  return Object.assign({ g: gidOf(sid, x.u, x), sid, set: setName, u: x.u, n: name || (kind === 'l' ? info(x).name : x.n) || '', rev: !!x.rev, lang: x.lang || 'it', p: ref ?? null },
+    x.vp ? { vp: x.vp, vl: x.vl, vb: x.vb || '', vs: x.vs } : {});
+}
+const cartQ = () => cart ? Object.values(cart.items).reduce((a, i) => a + i.q, 0) : 0;
+const cartLbl = i => i.vp ? (i.vb || 'SP') : i.rev ? 'R' : 'N';
+function cartAdd(it, n = 1) {
+  if (!cart) return;
+  const have = cartSrc(it.g).n, cur = cart.items[it.g];
+  const q = Math.min(have, (cur ? cur.q : 0) + n);
+  if (q <= (cur ? cur.q : 0)) { toast(`${it.u} ${it.n}: non ci sono altre copie${it.rev ? ' Reverse' : ''} da aggiungere`); return; }
+  cart.items[it.g] = Object.assign({}, cur || it, { q, p: cur?.p ?? it.p });
+  cartSave(); cartBar();
+}
+function cartSub(g) {
+  if (!cart || !cart.items[g]) return;
+  if (--cart.items[g].q <= 0) delete cart.items[g];
+  cartSave(); cartBar();
+}
+/** pulsanti ＋ sulle carte del set (ordG: gruppi della carta, preparati da renderSet) */
+let ordG = {};
+function ordBtns(n0) {
+  return (ordG[n0] || []).map(it => {
+    const inC = cart?.items[it.g]?.q || 0, left = it.avail - inC, l = cartLbl(it) + (it.lang !== 'it' ? ' ' + it.lang.toUpperCase() : '');
+    const cl = it.vp ? 'ob-x' : it.rev ? 'ob-r' : 'ob-n';
+    return `<button class="ob ${cl}" data-og="${esc(it.g)}" ${left > 0 ? '' : 'disabled'} title="Aggiungi all'ordine una copia ${esc(it.vp ? it.vl || 'speciale' : it.rev ? 'Reverse' : 'Normale')} (disponibili ${left})">＋${esc(l)} <i>${left}</i></button>` +
+      (inC ? `<button class="ob obm" data-om="${esc(it.g)}" title="Togli una copia dall'ordine">${esc(l)} ×${inC} −</button>` : '');
+  }).join('');
+}
+function ordCardRefresh(n0) {
+  const el = document.querySelector(`.card[data-n="${CSS.escape(n0)}"]`);
+  if (!el) return;
+  const box = el.querySelector('.oad'); if (box) box.innerHTML = ordBtns(n0);
+  el.classList.toggle('inord', (ordG[n0] || []).some(it => cart?.items[it.g]));
+}
+function cartBar() {
+  const b = $('cartBar');
+  if (!cart) { b.hidden = true; return; }
+  const it = Object.values(cart.items), q = cartQ(), sets = new Set(it.map(i => i.sid)).size, v = it.reduce((a, i) => a + (i.p || 0) * i.q, 0);
+  b.hidden = false;
+  b.innerHTML = `<span>🧾 <b>Ordine a mano</b> · ${q ? `${sets} ${sets === 1 ? 'set' : 'set'} · <b>${q} ${q === 1 ? 'copia' : 'copie'}</b>${v ? ` · ai tuoi prezzi ${eur(r2(v))}` : ''}` : 'premi ＋ sulle carte dei set (o nella ricerca in alto) per aggiungerle'}</span>
+    <span class="row"><button id="cbX" class="ghost" title="Chiudi l'ordine senza registrarlo">Annulla ordine</button><button id="cbGo" class="pri" ${q ? '' : 'disabled'}>Rivedi e registra</button></span>`;
+  $('cbX').onclick = () => { if (q && !confirm(`Annullare l'ordine in preparazione (${q} copie)?\n\nNon cambia niente nel magazzino.`)) return; cart = null; cartSave(); cartBar(); refresh(); };
+  $('cbGo').onclick = cartDialog;
+}
+function cartStart() {
+  if (!cart) { cart = { at: today(), items: {} }; cartSave(); }
+  if (!selected || selected.startsWith('__')) goTab('cards'); else refresh();
+  cartBar();
+  toast('Ordine a mano: premi ＋N / ＋R sulle carte, cambia set quando vuoi. In basso trovi il riepilogo.');
+}
+function cartDialog() {
+  if (!cart || !cartQ()) return;
+  const items = Object.values(cart.items).sort((a, b) => a.set.localeCompare(b.set) || (parseInt(a.u, 10) || 0) - (parseInt(b.u, 10) || 0) || cartLbl(a).localeCompare(cartLbl(b)));
+  const vName = i => i.vp ? (i.vl || 'Speciale') : i.rev ? 'Reverse' : 'Normale';
+  const rows = items.map(i => { const a = cartSrc(i.g).n;
+    return `<tr data-g="${esc(i.g)}"><td><b>${esc(i.u)}</b> ${esc(i.n)}<small style="display:block;color:var(--mut)">${esc(i.set)}${i.lang !== 'it' ? ' · ' + esc(LANGN[i.lang] || i.lang) : ''}</small></td>
+      <td>${i.rev && !i.vp ? '<b style="color:var(--rev)">Reverse</b>' : esc(vName(i))}</td><td class="n">${a}</td>
+      <td class="n"><input type="number" class="ctQ" min="0" max="${a}" value="${Math.min(i.q, a)}" style="width:64px"></td><td class="n">${i.p != null ? eur(i.p) : '—'}</td>
+      <td><button class="lnk ctX" title="Togli dall'ordine">✕</button></td></tr>`; }).join('');
+  openDlg(`<h3>🧾 Ordine a mano</h3>
+    <div style="max-height:40vh;overflow:auto"><table class="rtable"><thead><tr><th>Carta</th><th>Variante</th><th class="n">Disp.</th><th class="n">Copie</th><th class="n">Tuo prezzo</th><th></th></tr></thead><tbody id="ctB">${rows}</tbody></table></div>
+    <div class="ordf">
+      <label>Acquirente <input type="text" id="ctWho" placeholder="nome e cognome o nickname" value="${esc(cart.who || '')}" style="width:220px"></label>
+      <div class="seg" id="ctT">${Object.entries(ORD_T).map(([k, [ic, l]]) => `<button type="button" data-t="${k}" class="${(cart.t || 'pay') === k ? 'on' : ''}">${ic} ${l}</button>`).join('')}</div>
+      <label id="ctTotL">Totale incassato <input type="text" id="ctTot" inputmode="decimal" placeholder="es. 5,00" value="${esc(cart.tot || '')}" style="width:90px"> €</label>
+      <label class="ordn">Note <input type="text" id="ctNote" placeholder="facoltative (es. carte ricevute in cambio)" value="${esc(cart.note || '')}"></label>
+      <label><input type="checkbox" id="ctCm" checked> Prepara la correzione delle copie su Cardmarket (anche nella scheda Controllo)</label></div>
+    <p class="row" style="justify-content:space-between"><span class="small" id="ctSum"></span><span><button id="ctBack">Continua a scegliere</button> <button class="pri" id="ctGo">Registra l'ordine</button></span></p>`, () => {
+    let t = cart.t || 'pay';
+    const sel = () => [...$('ctB').querySelectorAll('tr[data-g]')].map(tr => ({ i: cart.items[tr.dataset.g], q: parseInt(tr.querySelector('.ctQ').value, 10) || 0 })).filter(x => x.i && x.q > 0);
+    const sum = () => {
+      const s = sel(), q = s.reduce((a, x) => a + x.q, 0), v = s.reduce((a, x) => a + (x.i.p || 0) * x.q, 0), tot = parseFloat(String($('ctTot').value).replace(',', '.'));
+      $('ctTotL').style.display = t === 'pay' ? '' : 'none';
+      $('ctSum').innerHTML = `${s.length} ${s.length === 1 ? 'carta' : 'carte'} · <b>${q}</b> ${q === 1 ? 'copia' : 'copie'}${v ? ` · ai tuoi prezzi ${eur(r2(v))}` : ''}` +
+        (t === 'pay' && !isNaN(tot) && q ? ` · incassi <b>${eur(tot)}</b>` : t === 'swap' ? ' · scambio: 0 € incassati' : t === 'gift' ? ' · regalo: 0 €' : '');
+    };
+    const keep = () => { cart.who = $('ctWho').value; cart.t = t; cart.tot = $('ctTot').value; cart.note = $('ctNote').value;
+      $('ctB').querySelectorAll('tr[data-g]').forEach(tr => { const i = cart.items[tr.dataset.g], q = parseInt(tr.querySelector('.ctQ').value, 10) || 0; if (i) { if (q > 0) i.q = q; else delete cart.items[tr.dataset.g]; } });
+      cartSave(); };
+    $('ctT').onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; t = b.dataset.t; $('ctT').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); sum(); };
+    $('ctB').onclick = e => { const x = e.target.closest('.ctX'); if (!x) return; x.closest('tr').remove(); sum(); };
+    $('dlgBody').addEventListener('input', sum);
+    $('ctBack').onclick = () => { keep(); closeDlg(); cartBar(); refresh(); };
+    $('ctGo').onclick = () => {
+      const s = sel(), tot = parseFloat(String($('ctTot').value).replace(',', '.'));
+      if (!s.length) { alert('Nessuna carta nell\'ordine.'); return; }
+      const bad = s.find(x => x.q > cartSrc(x.i.g).n);
+      if (bad) { alert(`${bad.i.u} ${bad.i.n}: ne hai solo ${cartSrc(bad.i.g).n}.`); return; }
+      if (t === 'pay' && (isNaN(tot) || tot < 0)) { alert('Scrivi il totale incassato (oppure scegli Scambio o Regalo).'); return; }
+      keep();
+      cartRegister(s, t, t === 'pay' ? r2(tot) : 0, $('ctWho').value.trim(), $('ctNote').value.trim(), $('ctCm').checked);
+    };
+    sum();
+  });
+}
+/** registra l'ordine: vendite, ordine, registro; poi prepara la correzione delle copie su Cardmarket */
+function cartRegister(sel, t, tot, who, note, cmFix) {
+  const nq = sel.reduce((a, x) => a + x.q, 0);
+  // il totale si divide in proporzione ai tuoi prezzi (senza prezzi: in parti uguali)
+  const W = sel.reduce((a, x) => a + (x.i.p || 0) * x.q, 0);
+  const unit = x => !tot ? 0 : Math.round((W > 0 ? tot * (x.i.p || 0) / W : tot / nq) * 10000) / 10000;
+  const d = new Date(), z = n => String(n).padStart(2, '0'), date = d.toISOString();
+  const oid = `M${String(d.getFullYear()).slice(2)}${z(d.getMonth() + 1)}${z(d.getDate())}${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
+  const ch = ORD_T[t][2], cm = [], txt = [], bySet = {};
+  sel.forEach(x => {
+    const it = x.i, price = unit(x), src = cartSrc(it.g);
+    let left = x.q, sbTook = 0, took = 0, sbx = null, sbk = '', base = null;
+    // prima dallo Standby (non è su Cardmarket), poi dalle carte in vendita
+    for (const [k, X] of src.sb) { if (!left) break; const n = Math.min(left, X.q); if (!sbk) { sbk = k; sbx = Object.assign({}, X, { q: 0 }); } X.q -= n; left -= n; sbTook += n; if (X.q <= 0) { delete state.standby[k]; delete (state.sbMarket || {})[k]; } }
+    for (const [k, L] of src.ls) { if (!left) break; const snap = Object.assign({}, L), n = Math.min(left, L.q); L.q -= n; left -= n; took += n; base = base || snap; cm.push({ k, l: snap, qt: L.q }); if (L.q <= 0) delete state.listings[k]; }
+    state.sold.push({ date, listed: base?.date || null, p: base?.p || null, exp: base?.exp || '', expName: base?.expName || it.set, name: it.n, num: it.u, rev: it.rev, lang: it.lang, q: x.q,
+      price, source: ch, file: 'Ordine a mano', order: oid, buyer: who, took, sbTook, sbk, sbx, nolist: base ? 0 : 1, ...(it.vp ? { vp: it.vp, vl: it.vl, vs: it.vs || it.sid } : { vs: it.sid.startsWith('cm:') ? undefined : it.sid }) });
+    const line = `${it.u}${vTag(it)} ${it.n} ×${x.q}`;
+    txt.push(line); (bySet[it.set] = bySet[it.set] || []).push(line);
+  });
+  state.orders = state.orders || {};
+  state.orders[oid] = { at: today(), n: nq, date, buyer: who, ch, file: 'Ordine a mano', note, x: { tot },
+    items: sel.map(x => ({ qty: x.q, name: x.i.n, num: x.i.u, lang: x.i.lang, cond: '', code: '', rar: '', com: x.i.vp ? (x.i.vl || '') : x.i.rev ? 'Reverse Holo' : '', rev: x.i.rev, price: unit(x) })) };
+  const [ic, lb] = ORD_T[t];
+  logOp('venduta', Object.keys(bySet).length === 1 ? Object.keys(bySet)[0] : '', `${ic} Ordine a mano (${lb.toLowerCase()})${who ? ' · ' + who : ''}: ${nq} ${nq === 1 ? 'copia' : 'copie'}${t === 'pay' ? ', totale ' + eur(tot) : ''}${note ? ' · nota: ' + note : ''}`, nq,
+    { d: Object.entries(bySet).flatMap(([sn, a]) => a.map(l => `${sn}: ${l}`)) });
+  // copie da abbassare su Cardmarket: restano nella scheda Controllo finché lo script non le ha corrette
+  if (cm.length) {
+    state.cmTodo = state.cmTodo || [];
+    state.cmTodo.push({ id: oid, at: date, why: `ordine a mano${who ? ' di ' + who : ''} (${lb.toLowerCase()})`, rows: cm, name: '' });
+  }
+  cart = null; cartSave();
+  save(); closeDlg(); cartBar(); refresh();
+  toast(`${ic} Ordine registrato: ${nq} ${nq === 1 ? 'copia' : 'copie'}${cm.length ? ` · ${cm.length} da correggere su Cardmarket` : ''}`);
+  if (cm.length && cmFix) cmTodoRun(state.cmTodo[state.cmTodo.length - 1]);
+}
+/** apre Cardmarket con la correzione delle copie di un ordine (deve partire dal clic, sennò il browser blocca la finestra) */
+function cmTodoRun(td) {
+  const name = openQtyEdit(td.rows, td.why, td.rows.length && new Set(td.rows.map(r => r.l.expName)).size === 1 ? td.rows[0].l.expName : '');
+  if (name) { td.name = name; td.sent = today(); save(); }
 }
 
 // ---------- lista PDF per i clienti e lettura delle spunte da una foto ----------
@@ -1620,8 +1798,11 @@ function renderLog() {
     sold.forEach(s => { const k = s.order ? 'o' + s.order : `${s.date}|${s.source}|${s.buyer || ''}|${s.file || ''}`; (g[k] = g[k] || []).push(s); });
     Object.values(g).forEach(a => {
       const s0 = a[0], q = a.reduce((t, s) => t + s.q, 0), v = a.reduce((t, s) => t + (s.price || 0) * s.q, 0);
-      const who = s0.order ? `Ordine #${s0.order}` : s0.source === 'Scambio' ? 'Scambio alla pari' : s0.source && s0.source !== 'Cardmarket' ? 'Vendita diretta' : 'Venduta';
-      ev.push({ at: (s0.order && orderAt[s0.order]) || (s0.date ? s0.date + 'T23:59:00' : ''), day: s0.date, t: 'venduta', set: s0.expName,
+      const OT = { 'Cliente diretto': '💶 pagato', Scambio: '🔁 scambio', Regalo: '🎁 regalo' };
+      const who = s0.file === 'Ordine a mano' ? `Ordine a mano (${OT[s0.source] || s0.source})` : s0.order ? `Ordine #${s0.order}` : s0.source === 'Scambio' ? 'Scambio alla pari' : s0.source && s0.source !== 'Cardmarket' ? 'Vendita diretta' : 'Venduta';
+      // le vendite dirette e gli ordini a mano hanno data e ora; quelle dai PDF di Cardmarket solo il giorno
+      const full = String(s0.date || '').includes('T');
+      ev.push({ at: (s0.order && orderAt[s0.order]) || (full ? s0.date : s0.date ? s0.date + 'T23:59:00' : ''), day: full ? new Date(s0.date).toLocaleDateString('sv-SE') : s0.date, t: 'venduta', set: s0.expName,
         txt: `${who}${s0.buyer ? ` (${s0.buyer})` : ''}: ${q} ${q === 1 ? 'copia' : 'copie'}${v ? ', ' + eur(r2(v)) : ''}`, q,
         d: a.map(s => `${s.num}${vTag(s)} ${s.name || ''} ×${s.q}${s.price != null ? ' a ' + eur(s.price) : ''}`) });
     });
@@ -1779,18 +1960,18 @@ function gsIndex() {
   const sigOf = (sid, name) => sid in sg ? sg[sid] : (sg[sid] = siglaOf(sid, name) || '');
   const typOf = (sid, u) => { if (!sid || String(sid).startsWith('cm:')) return ''; const T = typ[sid] || (typ[sid] = typCache(sid)); return T[norm(u)] || ''; };
   const numW = u => { const n = String(u || ''); return /^\d+$/.test(n) ? [n, String(parseInt(n, 10))] : [n]; };
-  for (const l of Object.values(state.listings)) {
+  for (const [k, l] of Object.entries(state.listings)) {
     const sid = lSid(l) || ('cm:' + l.exp), I = info(l), code = String(setCode(l) || '');
     seen.add(sid + '|' + norm(l.u));
-    out.push({ sec: 'v', sid, u: l.u, name: I.name, code, set: I.set, rev: l.rev, lang: l.lang,
+    out.push({ sec: 'v', sid, u: l.u, name: I.name, code, set: I.set, rev: l.rev, lang: l.lang, ci: ['l', k, l],
       sub: [I.set, I.rar !== 'Non indicata' ? I.rar : '', LANGN[l.lang] && l.lang !== 'it' ? LANGN[l.lang] : ''].filter(Boolean).join(' · '),
       right: `${l.q} × ${eur(l.price) || '—'}`, st: ['v', 'In vendita'],
       hay: [...numW(l.u), code, code + String(l.u || '').padStart(3, '0'), I.name, I.set, I.rar, l.vp ? (l.vl || 'variante speciale') + ' speciale' : l.rev ? 'reverse holo rev' : 'normale', LANGN[l.lang], 'in vendita', eur(l.price).replace(' €', ''), l.com, typOf(sid, l.u), state.cm[l.exp]?.cards?.[l.p]?.n].join(' ') });
   }
-  for (const x of Object.values(state.standby || {})) {
+  for (const [k, x] of Object.entries(state.standby || {})) {
     const code = sigOf(x.s, x.sn);
     seen.add(x.s + '|' + norm(x.u));
-    out.push({ sec: 's', sid: x.s, u: x.u, name: x.n, code, set: x.sn, rev: x.rev, lang: x.lang,
+    out.push({ sec: 's', sid: x.s, u: x.u, name: x.n, code, set: x.sn, rev: x.rev, lang: x.lang, ci: ['s', k, x],
       sub: [x.sn, rarIt(x.r), x.file ? 'da ' + x.file : ''].filter(Boolean).join(' · '), right: `${x.q} ${x.q === 1 ? "copia" : "copie"}`, st: ['s', 'Standby'],
       hay: [...numW(x.u), code, code + String(x.u || '').padStart(3, '0'), x.n, x.sn, rarIt(x.r), x.vp ? (x.vl || 'variante speciale') + ' speciale' : x.rev ? 'reverse holo rev' : 'normale', LANGN[x.lang], 'standby', x.com, x.file, typOf(x.s, x.u)].join(' ') });
   }
@@ -1842,7 +2023,7 @@ function gsRun() {
       const i = gsShown.push(o) - 1;
       const cd = o.sec === 'set' ? (o.code || '') : `${o.code ? o.code + ' ' : ''}${o.u || ''}`;
       h += `<div class="gi" data-i="${i}"><span class="c">${esc(cd)}</span><span class="n"><b>${esc(o.name || '—')}${o.rev ? ' <span class="rv">Reverse</span>' : ''}</b><small>${esc(o.sub || '')}</small></span>
-        <span class="r">${esc(o.right || '')}${o.st ? `<span class="st ${o.st[0]}">${o.st[1]}</span>` : ''}</span></div>`;
+        <span class="r">${esc(o.right || '')}${o.st ? `<span class="st ${o.st[0]}">${o.st[1]}</span>` : ''}${cart && o.ci ? `<button class="gadd" data-ga="${i}" title="Aggiungi una copia all'ordine a mano">＋ ordine</button>` : ''}</span></div>`;
     });
     if (a.length > max) h += `<div class="more">e altre ${a.length - max}: scrivi qualcosa in più per restringere (es. il set o il numero)</div>`;
   });
@@ -1875,7 +2056,13 @@ $('gQ').addEventListener('keydown', e => {
   else if (e.key === 'Enter') { e.preventDefault(); if (gsShown[gsSel]) gsOpen(gsShown[gsSel]); }
   else if (e.key === 'Escape') { $('gQ').value = ''; $('gRes').hidden = true; $('gQ').blur(); }
 });
-$('gRes').addEventListener('mousedown', e => { const g = e.target.closest('.gi'); if (g) { e.preventDefault(); gsOpen(gsShown[+g.dataset.i]); } });
+$('gRes').addEventListener('mousedown', e => {
+  const a = e.target.closest('[data-ga]');
+  if (a) { e.preventDefault(); const o = gsShown[+a.dataset.ga], [kind, k, x] = o.ci;
+    const it = cartInfo(o.sid, o.set, kind, k, x, o.name); cartAdd(it);
+    const q = cart?.items[it.g]?.q || 0; if (q) { a.textContent = `✓ ${q} nell'ordine`; toast(`${it.u} ${it.n}${vTag(it)}: ${q} nell'ordine`); }
+    if (current && selected === o.sid) ordCardRefresh(norm(o.u)); return; }
+  const g = e.target.closest('.gi'); if (g) { e.preventDefault(); gsOpen(gsShown[+g.dataset.i]); } });
 document.addEventListener('mousedown', e => { if (!e.target.closest('#gs')) $('gRes').hidden = true; });
 document.addEventListener('keydown', e => {
   if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') && !$('dlg').open) { e.preventDefault(); $('gQ').focus(); $('gQ').select(); }
@@ -2009,6 +2196,14 @@ function applyCardFilter() {
 }
 // dettaglio carta
 $('main').addEventListener('click', e => {
+  const ob = e.target.closest('[data-og],[data-om]');
+  if (ob) {
+    const el0 = ob.closest('.card'), n0 = el0?.dataset.n;
+    if (ob.dataset.og) { const it = (ordG[n0] || []).find(x => x.g === ob.dataset.og); if (it) cartAdd(it); }
+    else cartSub(ob.dataset.om);
+    if (n0) ordCardRefresh(n0);
+    return;
+  }
   const el = e.target.closest('.card');
   if (!el || !current) return;
   if (selMode) {
@@ -2292,12 +2487,16 @@ function salesIn(a, b) {
     return true;
   });
 }
+// scambi e regali: escono dal magazzino ma non sono incassi, quindi restano fuori da prezzo medio e scontrino medio
+const isPaid = s => !/^(Scambio|Regalo)$/.test(s.source || '');
 function kpisOf(list) {
+  const paid = list.filter(isPaid);
   const rev = list.reduce((a, s) => a + (s.price || 0) * s.q, 0);
-  const q = list.reduce((a, s) => a + s.q, 0);
-  const orders = new Set(list.map(s => s.order ? 'o' + s.order : 'm' + dayKey(s.date) + chOf(s))).size;
-  const dts = list.filter(s => s.listed).map(s => (new Date(s.date) - new Date(s.listed)) / DAY);
-  return { rev, q, orders, aov: orders ? rev / orders : 0, avgP: q ? rev / q : 0, days: dts.length ? dts.reduce((a, b) => a + b, 0) / dts.length : null };
+  const q = list.reduce((a, s) => a + s.q, 0), qP = paid.reduce((a, s) => a + s.q, 0);
+  const oKey = s => s.order ? 'o' + s.order : 'm' + dayKey(s.date) + chOf(s);
+  const orders = new Set(list.map(oKey)).size, oP = new Set(paid.map(oKey)).size;
+  const dts = paid.filter(s => s.listed).map(s => (new Date(s.date) - new Date(s.listed)) / DAY);
+  return { rev, q, orders, np: q - qP, aov: oP ? rev / oP : 0, avgP: qP ? rev / qP : 0, days: dts.length ? dts.reduce((a, b) => a + b, 0) / dts.length : null };
 }
 function delta(cur, prev, invert) {
   if (prev == null || cur == null) return '';
@@ -2431,7 +2630,7 @@ function renderSales() {
     <div class="kpi"><span>Copie vendute</span><b>${K.q}${delta(K.q, P?.q)}</b><small>${revQ} Reverse</small></div>
     <div class="kpi"><span>Ordini</span><b>${K.orders}${delta(K.orders, P?.orders)}</b><small>${P ? 'prima: ' + P.orders : ''}</small></div>
     <div class="kpi"><span>Valore medio ordine</span><b>${eur(K.aov)}${delta(K.aov, P?.aov)}</b><small>${K.orders ? (K.q / K.orders).toFixed(1).replace('.', ',') + ' carte per ordine' : ''}</small></div>
-    <div class="kpi"><span>Prezzo medio per carta</span><b>${eur(K.avgP)}${delta(K.avgP, P?.avgP)}</b><small>&nbsp;</small></div>
+    <div class="kpi"><span>Prezzo medio per carta</span><b>${eur(K.avgP)}${delta(K.avgP, P?.avgP)}</b><small>${K.np ? `senza ${K.np} ${K.np === 1 ? 'copia' : 'copie'} di scambi e regali` : '&nbsp;'}</small></div>
     <div class="kpi"><span>Tempo medio di vendita</span><b>${K.days == null ? '—' : Math.round(K.days) + ' gg'}${K.days != null && P?.days != null ? delta(K.days, P.days, true) : ''}</b><small>dalla messa in vendita</small></div>
   </div>
   ${!list.length ? `<div class="empty">Nessuna vendita in questo periodo${salesF.ch || salesF.set || salesF.q ? ' con questi filtri' : ''}.<br>Le vendite arrivano dal pulsante in alto <b>Registra una vendita</b>: PDF degli ordini di Cardmarket o foto della lista di un cliente.</div>` : `
@@ -3252,6 +3451,12 @@ function importEditFromHash() {
       (txtQ[set] = txtQ[set] || []).push(`${L ? cardTxt(L) : r.k} → ${r.qt} copie${r.zero ? ' (offerta da togliere a mano)' : ''}`); if (r.zero) zero.push(L ? cardTxt(L) : r.k); });
     Object.entries(txtQ).forEach(([set, a]) => logOp('quantita', set, `Quantità corrette su Cardmarket (script, ${d.name || ''}): ${a.join(', ')}`, null));
     chkAfterFix(d.res || []);
+    (state.cmTodo || []).filter(td => td.name && td.name === d.name).forEach(td => {
+      const ok = new Set((d.res || []).filter(r => !r.zero && r.qt != null).map(r => r.k));
+      td.rows = td.rows.filter(r => !ok.has(r.k));
+      td.manual = td.rows.length > 0 && td.rows.every(r => (d.res || []).some(x => x.k === r.k && x.zero));
+    });
+    state.cmTodo = (state.cmTodo || []).filter(td => td.rows.length);
     save();
     setTimeout(() => toast(`Quantità corrette su Cardmarket: ${(d.res || []).length}${zero.length ? ` · da togliere a mano: ${zero.join(', ')}` : ''}`), 300);
     return true;
@@ -3810,6 +4015,7 @@ function refresh() {
   $('stats').innerHTML = `<span><b>${copies}</b>in vendita</span><span><b>${eur(value) || '0,00 €'}</b>valore</span>` +
     (sbq ? `<span><b>${sbq}</b>in Standby</span>` : '') + `<span><b>${state.sold.reduce((a, s) => a + s.q, 0)}</b>vendute</span>` +
     (noPrice ? `<span class="w"><b>${noPrice}</b>senza prezzo</span>` : '');
+  cartBar();
   const m = $('main'), top = m.scrollTop, was = selected;
   renderSets();
   Promise.resolve(renderSet()).then(() => { if (selected === was && top) m.scrollTop = top; });
@@ -3821,6 +4027,7 @@ $('btnSale').onclick = () => $('fSale').click();
 $('fSale').onchange = e => { importSales([...e.target.files]); e.target.value = ''; };
 $('btnAdd').onclick = () => openAddCards();
 $('btnClF').onclick = () => clPickPhotos();
+$('btnOrd').onclick = () => cartStart();
 $('fCat').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) importCatalog(fs); };
 $('undoList').onclick = e => { const b = e.target.closest('button'); if (!b) return; $('undoMenu').open = false; if (b.dataset.r) redoDo(); else undoDo(+b.dataset.u || 1); };
 $('btnBk').onclick = () => { if (bkState === 'paused' && !(gh && ghState === 'ok')) bkResume(); else { setSec = gh ? 'gh' : 'bk'; goTab('__set'); } };

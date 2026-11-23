@@ -228,6 +228,20 @@ details.menu .mn button{border:0;text-align:left;border-radius:6px;font-weight:5
 .cd{display:inline-block;font-size:10.5px;font-weight:800;background:var(--line);color:var(--fg);border-radius:4px;padding:0 4px}
 .card.sel{outline:3px solid var(--navy);outline-offset:2px}
 .card.sel::after{content:"✓";position:absolute;top:12px;right:12px;width:24px;height:24px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:700}
+/* ordine a mano */
+#cartBar{position:fixed;right:24px;bottom:18px;z-index:40;display:flex;align-items:center;gap:14px;flex-wrap:wrap;max-width:min(760px,calc(100vw - 48px));background:#1d3557;color:#fff;border-radius:14px;padding:10px 12px 10px 16px;box-shadow:0 8px 28px rgba(16,30,60,.28);font-size:14px}
+#cartBar[hidden]{display:none}#cartBar b{color:#fff}#cartBar .ghost{color:#dbe4f5;border-color:#5b7299;background:transparent}#cartBar .pri{background:#ffcb05;color:#1d1d1d;border-color:#ffcb05}#cartBar .pri:disabled{opacity:.45}
+.oad{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.ob{font-size:12px;font-weight:700;padding:3px 8px;border-radius:7px;border:1px solid;cursor:pointer;line-height:1.3}
+.ob i{font-style:normal;font-weight:500;opacity:.7}.ob:disabled{opacity:.35;cursor:default}
+.ob-n{background:#e9f6ee;border-color:#9fd3b2;color:#17703f}.ob-r{background:#f3ecfc;border-color:#c9b1ee;color:#6a35b5}.ob-x{background:#fdf3dc;border-color:#ecc56b;color:#8a5a00}
+.ob.obm{background:#1d3557;border-color:#1d3557;color:#fff}
+.card.inord{outline:3px solid #ffcb05;outline-offset:-1px}
+.gadd{margin-left:8px;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:6px;border:1px solid #1d3557;background:#fff;color:#1d3557;cursor:pointer}
+.ordf{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin:12px 0 4px}.ordf .ordn{flex:1 1 100%}.ordf .ordn input{width:calc(100% - 60px)}
+.ordf .seg button{border:0;border-right:1px solid var(--line);background:#fff;padding:6px 12px;font-weight:600;cursor:pointer}.ordf .seg button:last-child{border-right:0}.ordf .seg button.on{background:#1d3557;color:#fff}
+.todo{border:1px solid #f0c36b;background:#fff8e8;border-radius:12px;padding:12px 14px;margin:0 0 16px}.todo h3{margin:0 0 4px;font-size:15px}
+.todo .tdr{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px 0;border-top:1px solid #f3dfb3;font-size:13px}
 .selbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;margin:0 0 14px;border:1px solid #c5d3ee;border-radius:12px;background:#eef3fc;position:sticky;top:-22px;z-index:5}
 button.danger{background:var(--red);color:#fff;border-color:var(--red)}
 button.danger:hover{background:#a92c23}
@@ -373,6 +387,7 @@ dialog.cdw{width:min(1040px,95vw);padding:0}
     <details class="menu tm" id="saleMenu"><summary>🧾 Registra una vendita <span class="car">▾</span></summary><div class="mn">
       <button id="btnSale"><b>Ordine di Cardmarket</b><small>Carica il PDF dell'ordine: le carte vendute escono dal magazzino</small></button>
       <button id="btnClF"><b>Cliente diretto o scambio</b><small>Foto della lista PDF che il cliente ha segnato</small></button>
+      <button id="btnOrd"><b>Ordine a mano</b><small>Scegli le carte dai set: pagato, scambio o regalo</small></button>
     </div></details>
     <details class="menu tm undo" id="undoMenu"><summary id="undoSum" class="tic" title="Annulla">↶</summary><div class="mn" id="undoList"></div></details>
     <a id="btnCm" class="tlnk" href="https://www.cardmarket.com/it/Pokemon/Stock/Offers/Singles" target="cardscanner" referrerpolicy="no-referrer" title="Le tue offerte su Cardmarket">Cardmarket ↗</a>
@@ -381,6 +396,7 @@ dialog.cdw{width:min(1040px,95vw);padding:0}
   </div>
 </div>
 <nav class="tabs" id="tabs"></nav>
+<div id="cartBar" hidden></div>
 <div class="wrap">
   <aside>
     <div class="head">

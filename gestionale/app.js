@@ -427,7 +427,8 @@ function importFromHash() {
     }
   }
   chkAfterListing(newly);
-  if (n) logOp('vendita', last?.name, `Messe in vendita su Cardmarket (script Card Scanner)${fromSb ? `, ${fromSb} copie tolte dallo Standby` : ''}: ` + addedTxt.join(', '), n);
+  if (n) logOp('vendita', last?.name, `Messe in vendita su Cardmarket (script Card Scanner)${fromSb ? `, ${fromSb} copie tolte dallo Standby` : ''}: ` + addedTxt.join(', '), n,
+    { sid: tcgIdFor(last?.name) || undefined, d: addedTxt });
   save();
   if (n) setTimeout(() => updatePrices(false), 1500);
   setTimeout(() => toast(n ? `Aggiornato: ${n} carte in vendita su Cardmarket` + (fromSb ? ` (${fromSb} tolte dallo Standby)` : '') : `Dati del set "${last?.name || ''}" aggiornati (immagini e prezzi attuali)`), 300);
@@ -475,7 +476,7 @@ function renderSets() {
   Object.keys(bySet).filter(id => id.startsWith('cm:')).forEach(id => all.push({ id, name: state.cm[id.slice(3)]?.name || bySet[id][0][1].expName || id }));
   const items = all.filter(s => (!q || simp(s.name).includes(q)) && (!only || cnt(s.id)));
   const mine = items.filter(s => cnt(s.id)), rest = items.filter(s => !cnt(s.id));
-  const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}"><span class="nmw"><span class="nm">${esc(s.name)}</span>${bars(s.id)}</span>${vBy[s.id] ? `<span class="n v" title="${vBy[s.id]} carte con variazione di prezzo">⚠ ${vBy[s.id]}</span>` : ''}${sbBy[s.id] ? `<span class="n sb" title="copie in Standby (non ancora su Cardmarket)">SB ${sbBy[s.id]}</span>` : ''}${cnt0(s.id) ? `<span class="n" title="copie in vendita">${cnt0(s.id)}</span>` : ''}</a>`;
+  const link = s => `<a href="#" data-id="${esc(s.id)}" class="${s.id === selected || (selected === '__log' && s.id === logF.sid) ? 'sel' : ''}"><span class="nmw"><span class="nm">${esc(s.name)}</span>${bars(s.id)}</span>${vBy[s.id] ? `<span class="n v" title="${vBy[s.id]} carte con variazione di prezzo">⚠ ${vBy[s.id]}</span>` : ''}${sbBy[s.id] ? `<span class="n sb" title="copie in Standby (non ancora su Cardmarket)">SB ${sbBy[s.id]}</span>` : ''}${cnt0(s.id) ? `<span class="n" title="copie in vendita">${cnt0(s.id)}</span>` : ''}</a>`;
   renderTabs();
   $('sets').innerHTML = ((mine.length ? `<div class="grp">I tuoi set (in vendita / Standby)<span class="dleg"><span><i class="ln ln-n"></i>Normali</span><span><i class="ln ln-r"></i>Reverse</span>${anyX ? '<span><i class="ln ln-x"></i>Speciali</span>' : ''}<span><i class="ln ln-s"></i>solo Standby</span></span></div>${mine.map(link).join('')}` : '') +
     (rest.length ? `<div class="grp">${mine.length ? 'Tutti gli altri set' : 'Tutti i set'} · dal più recente (${rest.length})</div>${rest.map(link).join('')}` : '')) ||
@@ -647,6 +648,7 @@ async function renderSet() {
     <div class="row">
       ${copies || sbQ ? `<button class="ghost" id="bSel" title="Scegli più carte da togliere dalla vendita o riportare in Standby">☑ ${selMode ? 'Fine selezione' : 'Seleziona'}</button>
         <button class="ghost" id="bCl" title="PDF da stampare con le carte di questo set: il cliente segna quelle che vuole">📋 Lista per i clienti</button>` : ''}
+      <button class="ghost" id="bLog" title="Storico di questo set: liste caricate, carte messe in vendita, vendute, prezzi cambiati">📜 Registro</button>
       ${copies ? `<button id="bEditCM" title="Cambia su Cardmarket i prezzi delle carte di questo set (es. da Tendenza a prezzo minimo)">✏️ Cambia prezzi</button>` : ''}
       ${sbQ ? `<button class="pri" id="bOpenCM" title="Scegli il prezzo e prepara le carte in Standby per lo script Card Scanner">Metti in vendita (${sbQ} in Standby)</button>` : cmCat ? `<a href="${CMBULK}${encodeURIComponent(cmCat.id)}" target="cardscanner" referrerpolicy="no-referrer" class="pribtn" title="Pagina &quot;Inserisci carte bulk&quot; di questo set su Cardmarket">Apri su Cardmarket ↗</a>` : ''}
     </div></div>
@@ -733,6 +735,7 @@ async function renderSet() {
   if ($('bEditCM')) $('bEditCM').onclick = () => openPriceEdit(mine[0]?.[1].expName || state.cm[mine[0]?.[1].exp]?.name || '');
   if ($('bSel')) $('bSel').onclick = () => { selMode = !selMode; sel.clear(); renderSet(); };
   if ($('bCl')) $('bCl').onclick = () => pdfClients();
+  $('bLog').onclick = () => { Object.assign(logF, { sid: selected, name: setName, t: '', q: '', open: {} }); goTab('__log'); };
   if (selMode) {
     const upd = () => { $('selN').textContent = `${sel.size} carte selezionate`; document.querySelectorAll('.card').forEach(el => el.classList.toggle('sel', sel.has(el.dataset.n))); };
     $('sAll').onclick = () => { document.querySelectorAll('.card:not(.hide)').forEach(el => { if (!el.classList.contains('no')) sel.add(el.dataset.n); }); upd(); };
@@ -762,7 +765,8 @@ const TABS = [['cards', 'Carte'], ['__out', 'Fuori mercato'], ['__chk', 'Control
 // colore di ogni segnalibro (continua sul bordo della pagina sotto)
 const TABC = { cards: '#1d3d7a', __out: '#d9620f', __chk: '#c8372d', __dash: '#7c4dcc', __sales: '#1f8f55', __log: '#6e7c93', __set: '#1d3d7a' };
 function renderTabs() {
-  const cur = selected && selected.startsWith('__') ? selected : 'cards';
+  // il registro di un set resta nella scheda Carte, con la lista dei set a sinistra
+  const cur = selected && selected.startsWith('__') && !(selected === '__log' && logF.sid) ? selected : 'cards';
   const sold = state.sold.reduce((a, x) => a + x.q, 0), nOut = outAll().length;
   // Controllo: numero di differenze dell'ultimo controllo; "!" se è passato più di un giorno (o non l'hai mai fatto) e hai carte in vendita
   const nChk = chkDiffs().length, chkOld = Object.keys(state.listings).length && (!state.chkAt || daysAgo(state.chkAt) >= 1);
@@ -884,18 +888,16 @@ function renderSettings() {
     ['rules', '⚖️', 'Regole di prezzo', `${BASEN[up.base]} · soglia ${thrCfg().c} cent. / ${thrCfg().pct}%`, ''],
     ['ui', '🎛', 'Interfaccia', `Annulla ${uiCfg().undoS} s · messaggi ${uiCfg().toastS} s`, ''],
     ['tools', '🧰', 'Strumenti', 'Script, app, Cardmarket', ''],
-    ['log', '📜', 'Registro', `${(state.log || []).length} operazioni`, ''],
     ['data', '🗂', 'Dati salvati', `${(size / 1024).toFixed(0)} KB usati`, ''],
     ['danger', '⚠️', 'Zona pericolosa', 'Svuota carte in vendita', 'dz']];
   if (!SECS.some(x => x[0] === setSec)) setSec = 'gh';
   const secEls = [...$('main').querySelectorAll('.setgrid > section')];
-  // le sezioni sono nello stesso ordine dell'elenco, senza il Registro (che apre una pagina sua)
-  const SECP = SECS.filter(x => x[0] !== 'log');
+  // le sezioni sono nello stesso ordine dell'elenco (il Registro ora è dentro ogni set)
+  const SECP = SECS;
   secEls.forEach((el, i) => { el.dataset.s = SECP[i] ? SECP[i][0] : ''; el.classList.toggle('on', el.dataset.s === setSec); });
   $('setNav').innerHTML = SECS.map(([id, ic, t, sub, cls]) => `<button class="${id === setSec ? 'on' : ''} ${cls}" data-s="${id}"><span class="ic">${ic}</span><span class="tx"><b>${t}</b><small>${esc(sub)}</small></span>${cls === 'bad' ? '<i>!</i>' : ''}</button>`).join('');
   spaceInfo(size);
   $('setNav').onclick = e => { const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.s === 'log') { goTab('__log'); return; }   // il registro ha una pagina sua
     setSec = b.dataset.s;
     $('setNav').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); secEls.forEach(el => el.classList.toggle('on', el.dataset.s === setSec)); };
   const reload = () => { bkShow(); renderTabs(); renderSettings(); };
@@ -1581,34 +1583,98 @@ function renderOut() {
 const LOGT = { standby: '📥 Standby', vendita: '🛒 In vendita', venduta: '💶 Venduta', prezzo: '✏️ Prezzo', quantita: '🔢 Quantità', tolta: '🗑 Tolta', riportata: '↩ In Standby', mercato: '⚠ Mercato', dati: '💾 Dati' };
 /** 22/11: la prova delle varianti speciali (Supplementi) è stata tolta. Tolgo dai dati quello che aveva aggiunto:
  *  le copie speciali in Standby (questa versione le vedrebbe come normali), i riconoscimenti e l'elenco dei Supplementi. */
-function logOp(t, set, txt, q) {
+// more (facoltativo): { sid: id del set, d: [righe carta per carta], c: { n, r, x } copie Normali/Reverse/speciali }
+function logOp(t, set, txt, q, more) {
   const L = state.log || (state.log = []);
-  L.push({ at: new Date().toISOString(), t, set: set || '', txt, q: q ?? null });
+  L.push(Object.assign({ at: new Date().toISOString(), t, set: set || '', txt, q: q ?? null }, more || {}));
   undoNote(t, set, txt);
-  if (L.length > 3000) L.splice(0, L.length - 3000);
+  if (L.length > 10000) L.splice(0, L.length - 10000);
 }
+/** conteggio Normali / Reverse / speciali e righe carta per carta, per il registro */
+function sbDetail(items) {
+  const c = { n: 0, r: 0, x: 0 }, d = [];
+  items.forEach(x => { if (!x.q) return; c[x.vp ? 'x' : x.rev ? 'r' : 'n'] += x.q; d.push(`${x.u} ${x.n || ''}${vTag(x)} ×${x.q}`); });
+  return { c, d };
+}
+const cntTxt = c => [c.n ? `${c.n} ${c.n === 1 ? 'Normale' : 'Normali'}` : '', c.r ? `${c.r} Reverse` : '', c.x ? `${c.x} ${c.x === 1 ? 'speciale' : 'speciali'}` : ''].filter(Boolean).join(', ');
 const cardTxt = l => `${l.u} ${info(l).name || l.n || ''}${l.rev ? ' Reverse' : ''}`.trim();
-const logF = { t: '', set: '', q: '' };
+// Registro di un set (logF.sid) o di tutti i set (logF.sid vuoto): diario per giorno con riepilogo in cima.
+// Le vendite del set vengono dallo storico delle vendite (ha il set di ogni carta, anche per gli ordini con più set).
+const logF = { sid: '', name: '', t: '', q: '', open: {} };
 function renderLog() {
-  const all = (state.log || []).slice().reverse();
-  const sets = [...new Set(all.map(x => x.set).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const sid = logF.sid, name = logF.name || '';
+  const idOf = {};
+  const sidOfName = n => n in idOf ? idOf[n] : (idOf[n] = tcgIdFor(n));
+  const inSet = x => !sid ? true : x.sid ? x.sid === sid : !!x.set && (simp(String(x.set).replace(SUPRX, '')) === simp(name) || (!sid.startsWith('cm:') && sidOfName(x.set) === sid));
+  // operazioni del registro (nel singolo set le vendite le prendo dallo storico vendite)
+  const ev = (state.log || []).filter(x => inSet(x) && !(sid && x.t === 'venduta')).map(x => {
+    let txt = x.txt, d = x.d || null;
+    if (!d && txt.length > 110) { const i = txt.indexOf(': '); if (i > 0) { d = txt.slice(i + 2).split(/, (?=[A-Z0-9]{0,4}\d)/); txt = txt.slice(0, i); } }
+    return { at: x.at, t: x.t, set: x.set, txt, d, q: x.q };
+  });
+  let sold = [];
+  if (sid) {
+    sold = (state.sold || []).filter(s => sid.startsWith('cm:') ? s.exp === sid.slice(3) : (lSid(s) === sid || simp(String(s.expName || '').replace(SUPRX, '')) === simp(name)));
+    const orderAt = {};
+    (state.log || []).forEach(x => { const m = x.t === 'venduta' && x.txt.match(/^Ordine #(\S+)/); if (m && !orderAt[m[1]]) orderAt[m[1]] = x.at; });
+    const g = {};
+    sold.forEach(s => { const k = s.order ? 'o' + s.order : `${s.date}|${s.source}|${s.buyer || ''}|${s.file || ''}`; (g[k] = g[k] || []).push(s); });
+    Object.values(g).forEach(a => {
+      const s0 = a[0], q = a.reduce((t, s) => t + s.q, 0), v = a.reduce((t, s) => t + (s.price || 0) * s.q, 0);
+      const who = s0.order ? `Ordine #${s0.order}` : s0.source === 'Scambio' ? 'Scambio alla pari' : s0.source && s0.source !== 'Cardmarket' ? 'Vendita diretta' : 'Venduta';
+      ev.push({ at: (s0.order && orderAt[s0.order]) || (s0.date ? s0.date + 'T23:59:00' : ''), day: s0.date, t: 'venduta', set: s0.expName,
+        txt: `${who}${s0.buyer ? ` (${s0.buyer})` : ''}: ${q} ${q === 1 ? 'copia' : 'copie'}${v ? ', ' + eur(r2(v)) : ''}`, q,
+        d: a.map(s => `${s.num}${vTag(s)} ${s.name || ''} ×${s.q}${s.price != null ? ' a ' + eur(s.price) : ''}`) });
+    });
+  }
+  ev.sort((a, b) => String(b.at).localeCompare(String(a.at)));
   const qq = simp(logF.q);
-  const list = all.filter(x => (!logF.t || x.t === logF.t) && (!logF.set || x.set === logF.set) && (!qq || simp(x.txt + ' ' + x.set).includes(qq)));
-  $('main').innerHTML = `<p style="margin:0 0 8px"><a href="#" id="logBack">← Impostazioni</a></p><div class="sethead"><div><h2>📜 Registro operazioni</h2>
-    <div class="sub">Tutto quello che succede nel gestionale, con data e ora: carte in Standby, messe in vendita, vendute, tolte, prezzi e quantità cambiati, variazioni di mercato.</div></div>
-    <div class="row"><button id="lgCsv">⬇ Esporta (CSV)</button></div></div>
+  const list = ev.filter(x => (!logF.t || x.t === logF.t) && (!qq || simp(x.txt + ' ' + (x.d || []).join(' ') + ' ' + (x.set || '')).includes(qq)));
+  // riepilogo del set
+  let sum = '';
+  if (sid) {
+    const lists = Object.entries(state.lists || {}).filter(([, l]) => l.sid ? l.sid === sid : simp(l.set) === simp(name)).sort((a, b) => String(b[1].at).localeCompare(String(a[1].at)));
+    const c = { n: 0, r: 0, x: 0 }; let counted = false;
+    (state.log || []).forEach(x => { if (x.t === 'standby' && x.c && inSet(x)) { counted = true; c.n += x.c.n; c.r += x.c.r; c.x += x.c.x; } });
+    const old = lists.filter(([, l]) => !l.c).length;
+    const sq = sold.reduce((t, s) => t + s.q, 0), sv = sold.reduce((t, s) => t + (s.price || 0) * s.q, 0);
+    const tile = (v, l, cl = '') => `<span class="rgk"><b class="${cl}">${v}</b>${l}</span>`;
+    sum = `<div class="rgsum">${tile(lists.length, lists.length === 1 ? 'lista caricata' : 'liste caricate')}${counted ? tile(c.n, 'Normali caricate', 'ln-n') + tile(c.r, 'Reverse caricate', 'ln-r') + (c.x ? tile(c.x, 'speciali caricate', 'ln-x') : '') : ''}
+      ${tile(sq, sq === 1 ? 'copia venduta' : 'copie vendute')}${sv ? tile(eur(r2(sv)), 'incassati') : ''}</div>
+      ${lists.length ? `<p class="small" style="margin:-4px 0 10px">Liste: ${lists.map(([id, l]) => `<b>${esc(id)}</b> (${fmtD(l.at)}, ${l.q} copie${l.c ? ': ' + cntTxt(l.c) : ''})`).join(' · ')}</p>` : ''}
+      ${old ? `<p class="small" style="margin:-4px 0 10px">${counted ? 'I conteggi di Normali e Reverse partono dal 23/11/2026: per' : 'Per'} ${old === 1 ? 'la lista caricata' : `le ${old} liste caricate`} prima di quel giorno il registro non sa quante copie erano Normali o Reverse.</p>` : ''}`;
+  }
+  // diario per giorno
+  const dayLbl = d => { const t = new Date(d); return isNaN(t) ? 'Senza data' : t.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); };
+  const dayOf = x => x.day || (x.at ? new Date(x.at).toLocaleDateString('sv-SE') : '');
+  const shown = list.slice(0, 1500);
+  let html = '', curDay = null;
+  shown.forEach((x, i) => {
+    const d = dayOf(x);
+    if (d !== curDay) { curDay = d; html += `<p class="rgday">${esc(dayLbl(d))}</p>`; }
+    const key = x.at + '|' + x.t + '|' + i;
+    const hour = x.at && !String(x.at).endsWith('T23:59:00') ? new Date(x.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
+    const open = logF.open[key];
+    html += `<div class="rgev"><span class="ic">${(LOGT[x.t] || '•').split(' ')[0]}</span><div class="tx"><div>${hour ? `<span class="hr">${hour}</span>` : ''}${esc(x.txt)}${!sid && x.set ? ` <span class="small">· ${esc(x.set)}</span>` : ''}</div>
+      ${x.d && x.d.length ? `<a href="#" class="rgmore" data-k="${esc(key)}">${open ? '▾ nascondi le carte' : `▸ mostra le carte (${x.d.length})`}</a>${open ? `<div class="rgcards">${x.d.map(esc).join('<br>')}</div>` : ''}` : ''}</div></div>`;
+  });
+  $('main').innerHTML = `<p style="margin:0 0 8px"><a href="#" id="logBack">← ${sid ? 'Torna a ' + esc(name) : 'Indietro'}</a></p>
+    <div class="sethead"><div><h2>📜 Registro${sid ? ' di ' + esc(name) : ' di tutti i set'}</h2>
+    <div class="sub">${sid ? 'Liste caricate, carte messe in vendita, vendute, tolte, prezzi e quantità cambiati in questo set.' : 'Tutte le operazioni del gestionale, anche quelle che non riguardano un set (backup, ripristini, annullamenti).'}</div></div>
+    <div class="row">${sid ? '<button class="ghost" id="lgAll">Tutti i set</button>' : logF.from ? `<button class="ghost" id="lgOne">Solo ${esc(logF.from.name)}</button>` : ''}<button id="lgCsv">⬇ Esporta (CSV)</button></div></div>
+    ${sum}
     <div class="filters"><select id="lgT"><option value="">Tutte le operazioni</option>${Object.entries(LOGT).map(([k, v]) => `<option value="${k}" ${logF.t === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
-      <select id="lgS"><option value="">Tutti i set</option>${sets.map(x => `<option ${x === logF.set ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
       <input type="search" id="lgQ" placeholder="Cerca (carta, lista, ordine…)" value="${esc(logF.q)}"><span class="small">${list.length} operazioni</span></div>
-    ${list.length ? `<table class="rtable"><thead><tr><th>Data e ora</th><th>Operazione</th><th>Set</th><th>Dettagli</th><th class="n">Copie</th></tr></thead><tbody>
-    ${list.slice(0, 1500).map(x => `<tr><td style="white-space:nowrap">${fmtDT(x.at)}</td><td style="white-space:nowrap">${LOGT[x.t] || esc(x.t)}</td><td>${esc(x.set)}</td><td>${esc(x.txt)}</td><td class="n">${x.q ?? ''}</td></tr>`).join('')}
-    </tbody></table>${list.length > 1500 ? '<p class="small">Mostrate le 1500 più recenti: usa i filtri o esporta il CSV.</p>' : ''}` : '<p class="empty">Nessuna operazione registrata (il registro parte da ora).</p>'}`;
+    ${list.length ? `<div class="rglist">${html}</div>${list.length > 1500 ? '<p class="small">Mostrate le 1500 più recenti: usa i filtri o esporta il CSV.</p>' : ''}`
+      : `<p class="empty">${ev.length ? 'Nessuna operazione con questi filtri.' : 'Nessuna operazione registrata per questo set.'}</p>`}`;
   $('lgT').onchange = () => { logF.t = $('lgT').value; renderLog(); };
-  $('lgS').onchange = () => { logF.set = $('lgS').value; renderLog(); };
   $('lgQ').oninput = () => { logF.q = $('lgQ').value; clearTimeout(renderLog.t); renderLog.t = setTimeout(() => { renderLog(); const q = $('lgQ'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 300); };
-  $('lgCsv').onclick = () => downloadCsv(`registro-operazioni-${new Date().toISOString().slice(0, 10)}.csv`,
-    [['Data e ora', 'Operazione', 'Set', 'Dettagli', 'Copie']].concat(list.map(x => [new Date(x.at).toLocaleString('it-IT'), (LOGT[x.t] || x.t).replace(/^\S+\s/, ''), x.set, x.txt, x.q ?? ''])));
-  $('logBack').onclick = e => { e.preventDefault(); goTab('__set'); };
+  $('main').querySelectorAll('.rgmore').forEach(a => a.onclick = e => { e.preventDefault(); logF.open[a.dataset.k] = !logF.open[a.dataset.k]; renderLog(); });
+  if ($('lgAll')) $('lgAll').onclick = () => { logF.from = { sid, name }; Object.assign(logF, { sid: '', name: '', t: '', q: '', open: {} }); renderLog(); };
+  if ($('lgOne')) $('lgOne').onclick = () => { Object.assign(logF, { sid: logF.from.sid, name: logF.from.name, from: null, t: '', q: '', open: {} }); renderLog(); };
+  $('lgCsv').onclick = () => downloadCsv(`registro-${sid ? name.replace(/[^\w]+/g, '-') : 'tutti-i-set'}-${new Date().toISOString().slice(0, 10)}.csv`,
+    [['Data e ora', 'Operazione', 'Set', 'Dettagli', 'Carte', 'Copie']].concat(list.map(x => [x.at ? new Date(x.at).toLocaleString('it-IT') : '', (LOGT[x.t] || x.t).replace(/^\S+\s/, ''), x.set || '', x.txt, (x.d || []).join(', '), x.q ?? ''])));
+  $('logBack').onclick = e => { e.preventDefault(); const back = sid || logF.from?.sid; logF.from = null; goTab(back || '__set'); };
 }
 
 // ---------- annulla / ripeti: ultime 20 operazioni, anche dopo aver chiuso il gestionale ----------
@@ -3391,7 +3457,7 @@ async function openAddCards() {
 async function importCatalog(files) {
   state.standby = state.standby || {};
   let last = null;
-  const msg = [];
+  const msg = [], more = new Map();
   state.lists = state.lists || {};
   for (const f of files) {
     const sets = parseCatalog(await f.text());
@@ -3407,6 +3473,7 @@ async function importCatalog(files) {
         const sn = tcgSets.find(x => x.id === sid)?.name || S.name;
         let tot = 0;
         (await resolveListVariants(sid, S)).forEach(b => msg.push(`${listId}: riga saltata, ${b}`));
+        const det = sbDetail(S.items.filter(it => !it.skip));
         S.items.forEach(it => {
           if (it.skip) return;
           const k = sbKey(sid, it.u, it.rev, S.lang, it.vp);
@@ -3414,8 +3481,9 @@ async function importCatalog(files) {
           x.q += it.q; x.file = f.name; if (S.com) x.com = S.com;
           tot += it.q;
         });
-        state.lists[listId] = { at: today(), set: sn, q: tot };
-        msg.push(`${listId}: +${tot} copie nello Standby di ${sn}`);
+        state.lists[listId] = { at: today(), set: sn, sid, q: tot, c: det.c };
+        const m = `${listId}: +${tot} copie nello Standby di ${sn}` + (cntTxt(det.c) ? ` (${cntTxt(det.c)})` : '');
+        msg.push(m); more.set(m, { sid, d: det.d, c: det.c });
         last = sid;
         continue;
       }
@@ -3440,11 +3508,13 @@ async function importCatalog(files) {
         already += Math.min(inV, x.q);
         if (q > 0) { x.q = q; state.standby[k] = x; tot += q; }
       });
-      msg.push(`${sn}: ${tot} copie in Standby` + (already ? ` (${already} già in vendita, non aggiunte)` : ''));
+      const det = sbDetail(Object.keys(agg).map(k => state.standby[k] === agg[k] ? agg[k] : null).filter(Boolean));
+      const m = `${sn}: ${tot} copie in Standby` + (cntTxt(det.c) ? ` (${cntTxt(det.c)})` : '') + (already ? ` (${already} già in vendita, non aggiunte)` : '');
+      msg.push(m); more.set(m, { sid, d: det.d, c: det.c });
       last = sid;
     }
   }
-  msg.forEach(m => logOp('standby', (m.match(/Standby di (.+)$/) || m.match(/^([^:]+): \d+ copie in Standby/) || [])[1] || '', m));
+  msg.forEach(m => logOp('standby', (m.match(/Standby di (.+?)(?: \(\d+ [^)]*\))?$/) || m.match(/^([^:]+): \d+ copie in Standby/) || [])[1] || '', m, more.get(m)?.c ? Object.values(more.get(m).c).reduce((a, b) => a + b, 0) : null, more.get(m)));
   save();
   if (msg.some(m => m.includes('riga saltata'))) alert(msg.join('\n') + '\n\nLe righe saltate non sono entrate: aggiungile con "＋ Aggiungi carte" scegliendo la variante.');
   else if (msg.length) toast(msg.join(' · '));

@@ -643,7 +643,7 @@ async function renderSet() {
   cntF.no = cards.filter(c => !byNum[norm(c.localId)] && !sbByNum[norm(c.localId)]).length;
   if (filter !== 'all' && !cntF[filter]) filter = 'all';
   const chip = (v, l) => `<button class="chip ${filter === v ? 'on' : ''}" data-f="${v}">${l}<i>${cntF[v]}</i></button>`;
-  let h = `<div class="sethead"><div class="row" style="gap:16px">${logo ? `<img class="logo" src="${esc(logo)}.png" alt="" data-logo="1">` : ''}
+  let h = `<div class="sethead shset"><div class="row" style="gap:16px">${logo ? `<img class="logo" src="${esc(logo)}.png" alt="" data-logo="1">` : ''}
       <div><h2>${esc(setName)}</h2><div class="sub">${cards.length} carte${extra ? `: ${official} + ${extra} fuoriserie` : ''}</div></div></div>
     <div class="row">
       ${copies || sbQ ? `<button class="ghost" id="bSel" title="Scegli più carte da togliere dalla vendita o riportare in Standby">☑ ${selMode ? 'Fine selezione' : 'Seleziona'}</button>

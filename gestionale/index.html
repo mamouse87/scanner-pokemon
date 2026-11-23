@@ -173,6 +173,8 @@ aside input[type=search]{width:100%}
 #sets a .n.sb{background:#e9edf3;color:var(--sbc)}#sets a .n.v{background:#fdebdc;color:var(--var)}
 main{flex:1;overflow:auto;scrollbar-gutter:stable;padding:22px 28px 70px}
 .sethead{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+/* pagina del set: i pulsanti stanno sempre sotto il titolo, allineati a sinistra (vanno a capo se non ci stanno) */
+.sethead.shset{flex-direction:column;align-items:flex-start;gap:12px}.sethead.shset>.row{flex-wrap:wrap}
 .sethead .logo{height:52px;max-width:170px;object-fit:contain}
 .sethead h2{margin:0;font-size:26px;letter-spacing:-.015em;color:var(--fg)}
 .sub{color:var(--mut);font-size:13px}

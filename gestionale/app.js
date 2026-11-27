@@ -900,6 +900,8 @@ function renderSettings() {
         <dt>Vendite</dt><dd>${state.sold.length} righe</dd><dt>Registro</dt><dd>${(state.log || []).length} operazioni</dd>
         <dt>Carte di Cardmarket conosciute</dt><dd>${nCards} (${Object.keys(state.cm).length} set) · ${tcgSets.length} set da TCGdex</dd>
         <dt>Spazio usato</dt><dd id="stSpace">${(size / 1024).toFixed(0)} KB${DBOK() ? '' : ' di circa 5.000 KB'}</dd></dl>
+      <div class="row"><button class="pri" id="sExpCat" title="Tutte le carte che hai, in vendita e in Standby: una riga per carta, variante, lingua e posto">⬇ Esporta tutto il catalogo (Excel)</button></div>
+      <p class="small">Un file .csv che Excel apre: set, numero, nome, rarità, variante, lingua, in vendita o Standby, copie, tuo prezzo, Consigliato, Da, Tendenza, valore, data.</p>
     </section>
     <section class="sc danger">
       <h3>⚠️ Zona pericolosa</h3>
@@ -978,6 +980,7 @@ function renderSettings() {
   bindRule('rU', up); bindRule('rE', ed);
   [['uiUndo', 'undoS'], ['uiToast', 'toastS']].forEach(([id, k]) => $(id).onchange = () => { state.ui = Object.assign(state.ui || {}, { [k]: +$(id).value }); save(); toast('Preferenza salvata'); renderSettings(); });
   ['thC', 'thP'].forEach(id => $(id).onchange = () => { const t = thrCfg(); t.c = Math.max(0, parseInt($('thC').value, 10) || 0); t.pct = Math.max(0, parseInt($('thP').value, 10) || 0); save(); renderTabs(); renderSets(); toast('Soglia salvata'); });
+  $('sExpCat').onclick = exportCatalog;
   $('sWipe').onclick = () => { if (confirm('Cancellare tutte le carte in vendita e le vendite? Fai prima un backup.')) { state = Object.assign({}, state, { listings: {}, sold: [], orders: {}, market: {} }); logOp('dati', '', 'Svuotate tutte le carte in vendita e le vendite'); save(); refresh(); } };
 }
 
@@ -2372,6 +2375,87 @@ function info(l) {
   const c = state.cm[l.exp]?.cards?.[l.p] || {};
   return { c, name: c.n || '', set: l.expName || state.cm[l.exp]?.name || '', rar: rarIt(c.r) || 'Non indicata' };
 }
+// ---------- Hall of Fame (Statistiche, 27/11): le 5 carte in cima alla classifica scelta ----------
+const HOF_M = [['exp', 'Più care'], ['cheap', 'Più economiche'], ['qty', 'Più copie'], ['val', 'Valore totale'], ['sold', 'Più vendute'], ['inc', 'Più incasso'], ['old', 'Ferme da più tempo']];
+const hof = { m: 'exp', set: '', sc: 'all' };
+/** tutte le carte che hai (in vendita e/o Standby), una per carta + variante + lingua; prezzo = il tuo, o il Consigliato in Standby */
+function ownedCards(sc) {
+  const m = {};
+  const add = (sid, setName, x, name, rar, q, price, date, where) => {
+    const g = gidOf(sid, x.u, x), o = m[g] || (m[g] = { sid, set: setName, u: x.u, name, rar, rev: !!x.rev, vp: x.vp || '', vl: x.vl || '', lang: x.lang || 'it', q: 0, price: null, date: null, where: new Set(), exp: x.exp, p: x.p || x.vp || null });
+    o.q += q; o.where.add(where);
+    if (price != null && (o.price == null || where === 'v')) o.price = price;
+    if (date && (!o.date || new Date(date) < new Date(o.date))) o.date = date;
+  };
+  if (sc !== 's') Object.entries(state.listings).forEach(([k, l]) => { if (l.q > 0) { const I = info(l); add(lSid(l) || 'cm:' + l.exp, I.set, l, I.name, I.rar, l.q, l.price, l.date, 'v'); } });
+  if (sc !== 'v') Object.entries(state.standby || {}).forEach(([k, x]) => { if (x.q > 0) { const M = sbmOf(k); add(x.s, x.sn, x, x.n, x.r || '', x.q, M && !(x.rev && !M.rv) ? consOf(M)?.v ?? null : null, x.date, 's'); } });
+  return Object.values(m);
+}
+function hofList() {
+  const sale = hof.m === 'sold' || hof.m === 'inc';
+  let a;
+  if (sale) {
+    const m = {};
+    (state.sold || []).forEach(s => { if (hof.m === 'inc' && !isPaid(s)) return;
+      const sid = lSid(s) || (s.exp ? 'cm:' + s.exp : ''), g = gidOf(sid, s.num, s);
+      const o = m[g] || (m[g] = { sid, set: s.expName || state.cm[s.exp]?.name || '', u: s.num, name: s.name, rev: !!s.rev, vp: s.vp || '', vl: s.vl || '', lang: s.lang || 'it', q: 0, inc: 0, exp: s.exp, p: s.p || s.vp || null });
+      o.q += s.q; o.inc += (s.price || 0) * s.q; });
+    a = Object.values(m);
+  } else a = ownedCards(hof.sc);
+  if (hof.set) a = a.filter(x => x.set === hof.set);
+  const by = { exp: [x => x.price != null, (x, y) => y.price - x.price || y.q - x.q], cheap: [x => x.price > 0, (x, y) => x.price - y.price || y.q - x.q],
+    qty: [() => true, (x, y) => y.q - x.q || (y.price || 0) - (x.price || 0)], val: [x => x.price != null, (x, y) => y.price * y.q - x.price * x.q],
+    sold: [() => true, (x, y) => y.q - x.q || y.inc - x.inc], inc: [x => x.inc > 0, (x, y) => y.inc - x.inc || y.q - x.q], old: [x => !!x.date, (x, y) => new Date(x.date) - new Date(y.date)] }[hof.m];
+  return a.filter(by[0]).sort(by[1]).slice(0, 5);
+}
+function hofVal(x) {
+  return { exp: () => eur(x.price), cheap: () => eur(x.price), qty: () => `${x.q} ${x.q === 1 ? 'copia' : 'copie'}`, val: () => eur(r2(x.price * x.q)),
+    sold: () => `${x.q} ${x.q === 1 ? 'venduta' : 'vendute'}`, inc: () => eur(r2(x.inc)), old: () => `${daysAgo(x.date) ?? '?'} giorni` }[hof.m]();
+}
+function hofImg(x) {
+  const S = x.sid && !x.sid.startsWith('cm:') ? (tcgCached('/sets/' + encodeURIComponent(x.sid)) || tcgCached('@en/sets/' + encodeURIComponent(x.sid))) : null;
+  const c = (S?.cards || []).find(c => norm(c.localId) === norm(x.u));
+  return imgTag(imgSrcs(c?.image, x.exp && x.p ? state.cm[x.exp]?.cards?.[x.p] : null, x.u), true);
+}
+function hofHtml() {
+  const sale = hof.m === 'sold' || hof.m === 'inc';
+  const sets = [...new Set([...ownedCards('all').map(x => x.set), ...(state.sold || []).map(s => s.expName || state.cm[s.exp]?.name || '')].filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const L = hofList(), order = [3, 1, 0, 2, 4];   // podio: 4 · 2 · 1 · 3 · 5
+  const sub = x => [x.set, x.vp ? x.vl || 'Speciale' : x.rev ? 'Reverse' : '', x.lang !== 'it' ? (LANGN[x.lang] || x.lang) : '', !sale && hof.sc === 'all' && x.where?.size === 1 && x.where.has('s') ? 'Standby' : ''].filter(Boolean).join(' · ');
+  const tip = x => `${x.u} ${x.name}${x.price != null ? ' · prezzo ' + eur(x.price) : ''}${x.q ? ' · ' + x.q + (sale ? ' vendute' : ' copie') : ''}${x.date ? ' · dal ' + fmtD(x.date) : ''}`;
+  return `<div class="hofh"><h3>🏆 Hall of Fame</h3><span class="row">
+      <select id="hofSet"><option value="">Tutti i set</option>${sets.map(n => `<option ${hof.set === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+      <select id="hofSc" ${sale ? 'disabled title="Le classifiche delle vendite contano le copie vendute"' : ''}><option value="all" ${hof.sc === 'all' ? 'selected' : ''}>In vendita + Standby</option><option value="v" ${hof.sc === 'v' ? 'selected' : ''}>Solo in vendita</option><option value="s" ${hof.sc === 's' ? 'selected' : ''}>Solo Standby</option></select></span></div>
+    <div class="hofm">${HOF_M.map(([k, l]) => `<button data-hm="${k}" class="${hof.m === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    ${L.length ? `<div class="hofp">${order.map(i => L[i] ? `<a href="#" class="hofc r${i + 1}" data-hi="${i}" title="${esc(tip(L[i]))}"><span class="hofi">${hofImg(L[i])}<b class="rk">${i + 1}</b></span>
+      <span class="nm">${esc(L[i].u)} ${esc(L[i].name)}</span><span class="sb">${esc(sub(L[i]))}</span><span class="val">${esc(hofVal(L[i]))}</span></a>` : '<span></span>').join('')}</div>`
+      : `<p class="small">${sale ? 'Ancora nessuna vendita' : 'Nessuna carta'}${hof.set ? ' in questo set' : ''} per questa classifica.</p>`}
+    ${hof.m === 'exp' || hof.m === 'val' ? '<p class="small" style="margin:8px 0 0">Per le carte in Standby conta il Consigliato.</p>' : ''}`;
+}
+function hofBind() {
+  const box = $('hof'); if (!box) return;
+  const re = () => { box.innerHTML = hofHtml(); hofBind(); };
+  box.querySelectorAll('[data-hm]').forEach(b => b.onclick = () => { hof.m = b.dataset.hm; re(); });
+  $('hofSet').onchange = () => { hof.set = $('hofSet').value; re(); };
+  $('hofSc').onchange = () => { hof.sc = $('hofSc').value; re(); };
+  const L = hofList();
+  box.querySelectorAll('[data-hi]').forEach(a => a.onclick = e => { e.preventDefault(); const x = L[+a.dataset.hi]; if (x?.sid) gsOpen({ sec: 'v', sid: x.sid, u: x.u }); });
+}
+/** catalogo completo (in vendita + Standby), un file .csv che Excel apre */
+function exportCatalog() {
+  const rows = [];
+  Object.entries(state.listings).forEach(([k, l]) => { if (!(l.q > 0)) return; const I = info(l), M = mOf(k), ok = M && !(l.rev && !M.rv);
+    rows.push([I.set, l.u, I.name, I.rar || '', vLab(l), LANGN[l.lang] || l.lang || '', 'In vendita', l.q, l.price ?? '', ok ? consOf(M)?.v ?? '' : '', ok ? M.lo ?? '' : '', ok ? M.t ?? '' : '',
+      l.price != null ? +(l.price * l.q).toFixed(2) : '', l.date ? new Date(l.date).toLocaleDateString('it-IT') : '', l.com || '']); });
+  Object.entries(state.standby || {}).forEach(([k, x]) => { if (!(x.q > 0)) return; const M = sbmOf(k), ok = M && !(x.rev && !M.rv), c = ok ? consOf(M)?.v ?? null : null;
+    rows.push([x.sn || '', x.u, x.n || '', x.r || '', vLab(x), LANGN[x.lang] || x.lang || '', 'Standby', x.q, '', c ?? '', ok ? M.lo ?? '' : '', ok ? M.t ?? '' : '',
+      c != null ? +(c * x.q).toFixed(2) : '', x.date ? new Date(x.date).toLocaleDateString('it-IT') : '', x.com || '']); });
+  if (!rows.length) { alert('Non hai carte in vendita né in Standby.'); return; }
+  rows.sort((a, b) => String(a[0]).localeCompare(String(b[0])) || (parseInt(a[1], 10) || 0) - (parseInt(b[1], 10) || 0) || String(a[4]).localeCompare(String(b[4])) || String(a[6]).localeCompare(String(b[6])));
+  downloadCsv(`catalogo-${new Date().toISOString().slice(0, 10)}.csv`,
+    [['Set', 'Numero', 'Nome', 'Rarità', 'Variante', 'Lingua', 'Dove', 'Copie', 'Tuo prezzo', 'Consigliato', 'Da', 'Tendenza', 'Valore', 'Dal', 'Commento']].concat(rows));
+  toast(`Catalogo esportato: ${rows.length} righe, ${rows.reduce((a, r) => a + r[7], 0)} copie`);
+}
 function renderDash() {
   const ls = Object.entries(state.listings).map(([k, l]) => Object.assign({ k }, l, info(l)));
   const sold = state.sold;
@@ -2425,12 +2509,10 @@ function renderDash() {
   const low = withT.filter(l => l.price < l.c.t * 0.7 && l.c.t - l.price >= 0.05).sort((a, b) => (a.price / a.c.t) - (b.price / b.c.t)).slice(0, 15);
   const old = ls.filter(l => (daysAgo(l.date) ?? 0) >= 60).sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 15);
   const noPrice = ls.filter(l => l.price == null);
-  const topVal = ls.filter(l => l.price != null).sort((a, b) => b.price - a.price).slice(0, 10);
-  const topSoldCards = group(sold, s => `${s.num} ${s.name}${s.rev ? ' (R)' : ''} · ${s.expName || ''}`, s => s.q).slice(0, 10);
   const row = l => `<tr><td>${esc(l.u)} ${esc(l.name)}${l.rev ? ' <b style="color:var(--rev)">R</b>' : ''}</td><td>${esc(l.set)}</td>`;
 
   $('main').innerHTML = `<div class="sethead"><div><h2>📊 Statistiche</h2><div class="sub">Aggiornate al ${now.toLocaleDateString('it-IT')} · valori calcolati sui prezzi di listino</div></div>
-    <div class="row"><button id="xInv">⬇ Magazzino (Excel)</button><button id="xSold">⬇ Vendite (Excel)</button></div></div>
+    <div class="row"><button id="xSold">⬇ Vendite (Excel)</button></div></div>
   <div class="kpis">
     <div class="kpi"><span>Copie in vendita</span><b>${copies}</b><span>${ls.length} righe · ${revQ} Reverse</span></div>
     <div class="kpi"><span>Valore a listino</span><b>${eur(value)}</b><span>prezzo medio ${eur(avg)}</span></div>
@@ -2439,6 +2521,7 @@ function renderDash() {
     <div class="kpi"><span>Vendute questo mese</span><b>${monthSold.reduce((a, s) => a + s.q, 0)}</b><span>${eur(monthSold.reduce((a, s) => a + (s.price || 0) * s.q, 0))}</span></div>
     <div class="kpi"><span>Tempo medio di vendita</span><b>${avgDays == null ? '—' : avgDays + ' gg'}</b><span>dalla messa in vendita</span></div>
   </div>
+  <div class="panel hof" id="hof">${hofHtml()}</div>
   <div class="panels">
     <div class="panel"><h3>Vendite per mese (€)</h3><div class="cols">${months.map(m => `<div class="c"><b>${mQ[m] ? eur(mV[m] || 0).replace(' €', '') : ''}</b><i style="height:${(mV[m] || 0) / maxV * 100}%"></i>${MN[+m.slice(5) - 1]}</div>`).join('')}</div>
       <div class="small" style="margin-top:6px">Copie: ${months.map(m => mQ[m] || 0).join(' · ')}</div></div>
@@ -2456,15 +2539,10 @@ function renderDash() {
       ${high.length ? `<p class="small up">Molto sopra la tendenza (difficili da vendere):</p><table><tr><th>Carta</th><th>Set</th><th>Tuo</th><th>Tendenza</th></tr>${high.map(l => row(l) + `<td class="up">${eur(l.price)}</td><td>${eur(l.c.t)}</td></tr>`).join('')}</table>` : ''}
       ${low.length ? `<p class="small down" style="margin-top:10px">Molto sotto la tendenza (stai regalando?):</p><table><tr><th>Carta</th><th>Set</th><th>Tuo</th><th>Tendenza</th></tr>${low.map(l => row(l) + `<td class="down">${eur(l.price)}</td><td>${eur(l.c.t)}</td></tr>`).join('')}</table>` : ''}
       ${withT.length && !high.length && !low.length ? '<p class="small">Tutti i prezzi sono in linea con la tendenza ✔</p>' : ''}</div>
-    <div class="panel"><h3>Le carte di valore più alto in vendita</h3>${topVal.length ? `<table><tr><th>Carta</th><th>Set</th><th>Prezzo</th><th>Q.tà</th></tr>${topVal.map(l => row(l) + `<td>${eur(l.price)}</td><td>${l.q}</td></tr>`).join('')}</table>` : '<p class="small">Nessun dato.</p>'}</div>
-    <div class="panel"><h3>Le più vendute</h3>${topSoldCards.length ? bars(topSoldCards, v => v + ' copie') : '<p class="small">Ancora nessuna vendita registrata.</p>'}</div>
     ${noPrice.length ? `<div class="panel"><h3>Senza prezzo (${noPrice.length})</h3><table><tr><th>Carta</th><th>Set</th><th>Q.tà</th></tr>${noPrice.slice(0, 30).map(l => row(l) + `<td>${l.q}</td></tr>`).join('')}</table>
       <p class="small">Clicca la carta nel suo set per scrivere il prezzo.</p></div>` : ''}
   </div>`;
-  $('xInv').onclick = () => downloadCsv(`magazzino-${now.toISOString().slice(0, 10)}.csv`,
-    [['Set', 'Numero', 'Nome', 'Rarità', 'Variante', 'Lingua', 'Quantità', 'Prezzo', 'Valore', 'Tendenza CM', 'In vendita dal', 'Giorni', 'Commento']].concat(
-      ls.sort((a, b) => a.set.localeCompare(b.set) || (parseInt(a.u) || 0) - (parseInt(b.u) || 0)).map(l => [l.set, l.u, l.name, l.rar, vLab(l), LANGN[l.lang] || l.lang, l.q,
-        l.price, l.price != null ? +(l.price * l.q).toFixed(2) : '', l.c.t ?? '', l.date ? new Date(l.date).toLocaleDateString('it-IT') : '', daysAgo(l.date) ?? '', l.com || ''])));
+  hofBind();
   $('xSold').onclick = () => downloadCsv(`vendite-${now.toISOString().slice(0, 10)}.csv`,
     [['Data', 'Set', 'Numero', 'Nome', 'Variante', 'Quantità', 'Prezzo', 'Totale', 'Venduta su', 'File', 'Giorni per vendere']].concat(
       sold.map(s => [new Date(s.date).toLocaleDateString('it-IT'), s.expName || state.cm[s.exp]?.name || '', s.num, s.name, vLab(s), s.q,

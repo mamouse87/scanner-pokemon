@@ -321,7 +321,7 @@
               : `<div class="mut" style="padding:10px 2px">${tab === 'todo' ? 'Nessuna offerta da cambiare.' : tab === 'done' ? 'Ancora nessuna.' : 'Tutte le carte dell\'elenco sono su Cardmarket.'}</div>`}</div></div>
           ${todo.length && fatte.length ? `<div class="row"><button class="sec" id="oSend">📤 Invia al gestionale le ${fatte.length} già cambiate</button></div>` : ''}`
           : !job ? '' : ''}
-      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 22/11 h</span></div>`;
+      </div><div class="ft">${offers ? `<span class="mut" style="margin-right:auto">${offers.list.length} offerte lette alle ${new Date(offers.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}${job && offers ? '<a href="#" id="oVer" title="Rilegge le offerte e controlla che i prezzi su Cardmarket siano davvero cambiati">Verifica i prezzi</a><a href="#" id="oRead">Rileggi le offerte</a>' : ''}${job && job.fromCheck ? '<a href="#" id="oSendChk" title="Manda il controllo al gestionale con le correzioni fatte finora">Invia il controllo</a>' : ''}<a href="#" id="oClip">Incolla elenco</a><span class="mut" style="margin-left:8px">v. 27/11</span></div>`;
       $o('oClip').onclick = async e => {
         e.preventDefault();
         let t = ''; try { t = await navigator.clipboard.readText(); } catch (er) { t = prompt('Incolla qui il testo copiato dal gestionale (inizia con csedit=)') || ''; }
@@ -1493,7 +1493,7 @@
         (wantPrice ? ` · prezzo = ${BASE_NAME[base]}${fmtPlus}` : '') + (comment ? ` · commento "${comment}"` : ''));
 
     const byNum = new Map();
-    const missing = [], missVx = [], dupNum = new Set();
+    const missing = [], missVx = [], dupNum = new Set(), rarFix = new Set();
     const vxPids = new Set(items.filter(x => isVx(x.v) && x.p).map(x => String(x.p)));
     const done = Object.assign({}, doneGet());
     let skipped = 0;
@@ -1525,15 +1525,26 @@
         bRow = cand[0] || null;
         if (!bRow) { missing.push(it.num + (it.rev ? 'R' : '')); continue; }
       }
+      // TCGdex a volte scambia la carta base con la sua versione promo (riga "V2" con rarità Promo, es. Scintille Folgoranti 029, 031,
+      // 092, 161): se la riga scelta ha una rarità diversa dalla lista e un'altra riga con lo stesso numero ha quella giusta, uso quella
+      const cur = bRow || rows.get(k0n);
+      let rf = false;
+      if (cur && it.rarity && sameRarity(it.rarity, cur.rarity) === false && rows.all) {
+        const ok = (rows.all.get(k0n) || []).filter(r => r !== cur && !vxPids.has(String(r.pid)) && sameRarity(it.rarity, r.rarity) === true)
+          .sort((a, b) => (+a.pid || 0) - (+b.pid || 0));
+        if (ok.length) { bRow = ok[0]; rf = true; rarFix.add(`${it.num} ${it.name || ''}`.trim()); }
+      }
       if ((!rows.has(k0n) && !bRow) || supHere) { missing.push(it.num + (it.rev ? 'R' : '')); continue; }
       const k = bRow ? 'p' + bRow.pid + '|b' : k0n;
       const g = byNum.get(k) || { row: bRow || rows.get(k0n), jk: k0n, normal: 0, rev: 0, name: it.name, rarity: it.rarity };
+      if (rf) g.rf = true;   // prezzo dalla riga giusta, non dall'elenco (calcolato sulla Promo)
       if (it.rev) g.rev += it.qty; else g.normal += it.qty;
       byNum.set(k, g);
     }
     if (skipped) log(`${skipped} copie della lista erano già state inviate al gestionale: non le compilo di nuovo.` +
       (!byNum.size ? ' Se non è vero, premi "azzera avanzamento" sotto la lista e poi di nuovo "Compila la pagina".' : ''), byNum.size ? '#9aa3ad' : '#ff9f43');
     if (missing.length) log('Non in questa pagina (altra pagina del set o set sbagliato): ' + missing.join(', '), '#ff9f43');
+    if (rarFix.size) log('Rarità corretta: ' + [...rarFix].join(', ') + '. Il gestionale (dati TCGdex) indicava la versione Promo: ho usato la riga con la rarità della tua lista e il suo prezzo di Cardmarket (Da), controllalo.', '#9aa3ad');
     if (dupNum.size) log('Attenzione: in questa pagina ci sono più versioni con lo stesso numero (' + [...dupNum].join(', ') + '). Ho scelto la più vecchia, di solito la carta base: controlla la foto della riga prima di mettere in vendita.', '#ff9f43');
     // le varianti rare (Jumbo, timbrate, promo…) possono stare in un'Edizione diversa dai Supplementi: lo script le riconosce dal prodotto in qualunque pagina
     if (missVx.length) log('Varianti speciali non in questa pagina: ' + missVx.join(', ') + (supHere ? '. Non sono nemmeno nei Supplementi (o sono in un\'altra pagina dei Supplementi): cercale su Cardmarket, apri la loro Edizione in "Inserisci carte bulk" e premi di nuovo "Compila la pagina".' : '.'), '#ff9f43');
@@ -1544,7 +1555,7 @@
     const jobMap = job ? new Map(job.items.map(it => [isVx(it.v) ? 'p' + it.p + '|N' : norm(it.u) + '|' + (it.rev ? 'R' : 'N'), it])) : null;
     if (job) log(`Prezzi dall'elenco del gestionale (${job.items.length} righe, calcolati per Normali e Reverse).`, '#9aa3ad');
     // la Price Guide serve solo per le Reverse che l'elenco del gestionale non copre
-    const revNoJob = [...byNum.entries()].some(([gk, g]) => g.rev && !(jobMap && (() => { const ji = jobMap.get((g.jk || gk) + '|R'); return ji && (ji.mp != null || ji.lo != null || ji.t != null); })()));
+    const revNoJob = [...byNum.entries()].some(([gk, g]) => g.rev && (g.rf || !(jobMap && (() => { const ji = jobMap.get((g.jk || gk) + '|R'); return ji && (ji.mp != null || ji.lo != null || ji.t != null); })())));
     if (wantPrice && revNoJob) {
       const pids = new Set([...byNum.values()].map(g => String((field(g.row.tr, 'idProduct') || {}).value)));
       await priceGuide(pids);
@@ -1568,7 +1579,7 @@
         }
         let price = null, src = '', pwarn = false, rule = null;
         if (wantPrice) {
-          const ji = jobMap && jobMap.get((g.jk || gk) + '|' + (v.rev ? 'R' : 'N'));
+          const ji = !g.rf && jobMap && jobMap.get((g.jk || gk) + '|' + (v.rev ? 'R' : 'N'));
           const b = (ji && jobValue(ji, v.rev, base)) || baseValue(g.row.tr, v.rev, base);
           src = b.src; pwarn = !!b.warn;
           if (b.fixed != null) {

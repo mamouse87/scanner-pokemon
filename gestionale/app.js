@@ -167,7 +167,22 @@ function vxInfoOf(setId, u, p) {
   return v ? { vl: v.l, vb: v.b } : null;
 }
 /** varianti di una carta già lette da TCGdex: { base, rev (esiste la Reverse semplice), det (TCGdex ha l'elenco), x: [{p, l, b}] } */
-function varCache(cardId) { if (!cardId) return null; try { return JSON.parse(localStorage.getItem(VKEY(cardId))); } catch (e) { return null; } }
+function varCache(cardId) { if (!cardId) return null; try { return varFix(JSON.parse(localStorage.getItem(VKEY(cardId)))); } catch (e) { return null; } }
+/**
+ * TCGdex a volte scambia la carta base con la sua versione promo (es. Scintille Folgoranti 029, 031, 050, 072, 092, 129, 161):
+ * il prodotto "base" è la riga V2 di Cardmarket con rarità Promo, e la carta vera risulta come variante timbrata o Cosmo.
+ * Se il catalogo Cardmarket del set (arriva dallo script) dice che la base è Promo e una variante ha la rarità normale, li scambio.
+ */
+function varFix(o) {
+  if (!o || !o.sn || !o.base || !(o.x || []).length || typeof state !== 'object' || !state) return o;
+  const E = cmCatalogFor(o.sn);
+  if (!E) return o;
+  const r = p => (E.cards[p] || {}).r || '', promo = t => /promo/i.test(t);
+  if (!promo(r(o.base)) || promo(o.rr || '')) return o;
+  const alt = o.x.find(x => r(x.p) && !promo(r(x.p)));
+  if (!alt) return o;
+  return Object.assign({}, o, { base: alt.p, fixed: o.base, x: o.x.map(x => x === alt ? Object.assign({}, x, { p: o.base }) : x) });
+}
 const unacc = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 // nomi dei timbri e degli effetti che TCGdex non traduce in italiano
 const STAMP_IT = { 'snowflake': 'Fiocco di neve', 'player-rewards-program': 'Play! Pokémon', 'trick-or-trade': 'Trick or Trade', 'regional-championships': 'Campionati Regionali',
@@ -207,7 +222,7 @@ function varBadge(v, bt) {
   if (t === 'holo') return 'HO';
   return unacc(v.type).slice(0, 2).toUpperCase() || 'SP';
 }
-const VAR_VER = 4;   // cambia quando cambiano i nomi delle varianti: le varianti salvate si rileggono
+const VAR_VER = 5;   // cambia quando cambiano i nomi delle varianti: le varianti salvate si rileggono
 let varSaveT = null;
 function varStore(cardId, d) {
   const det = Array.isArray(d && d.variants_detailed) ? d.variants_detailed : [];
@@ -219,11 +234,11 @@ function varStore(cardId, d) {
   const bt = vtype(det.find(v => plain(v) && !isRev(v) && cmId(v) === base) || baseV || {});
   // "senza Reverse semplice" solo se TCGdex elenca delle Reverse e sono tutte speciali (Ball, Energia…): se non elenca nessuna Reverse,
   // i dati sono incompleti o vecchi (es. Dominio Delta sul servizio TCGdex) e non segnalo nulla
-  const o = { at: Date.now(), vv: VAR_VER, base, rev: !det.length || det.some(v => isRev(v) && plain(v)) || !det.some(isRev), det: det.length > 0, x: [] };
+  const o = { at: Date.now(), vv: VAR_VER, sn: (d && d.set && d.set.name) || '', rr: (d && d.rarity) || '', base, rev: !det.length || det.some(v => isRev(v) && plain(v)) || !det.some(isRev), det: det.length > 0, x: [] };
   const seen = new Set();
   det.forEach(v => { const p = cmId(v); if (!p || p === base || seen.has(p)) return; seen.add(p); o.x.push({ p, l: varLabel(v, bt), b: varBadge(v, bt) }); });
   try { localStorage.setItem(VKEY(cardId), JSON.stringify(o)); } catch (e) {}
-  return varSync(o);
+  return varSync(varFix(o));
 }
 /** copie già salvate con il nome vecchio della variante: aggiorno nome e sigla */
 function varSync(o) {

@@ -604,7 +604,7 @@ async function renderSet() {
   const bySet = listingsBySet();
   const mine = bySet[selected] || [];
   const sbList = Object.entries(state.standby || {}).filter(([, x]) => x.s === selected);
-  let cards, setName, logo = '', official = 0, setId = null;
+  let cards, setName, logo = '', official = 0, setId = null, S = null;
   if (selected.startsWith('cm:')) {
     // set non presente in TCGdex: uso l'elenco di Cardmarket
     const E = state.cm[selected.slice(3)];
@@ -613,7 +613,7 @@ async function renderSet() {
   } else {
     const mySel = selected;
     if (!mem['/sets/' + encodeURIComponent(selected)]) main.innerHTML = '<p class="empty">Carico le carte del set…</p>';
-    const S = await tcg('/sets/' + encodeURIComponent(selected), 24);
+    S = await tcg('/sets/' + encodeURIComponent(selected), 24);
     if (selected !== mySel) return;
     if (!S) { main.innerHTML = '<p class="empty">Non riesco a caricare il set da TCGdex (serve internet).</p>'; return; }
     setId = S.id; setName = S.name || enSets[S.id]?.name || S.id; logo = S.logo || enSets[S.id]?.logo || ''; official = S.cardCount?.official || 0;
@@ -657,8 +657,12 @@ async function renderSet() {
   cntF.no = cards.filter(c => !byNum[norm(c.localId)] && !sbByNum[norm(c.localId)]).length;
   if (filter !== 'all' && !cntF[filter]) filter = 'all';
   const chip = (v, l) => `<button class="chip ${filter === v ? 'on' : ''}" data-f="${v}">${l}<i>${cntF[v]}</i></button>`;
-  let h = `<div class="sethead shset"><div class="row" style="gap:16px">${logo ? `<img class="logo" src="${esc(logo)}.png" alt="" data-logo="1">` : ''}
-      <div><h2>${esc(setName)}</h2><div class="sub">${cards.length} carte${extra ? `: ${official} + ${extra} fuoriserie` : ''}</div></div></div>
+  // riga di informazioni sotto il titolo (una sola riga: i pulsanti sotto non si spostano); scheda completa col clic sul logo
+  const SI = setInfoOf(S, selected, setName, cards.length, official);
+  const infoLine = [SI.sig ? `<b>${esc(SI.sig)}</b>` : '', SI.date ? `uscito il ${SI.date.toLocaleDateString('it-IT')}` : '', SI.serie ? esc(SI.serie) : '',
+    `${cards.length} carte${extra ? `: ${official} + ${extra} fuoriserie` : ''}`, SI.std != null ? (SI.std ? '<span class="ok">Standard ✓</span>' : 'non in Standard') : ''].filter(Boolean).join(' · ');
+  let h = `<div class="sethead shset"><div class="row" style="gap:16px">${logo ? `<a href="#" class="lgw" id="bInfo" title="Informazioni sul set"><img class="logo" src="${esc(logo)}.png" alt="" data-logo="1"><i>i</i></a>` : ''}
+      <div><h2>${esc(setName)}${logo ? '' : ' <a href="#" class="ib" id="bInfo" title="Informazioni sul set">ℹ</a>'}</h2><div class="sub sinfo">${infoLine}</div></div></div>
     <div class="row">
       ${copies || sbQ ? `<button class="ghost" id="bSel" title="Scegli più carte da togliere dalla vendita o riportare in Standby">☑ ${selMode ? 'Fine selezione' : 'Seleziona'}</button>
         <button class="ghost" id="bCl" title="PDF da stampare con le carte di questo set: il cliente segna quelle che vuole">📋 Lista per i clienti</button>` : ''}
@@ -762,6 +766,7 @@ async function renderSet() {
   if ($('bEditCM')) $('bEditCM').onclick = () => openPriceEdit(mine[0]?.[1].expName || state.cm[mine[0]?.[1].exp]?.name || '');
   if ($('bSel')) $('bSel').onclick = () => { selMode = !selMode; sel.clear(); renderSet(); };
   if ($('bCl')) $('bCl').onclick = () => pdfClients();
+  $('bInfo').onclick = e => { e.preventDefault(); setInfoDlg(SI, mine, sbList); };
   $('bLog').onclick = () => { Object.assign(logF, { sid: selected, name: setName, t: '', q: '', open: {} }); goTab('__log'); };
   if (selMode) {
     const upd = () => { $('selN').textContent = `${sel.size} carte selezionate`; document.querySelectorAll('.card').forEach(el => el.classList.toggle('sel', sel.has(el.dataset.n))); };
@@ -2374,6 +2379,53 @@ function bars(items, fmt, cls) {
 function info(l) {
   const c = state.cm[l.exp]?.cards?.[l.p] || {};
   return { c, name: c.n || '', set: l.expName || state.cm[l.exp]?.name || '', rar: rarIt(c.r) || 'Non indicata' };
+}
+// ---------- informazioni sul set (27/11): riga sotto il titolo e scheda col clic sul logo ----------
+function setInfoOf(S, sid, setName, nCards, official) {
+  const d = S?.releaseDate ? new Date(S.releaseDate) : null;
+  const E = cmCatalogFor(setName);
+  // pagina del set su Cardmarket: dall'indirizzo di una carta del catalogo (…/Singles/<Set>/<Carta>), sennò una ricerca
+  const ur = Object.values(E?.cards || {}).map(c => c.ur).find(u => u && /\/Singles\/[^/]+\//.test(u));
+  let cmSet = '', cmSup = '';
+  if (ur) { const u = new URL(ur, 'https://www.cardmarket.com'), seg = u.pathname.split('/'), i = seg.indexOf('Singles');
+    const slug = seg[i + 1].replace(/-Additionals$/, ''); seg.length = i + 1; cmSet = `https://www.cardmarket.com${seg.join('/')}/${slug}`; cmSup = cmSet + '-Additionals'; }
+  return { name: setName, sid, date: d && !isNaN(d) ? d : null, serie: S?.serie?.name || '', sig: siglaOf(sid.startsWith('cm:') ? null : sid, setName) || '',
+    official, ...(() => { const tot = Math.max(nCards, S?.cardCount?.total || 0); return { total: tot, extra: official && tot > official ? tot - official : 0 }; })(),
+    std: S?.legal ? !!S.legal.standard : null, exp: S?.legal ? !!S.legal.expanded : null,
+    cmSet, cmSup, cmSearch: `https://www.cardmarket.com/it/Pokemon/Products/Search?searchString=${encodeURIComponent(setName)}` };
+}
+function setInfoDlg(SI, mine, sbList) {
+  const q = mine.reduce((a, [, l]) => a + l.q, 0), v = mine.reduce((a, [, l]) => a + (l.price || 0) * l.q, 0);
+  const sbQ = sbList.reduce((a, [, x]) => a + x.q, 0), sbV = sbList.reduce((a, [k, x]) => { const M = sbmOf(k); return a + ((M && !(x.rev && !M.rv) ? consOf(M)?.v : 0) || 0) * x.q; }, 0);
+  const sold = (state.sold || []).filter(s => SI.sid.startsWith('cm:') ? s.exp === SI.sid.slice(3) : (lSid(s) === SI.sid || s.expName === SI.name));
+  const sq = sold.reduce((a, s) => a + s.q, 0), sv = sold.reduce((a, s) => a + (s.price || 0) * s.q, 0);
+  const lists = Object.entries(state.lists || {}).filter(([, l]) => l.sid ? l.sid === SI.sid : simp(l.set) === simp(SI.name)).sort((a, b) => String(b[1].at).localeCompare(String(a[1].at)));
+  const top = mine.filter(([, l]) => l.price != null).sort((a, b) => b[1].price - a[1].price)[0];
+  const first = mine.map(([, l]) => l.date).filter(Boolean).sort((a, b) => new Date(a) - new Date(b))[0];
+  const nV = mine.filter(([, l]) => l.vp).reduce((a, [, l]) => a + l.q, 0) + sbList.filter(([, x]) => x.vp).reduce((a, [, x]) => a + x.q, 0);
+  const row = (k, val) => val ? `<dt>${k}</dt><dd>${val}</dd>` : '';
+  const yn = b => b == null ? '' : b ? '<span class="ok">✓</span>' : '✗';
+  openDlg(`<h3>ℹ ${esc(SI.name)}</h3>
+    <div class="sicols"><div><h4>Il set</h4><dl class="kv">
+      ${row('Uscita', SI.date ? SI.date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : '')}
+      ${row('Serie', esc(SI.serie))}${row('Sigla', esc(SI.sig))}
+      ${row('Carte', SI.official ? `${SI.official}${SI.extra ? ` + ${SI.extra} fuoriserie` : ''} (${SI.total} in tutto)` : `${SI.total}`)}
+      ${row('Formato', SI.std != null ? `Standard ${yn(SI.std)} · Expanded ${yn(SI.exp)}` : '')}</dl>
+      <p class="row" style="gap:8px;margin-top:12px">${SI.cmSet ? `<a class="btn" href="${esc(SI.cmSet)}" target="_blank" rel="noopener">Cardmarket ↗</a><a class="btn" href="${esc(SI.cmSup)}" target="_blank" rel="noopener">Supplementi ↗</a>`
+        : `<a class="btn" href="${esc(SI.cmSearch)}" target="_blank" rel="noopener" title="La pagina esatta arriva quando lo script manda al gestionale una pagina di questo set">Cerca su Cardmarket ↗</a>`}</p></div>
+    <div><h4>Le tue carte in questo set</h4><dl class="kv">
+      <dt>In vendita</dt><dd>${q ? `${q} ${q === 1 ? 'copia' : 'copie'} · ${eur(r2(v))}` : 'nessuna'}</dd>
+      <dt>In Standby</dt><dd>${sbQ ? `${sbQ} ${sbQ === 1 ? 'copia' : 'copie'}${sbV ? ` · circa ${eur(r2(sbV))} al Consigliato` : ''}` : 'nessuna'}</dd>
+      ${row('Varianti speciali', nV ? `${nV} ${nV === 1 ? 'copia' : 'copie'}` : '')}
+      <dt>Vendute</dt><dd>${sq ? `${sq} ${sq === 1 ? 'copia' : 'copie'} · ${eur(r2(sv))}` : 'nessuna'}</dd>
+      ${row('Liste caricate', lists.length ? `${lists.length} (ultima ${esc(lists[0][0])}, ${fmtD(lists[0][1].at)})` : '')}
+      ${row('In vendita dal', first ? fmtD(first) : '')}
+      ${row('La più cara', top ? `${esc(top[1].u)} ${esc(info(top[1]).name || '')}${top[1].rev ? ' <b style="color:var(--rev)">R</b>' : ''} · ${eur(top[1].price)}` : '')}</dl>
+      <p class="row" style="margin-top:12px"><button id="siLog">📜 Apri il registro del set</button></p></div></div>
+    <p class="row" style="justify-content:flex-end"><button class="pri" id="siOk">Chiudi</button></p>`, () => {
+    $('siOk').onclick = closeDlg;
+    $('siLog').onclick = () => { closeDlg(); $('bLog')?.click(); };
+  });
 }
 // ---------- Hall of Fame (Statistiche, 27/11): le 5 carte in cima alla classifica scelta ----------
 const HOF_M = [['exp', 'Più care'], ['cheap', 'Più economiche'], ['qty', 'Più copie'], ['val', 'Valore totale'], ['sold', 'Più vendute'], ['inc', 'Più incasso'], ['old', 'Ferme da più tempo']];

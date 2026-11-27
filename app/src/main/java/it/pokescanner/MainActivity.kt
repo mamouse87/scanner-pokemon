@@ -547,7 +547,8 @@ class MainActivity : AppCompatActivity() {
         if (!Variants.isSpecial(varMode)) return (if (varMode == Variants.R) "R" else "") to ""
         val id = set?.cards?.get(CardRepo.norm(n))?.id ?: return null
         val cv = Variants.cached(this, lang, id) ?: return null
-        val o = Variants.pick(cv, varMode) ?: return null
+        val all = Variants.pickAll(cv, varMode)
+        val o = all.singleOrNull() ?: return null   // più versioni Promo: si sceglie al momento
         return "X" + o.p to o.label
     }
 
@@ -578,7 +579,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun addSpecial(n: String, note: String, card: CardInfo, cv: CardVars) {
-        val o = Variants.pick(cv, varMode)
+        val all = Variants.pickAll(cv, varMode)
+        if (all.size > 1) {
+            // più versioni Promo della stessa carta (es. Cosmo Holo e timbrata): scegli tu
+            paused = true
+            feedbackPresent()
+            AlertDialog.Builder(this)
+                .setTitle("${CardRepo.pad(n)} ${card.name}: quale Promo?")
+                .setItems(all.map { it.label }.toTypedArray()) { _, i -> paused = false; addCard(n, note, "X" + all[i].p, all[i].label) }
+                .setNegativeButton("Non aggiungere") { _, _ -> paused = false; status("${CardRepo.pad(n)} non aggiunta.") }
+                .setOnCancelListener { paused = false }
+                .show()
+            return
+        }
+        val o = all.firstOrNull()
         if (o == null) {
             feedbackError()
             val has = cv.opts.filter { it.cat != "altra" }.joinToString(", ") { it.label }
@@ -715,6 +729,7 @@ class MainActivity : AppCompatActivity() {
         if (revN > 0) sb.append("\nTutte Reverse Holo (modalità Reverse attiva).\n")
         if (spec && total > 0) sb.append("\nTutte ${Variants.modeLabel(varMode)}: ognuna con la sua variante.\n")
         if (noVar.isNotEmpty()) sb.append("\n⚠ Non esistono come ${Variants.modeLabel(varMode)} (o varianti non ancora lette): ${noVar.joinToString(", ") { CardRepo.pad(it) }}. Non le aggiungo.\n")
+        if (noVar.isNotEmpty() && varMode == Variants.PROMO) sb.append("(Le carte con più versioni Promo vanno aggiunte con la carta singola: ti chiedo quale.)\n")
         if (unknownN > 0) sb.append("⚠ Per $unknownN carte non sono riuscito a capire se sono Reverse (sigla grigia): contate come normali.\n")
         if (scan.bad.isNotEmpty())
             sb.append("\n⚠ ${scan.bad.size} righe con totale diverso da /${sd.total} (in rosso, ignorate).\n")
@@ -846,7 +861,7 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    private fun modeLetter(m: String) = when (m) { Variants.N -> "N"; Variants.R -> "R"; Variants.ENERGIA -> "E"; Variants.BALL -> "B"; Variants.MASTER -> "M"; else -> "?" }
+    private fun modeLetter(m: String) = when (m) { Variants.N -> "N"; Variants.R -> "R"; Variants.ENERGIA -> "E"; Variants.BALL -> "B"; Variants.MASTER -> "M"; Variants.PROMO -> "P"; else -> "?" }
     private fun modeColor(m: String) = when { Variants.isSpecial(m) -> OverlayView.SPECIAL; m == Variants.R -> Color.rgb(204, 93, 232); else -> Color.rgb(255, 203, 5) }
 
     /**
@@ -899,10 +914,11 @@ class MainActivity : AppCompatActivity() {
             Variants.ENERGIA -> "Reverse Energia"
             Variants.BALL -> "Reverse Ball (la Ball della carta, o Team Rocket)"
             Variants.MASTER -> "Reverse Master Ball"
+            Variants.PROMO -> "Promo (timbrate, Cosmo Holo…)"
             else -> m } }.toTypedArray()
         val tot = sd.cards.values.count { it.id.isNotEmpty() }
         val note = (if (known < tot) "Sto leggendo le varianti del set: $known di $tot carte (serve internet). Se manca una modalità, riapri tra poco.\n\n" else "") +
-            "Le varianti rare (Cosmo, timbrate, Non Holo…) aggiungile dal gestionale."
+            "Jumbo e Non Holo aggiungile dal gestionale."
         val head = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(56, 40, 56, 8)
             addView(TextView(this@MainActivity).apply { text = "Variante delle carte"; textSize = 20f; setTypeface(typeface, android.graphics.Typeface.BOLD) })
@@ -940,7 +956,7 @@ class MainActivity : AppCompatActivity() {
                 "2. CARTA SINGOLA: inquadra una carta alla volta. Appena legge il numero (es. 123/198) la aggiunge da sola con un bip. " +
                 "Se riconosce la stessa carta entro 3 secondi ti chiede se è un'altra copia.\n\n" +
                 "3. VENTAGLIO: sovrapponi le carte lasciando visibile la riga del numero in basso e premi \"Leggi ventaglio\".\n\n" +
-                "4. VARIANTE: i cerchi a destra della fotocamera (N Normale, R Reverse, E Energia, B Ball, M Master Ball) mostrano solo le varianti del set. " +
+                "4. VARIANTE: i cerchi a destra della fotocamera (N Normale, R Reverse, E Energia, B Ball, M Master Ball, P Promo) mostrano solo le varianti del set. " +
                 "Tocca un cerchio per cambiare; tieni premuto per l'elenco con i nomi. Finché è attiva, tutte le carte che scansioni prendono quella variante. " +
                 "Con \"Ball\" ogni carta prende la sua (Poké, Love, Scuro… o Team Rocket). Una carta che non ha la variante scelta non viene aggiunta (suono di errore). " +
                 "La cornice diventa viola per la Reverse, oro per le varianti speciali.\n\n" +

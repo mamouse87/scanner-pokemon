@@ -18,9 +18,10 @@ data class VarOpt(val p: String, val label: String, val cat: String)
 data class CardVars(val base: String, val plainRev: Boolean, val opts: List<VarOpt>)
 
 /**
- * Modalità di scansione per categoria (tappa 3): Normale, Reverse, Energia, Ball, Master Ball.
+ * Modalità di scansione per categoria (tappa 3): Normale, Reverse, Energia, Ball, Master Ball, Promo.
  * "Ball" = la Ball della carta (Poké, Love, Scuro, Velox, Friend…) o il Team Rocket: ogni carta ne ha una sola.
- * Le varianti rare (Cosmo, timbrate, Non Holo, Jumbo) si aggiungono dal gestionale.
+ * "Promo" (27/11) = versioni timbrate e Cosmo/Galassia Holo (su Cardmarket la riga con la P): una carta può averne più di una.
+ * Jumbo e Non Holo si aggiungono dal gestionale.
  */
 object Variants {
     const val N = "N"
@@ -28,13 +29,15 @@ object Variants {
     const val ENERGIA = "energia"
     const val BALL = "ball"
     const val MASTER = "master"
-    val SPECIAL = listOf(ENERGIA, BALL, MASTER)
+    const val PROMO = "promo"
+    val SPECIAL = listOf(ENERGIA, BALL, MASTER, PROMO)
 
     fun modeLabel(m: String) = when (m) {
         R -> "Reverse Holo"
         ENERGIA -> "Reverse Energia"
         BALL -> "Reverse Ball"
         MASTER -> "Reverse Master Ball"
+        PROMO -> "Promo"
         else -> "Normale"
     }
 
@@ -44,10 +47,12 @@ object Variants {
     /** carte già guardate senza elenco di varianti (set vecchi): non rileggo i file ogni volta */
     private val none = ConcurrentHashMap<String, Boolean>()
 
-    private fun cat(type: String, foil: String, stamped: Boolean): String {
+    private fun cat(type: String, foil: String, stamped: Boolean, jumbo: Boolean): String {
         val t = type.lowercase()
         val f = foil.lowercase()
-        if (!t.startsWith("rev") || stamped || f.isEmpty()) return "altra"
+        if (jumbo) return "altra"
+        if (stamped || f.contains("cosm") || f.contains("galax") || f.contains("galass")) return PROMO
+        if (!t.startsWith("rev") || f.isEmpty()) return "altra"
         return when {
             f.contains("energ") -> ENERGIA
             f.contains("master") -> MASTER
@@ -76,11 +81,37 @@ object Variants {
             if (p.isEmpty() || p == base || !seen.add(p)) continue
             val type = v.optString("type", "")
             val foil = v.optString("foil", "")
-            val label = listOf(if (type.lowercase().startsWith("rev")) "Reverse" else type.replaceFirstChar { it.uppercase() }, foil)
+            val jumbo = v.optString("size", "").lowercase().contains("jumbo")
+            val c = cat(type, foil, stamped(v), jumbo)
+            val label = if (c == PROMO) promoLabel(type, foil, stampsOf(v)) else listOf(if (type.lowercase().startsWith("rev")) "Reverse" else type.replaceFirstChar { it.uppercase() }, foil)
                 .filter { it.isNotBlank() }.joinToString(" ")
-            opts.add(VarOpt(p, label.ifEmpty { "Variante speciale" }, cat(type, foil, stamped(v))))
+            opts.add(VarOpt(p, label.ifEmpty { "Variante speciale" }, c))
         }
         return CardVars(base, plainRev, opts)
+    }
+
+    private fun stampsOf(v: JSONObject): List<String> {
+        v.optJSONArray("stamp")?.let { a -> return (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }
+        return v.optString("stamp", "").takeIf { it.isNotBlank() && it != "null" }?.let { listOf(it) } ?: emptyList()
+    }
+
+    /** nomi italiani dei timbri più comuni (TCGdex non li traduce; stessi nomi del gestionale) */
+    private val STAMP_IT = mapOf("set-logo" to "logo del set", "logo set" to "logo del set", "pre-release" to "Pre-release", "pokemon-center" to "Pokémon Center",
+        "staff" to "Staff", "gamestop" to "GameStop", "eb-games" to "EB Games", "snowflake" to "fiocco di neve", "player-rewards-program" to "Play! Pokémon",
+        "pokemon-day" to "Pokémon Day", "regional-championships" to "Campionati Regionali", "national-championships" to "Campionati Nazionali",
+        "winner" to "Vincitore", "horizons" to "Horizons")
+
+    private fun promoLabel(type: String, foil: String, stamps: List<String>): String {
+        val f = foil.lowercase()
+        val parts = ArrayList<String>()
+        if (type.lowercase().startsWith("rev")) parts.add("Reverse")
+        when {
+            f.contains("cosm") -> parts.add("Cosmo Holo")
+            f.contains("galax") || f.contains("galass") -> parts.add("Galassia Holo")
+            f.isNotBlank() -> parts.add(foil)
+        }
+        if (stamps.isNotEmpty()) parts.add("timbro " + stamps.joinToString(", ") { STAMP_IT[it.lowercase()] ?: it.replace('-', ' ') })
+        return parts.joinToString(" ").ifEmpty { "Promo" }
     }
 
     /** Solo dalla memoria o dai file già scaricati (non va su internet). */
@@ -113,6 +144,8 @@ object Variants {
 
     /** La variante della carta per la modalità scelta (null = la carta non ce l'ha). */
     fun pick(cv: CardVars, mode: String): VarOpt? = cv.opts.firstOrNull { it.cat == mode }
+    /** tutte le varianti della carta per la modalità (le Promo possono essere più di una) */
+    fun pickAll(cv: CardVars, mode: String): List<VarOpt> = cv.opts.filter { it.cat == mode }
 
     @Volatile var progressSet = ""
     private val doneN = AtomicInteger(0)

@@ -2982,7 +2982,7 @@ async function tcgCardId(l) {
   }
   return null;
 }
-async function tcgPrice(l) {
+async function tcgPrice(l, pid) {
   const id = await tcgCardId(l);
   if (!id) return null;
   for (const base of [API, API_EN]) {
@@ -2995,7 +2995,13 @@ async function tcgPrice(l) {
       if (v?.pricing?.cardmarket) return v.pricing.cardmarket;
       continue;
     }
+    // carta normale: i prezzi del prodotto che hai davvero su Cardmarket. TCGdex a volte mette come base la versione Promo
+    // (es. Scintille Folgoranti 029, 031, 092, 161): in quel caso il prodotto giusto è tra le varianti, con i suoi prezzi
     const cm = d?.pricing?.cardmarket;
+    if (pid && !(cm && String(cm.idProduct || '') === String(pid))) {
+      const v = (d.variants_detailed || []).find(v => String(v?.thirdParty?.cardmarket || '') === String(pid) && v.pricing?.cardmarket);
+      if (v) return v.pricing.cardmarket;
+    }
     if (cm) return cm;
   }
   return null;
@@ -3064,7 +3070,7 @@ async function readMarket(l, pid) {
   }
   const pg = pid && pgFresh && state.pg.p[pid];
   if (pg) return Object.assign({ v: 2, src: 'pg', upd: state.pg.at }, fromVals(l, pg));
-  const cm = await tcgPrice(l);
+  const cm = await tcgPrice(l, pid);
   if (cm) {
     const M = Object.assign({ v: 2, src: 'tcgdex', upd: cm.updated || null }, fromVals(l, [...MK.map(f => pos(cm[f])), ...MK.map(f => pos(cm[f + '-holo']))]));
     if (pid && cm.idProduct && String(cm.idProduct) !== String(pid)) M.x = 1;
@@ -3093,7 +3099,8 @@ async function updatePrices(force) {
         const { k, l, sb } = jobs[i++];
         const store = sb ? state.sbMarket : state.market;
         const old = store[k];
-        if (!force && old && old.v === 2 && Date.now() - new Date(old.at) < AUTO_H * 3600e3) { prog.done++; continue; }
+        // valori di un altro prodotto (x: TCGdex non aveva quello giusto): li rileggo sempre
+        if (!force && old && old.v === 2 && !old.x && Date.now() - new Date(old.at) < AUTO_H * 3600e3) { prog.done++; continue; }
         const M = await readMarket(l, sb ? sbPid(l) : l.p);
         fetched++;
         const st2 = sb ? state.sbMarket : state.market;   // (lo stato può essere stato sostituito da un Annulla nel frattempo)
